@@ -117,12 +117,47 @@
     const FIREBALL_COLOR = '#ff8800';
     const FIREBALL_EXPLOSION_COLOR = '#ffcc66';
 
+    // --- Snake Enemy Constants ---
+    const NUM_SNAKES_TO_SPAWN = 10;
+    const SNAKE_WIDTH = 60;
+    const SNAKE_HEIGHT = 60;
+    const SNAKE_COLOR = '#d4af37';
+    const SNAKE_ACCENT_COLOR = '#8b4513';
+    const SNAKE_PATROL_RANGE = 250;
+    const SNAKE_DETECTION_RADIUS = 350;
+    const SNAKE_LEASH_RADIUS = SNAKE_DETECTION_RADIUS * 1.4;
+    const SNAKE_PATROL_SPEED = 120.0;
+    const SNAKE_CHASE_SPEED = 120.0;
+    const SNAKE_HEALTH = 2;
+    const SNAKE_BODY_SEGMENTS = 8;
+    const SNAKE_UNDULATION_SPEED = 3.0;
+    const SNAKE_UNDULATION_AMPLITUDE = 5.0;
+
     // --- Initial Game Object States ---
     const player = { x: 100, y: canvas.height - 100, width: 20, height: 45, velocityX: 0, velocityY: 0, onGround: false, groundPlatform: null, facingDirection: 'right', animationState: 'idle', animationTimer: 0, animationFrameIndex: 0, isAttacking: false, attackTimer: 0, attackCooldownTimer: 0, landingTimer: 0, coyoteTimer: 0, lives: STARTING_LIVES, orbShieldCount: 0, fireballCooldownTimer: 0 };
     const goal = { x: 0, y: 0, width: GOAL_DOOR_WIDTH, height: GOAL_DOOR_HEIGHT, color: GOAL_FRAME_COLOR };
     const batProto = { x: 0, y: 0, width: 25, height: 15, velocityX: 0, velocityY: 0, type: 'bat', state: 'idle', stateTimer: 0, originX: 0, originY: 0, patrolTargetX: 0, patrolTargetY: 0, patrolRange: BAT_PATROL_RANGE, detectionRadius: BAT_DETECTION_RADIUS, leashRadius: BAT_LEASH_RADIUS, chaseSpeed: 80.0, patrolSpeed: 48.0, flapTimer: 0, health: 1, randomMoveTimer: 0 }; // Increased speeds again (ludicrous speed)
-    const groundPatrollerProto = { x: 0, y: 0, width: PATROLLER_WIDTH, height: PATROLLER_HEIGHT, velocityX: 20, type: 'patroller', health: PATROLLER_HEALTH, onPlatform: null, direction: 1 };
+    const groundPatrollerProto = { 
+        x: 0, 
+        y: 0, 
+        width: PATROLLER_WIDTH, 
+        height: PATROLLER_HEIGHT, 
+        velocityX: 10, // Changed from 20 to 0 (initial velocity)
+        type: 'patroller', 
+        health: PATROLLER_HEALTH, 
+        onPlatform: null, 
+        direction: 1,
+        friction: 0.9 // Added friction property
+    };
     const fireballProto = { x: 0, y: 0, vx: 0, vy: 0, radius: FIREBALL_RADIUS, life: FIREBALL_LIFESPAN, active: false };
+    const snakeProto = { 
+        x: 0, y: 0, width: SNAKE_WIDTH, height: SNAKE_HEIGHT, velocityX: 0, velocityY: 0, 
+        type: 'snake', state: 'idle', stateTimer: 0, originX: 0, originY: 0, 
+        patrolTargetX: 0, patrolTargetY: 0, patrolRange: SNAKE_PATROL_RANGE, 
+        detectionRadius: SNAKE_DETECTION_RADIUS, leashRadius: SNAKE_LEASH_RADIUS, 
+        chaseSpeed: SNAKE_CHASE_SPEED, patrolSpeed: SNAKE_PATROL_SPEED, 
+        undulationTimer: 0, health: SNAKE_HEALTH, randomMoveTimer: 0, facingDirection: 1 
+    };
 
     // --- Utility Functions ---
     function getRandom(min, max) { return Math.random() * (max - min) + min; }
@@ -249,14 +284,15 @@
     class LevelGenerator {
         constructor(canvasWidth, canvasHeight) { this.width = canvasWidth; this.height = canvasHeight; this.safeSpawnBuffer = LAVA_WAVE_HEIGHT * 1.5 + 100; }
         generateLevel() {
-            console.log("Generating Level..."); const platforms = []; const collectibles = []; const bats = []; const groundPatrollers = []; let currentX = 0; const safeStartY = this.height - LAVA_BASE_HEIGHT - this.safeSpawnBuffer; let currentY = safeStartY; let levelEndX = CHUNK_WIDTH * NUM_CHUNKS;
+            console.log("Generating Level..."); const platforms = []; const collectibles = []; const bats = []; const groundPatrollers = []; const snakes = []; let currentX = 0; const safeStartY = this.height - LAVA_BASE_HEIGHT - this.safeSpawnBuffer; let currentY = safeStartY; let levelEndX = CHUNK_WIDTH * NUM_CHUNKS;
             const startPlatform = { x: 50, y: safeStartY, width: START_PLATFORM_WIDTH, height: PLATFORM_HEIGHT, color: PLATFORM_BASE_COLOR, hasCactus: false }; platforms.push(startPlatform); currentX = startPlatform.x + startPlatform.width;
             console.log(`Start Platform Y: ${startPlatform.y.toFixed(0)} (Safe Buffer: ${this.safeSpawnBuffer.toFixed(0)}, Base Lava Y: ${this.height - LAVA_BASE_HEIGHT})`);
             for (let i = 0; i < NUM_CHUNKS; i++) { const chunkStartX = i * CHUNK_WIDTH; const chunkEndX = chunkStartX + CHUNK_WIDTH; let chunkPlatCount = 0; let attempts = 0; while (currentX < chunkEndX && attempts < MAX_PLACEMENT_ATTEMPTS * 2) { attempts++; const stepUp = Math.random() < 0.4; const stepDown = !stepUp && Math.random() < 0.3; const isFloating = !stepUp && !stepDown; let nextWidth = getRandom(MIN_PLAT_WIDTH_CHUNK, MAX_PLAT_WIDTH_CHUNK); let nextX, nextY; if (isFloating) { nextX = currentX + getRandom(FLOAT_PLAT_MIN_SEP_X, FLOAT_PLAT_MAX_SEP_X); nextY = currentY + getRandom(-FLOAT_PLAT_MAX_SEP_Y, FLOAT_PLAT_MAX_SEP_Y); nextY = Math.max(PLATFORM_HEIGHT * 2, Math.min(this.height - LAVA_BASE_HEIGHT - PLATFORM_HEIGHT * 3, nextY)); } else { nextX = currentX + getRandom(STEP_WIDTH_MIN, STEP_WIDTH_MAX); let yChange = getRandom(STEP_HEIGHT_MIN, STEP_HEIGHT_MAX); if (stepDown) yChange *= -1; nextY = currentY + yChange; nextY = Math.max(PLATFORM_HEIGHT, Math.min(this.height - LAVA_BASE_HEIGHT - PLATFORM_HEIGHT, nextY)); } const newPlat = { x: nextX, y: nextY, width: nextWidth, height: PLATFORM_HEIGHT, color: PLATFORM_BASE_COLOR, hasCactus: Math.random() < CACTUS_CHANCE && nextWidth > CACTUS_WIDTH * 1.5 }; const checkRadius = MAX_PLAT_WIDTH_CHUNK + FLOAT_PLAT_MAX_SEP_X; const nearbyPlatforms = platforms.filter(p => Math.abs(p.x + p.width/2 - newPlat.x + newPlat.width/2) < checkRadius); if (!checkPlatformArrayOverlap(newPlat, nearbyPlatforms)) { const distToSpawn = Math.sqrt(Math.pow(newPlat.x + newPlat.width/2 - (startPlatform.x + startPlatform.width/2), 2) + Math.pow(newPlat.y + newPlat.height/2 - (startPlatform.y + startPlatform.height/2), 2)); if (distToSpawn > SPAWN_CLEAR_RADIUS) { platforms.push(newPlat); currentX = newPlat.x + newPlat.width; currentY = newPlat.y; chunkPlatCount++; if (groundPatrollers.length < NUM_PATROLLERS_TO_SPAWN && !newPlat.hasCactus && newPlat.width > PATROLLER_WIDTH * 2 && Math.random() < 0.15) { const patroller = { ...groundPatrollerProto }; patroller.x = newPlat.x + newPlat.width / 2 - patroller.width / 2; patroller.y = newPlat.y - patroller.height; patroller.onPlatform = newPlat; patroller.direction = (Math.random() < 0.5) ? 1 : -1; patroller.velocityX = 0; let tooClose = false; for(const gp of groundPatrollers) { if (Math.abs(gp.x - patroller.x) < 100 && Math.abs(gp.y - patroller.y) < 50) { tooClose = true; break; } } if (!tooClose) { groundPatrollers.push(patroller); } } } } } if (chunkPlatCount === 0) { currentX = chunkEndX; } }
             let endPlatform = platforms[platforms.length - 1]; if (platforms.length > 2) { endPlatform = platforms[getRandomInt(Math.floor(platforms.length * 0.8), platforms.length - 1)]; } levelEndX = Math.max(levelEndX, endPlatform.x + endPlatform.width + 100); const goal = { x: endPlatform.x + (endPlatform.width / 2) - (GOAL_DOOR_WIDTH / 2), y: endPlatform.y - GOAL_DOOR_HEIGHT, width: GOAL_DOOR_WIDTH, height: GOAL_DOOR_HEIGHT, color: GOAL_FRAME_COLOR }; const goalRect = { x: goal.x, y: goal.y, width: goal.width, height: goal.height }; if (checkPlatformArrayOverlap(goalRect, platforms.filter(p => p !== endPlatform), -10)) { goal.x = endPlatform.x + endPlatform.width - goal.width - 5; goal.y = endPlatform.y - goal.height; console.warn("Goal position adjusted due to overlap."); }
             let placedRewards = 0; let rewardAttempts = 0; while (placedRewards < NUM_REWARDS && rewardAttempts < MAX_REWARD_PLACEMENT_ATTEMPTS) { rewardAttempts++; const platformIndex = getRandomInt(1, platforms.length - 2); const targetPlatform = platforms[platformIndex]; if (!targetPlatform || targetPlatform.hasCactus) continue; const rewardX = targetPlatform.x + targetPlatform.width / 2 - REWARD_COLLISION_SIZE / 2; const rewardY = targetPlatform.y - REWARD_COLLISION_SIZE - getRandom(5, 25); const rewardRect = { x: rewardX, y: rewardY, width: REWARD_COLLISION_SIZE, height: REWARD_COLLISION_SIZE }; const distToSpawn = Math.sqrt(Math.pow(rewardX - startPlatform.x, 2) + Math.pow(rewardY - startPlatform.y, 2)); const distToGoal = Math.sqrt(Math.pow(rewardX - goal.x, 2) + Math.pow(rewardY - goal.y, 2)); if (distToSpawn > REWARD_CLEAR_RADIUS && distToGoal > REWARD_CLEAR_RADIUS && !checkRewardArrayOverlap(rewardRect, collectibles) && !checkPlatformArrayOverlap(rewardRect, platforms.filter(p => p !== targetPlatform), -REWARD_COLLISION_SIZE * 0.8)) { collectibles.push({ x: rewardX, y: rewardY, width: REWARD_COLLISION_SIZE, height: REWARD_COLLISION_SIZE, color: COLLECTIBLE_COLOR, collected: false }); placedRewards++; } } if (placedRewards < NUM_REWARDS) console.warn(`Only placed ${placedRewards}/${NUM_REWARDS} rewards.`);
             let placedBats = 0; let batAttempts = 0; while (placedBats < NUM_BATS_TO_SPAWN && batAttempts < MAX_PLACEMENT_ATTEMPTS * 2) { batAttempts++; const targetPlatform = platforms[getRandomInt(1, platforms.length - 1)]; if (!targetPlatform) continue; const originX = targetPlatform.x + targetPlatform.width / 2 + getRandom(-CHUNK_WIDTH/3, CHUNK_WIDTH/3); const originY = targetPlatform.y - getRandom(batProto.height * 2, batProto.height * 6); const clampedY = Math.max(batProto.height + 10, Math.min(this.height - LAVA_BASE_HEIGHT - batProto.height - 10, originY)); const batRect = { x: originX - batProto.width / 2, y: clampedY - batProto.height / 2, width: batProto.width, height: batProto.height }; const distToSpawn = Math.sqrt(Math.pow(originX - startPlatform.x, 2) + Math.pow(clampedY - startPlatform.y, 2)); const distToGoal = Math.sqrt(Math.pow(originX - goal.x, 2) + Math.pow(clampedY - goal.y, 2)); if (distToSpawn > SPAWN_CLEAR_RADIUS * 1.2 && distToGoal > EXIT_CLEAR_RADIUS * 0.8 && !checkPlatformArrayOverlap(batRect, platforms, 20) && !checkBatArrayOverlap(batRect, bats, 50)) { const bat = { ...batProto }; bat.originX = originX; bat.originY = clampedY; bat.x = bat.originX - bat.width / 2; bat.y = bat.originY - bat.height / 2; bat.state = (Math.random() < 0.5) ? 'idle' : 'patrolling'; [bat.patrolTargetX, bat.patrolTargetY] = getRandomPatrolPoint(bat.originX, bat.originY, bat.patrolRange); bat.stateTimer = getRandom(1, 3); bat.health = 1; bat.randomMoveTimer = getRandom(0, 1); bats.push(bat); placedBats++; } } if (placedBats < NUM_BATS_TO_SPAWN) console.warn(`Only placed ${placedBats}/${NUM_BATS_TO_SPAWN} bats.`);
-            console.log(`Level Generated: ${platforms.length} platforms, ${collectibles.length} rewards, ${bats.length} bats, ${groundPatrollers.length} patrollers. EndX: ${levelEndX.toFixed(0)}`); return { platforms, collectibles, bats, groundPatrollers, goal, startPlatform, levelEndX };
+            let placedSnakes = 0; let snakeAttempts = 0; while (placedSnakes < NUM_SNAKES_TO_SPAWN && snakeAttempts < MAX_PLACEMENT_ATTEMPTS * 2) { snakeAttempts++; const targetPlatform = platforms[getRandomInt(1, platforms.length - 1)]; if (!targetPlatform) continue; const originX = targetPlatform.x + targetPlatform.width / 2 + getRandom(-CHUNK_WIDTH/3, CHUNK_WIDTH/3); const originY = targetPlatform.y - getRandom(snakeProto.height * 2, snakeProto.height * 6); const clampedY = Math.max(snakeProto.height + 10, Math.min(this.height - LAVA_BASE_HEIGHT - snakeProto.height - 10, originY)); const snakeRect = { x: originX - snakeProto.width / 2, y: clampedY - snakeProto.height / 2, width: snakeProto.width, height: snakeProto.height }; const distToSpawn = Math.sqrt(Math.pow(originX - startPlatform.x, 2) + Math.pow(clampedY - startPlatform.y, 2)); const distToGoal = Math.sqrt(Math.pow(originX - goal.x, 2) + Math.pow(clampedY - goal.y, 2)); if (distToSpawn > SPAWN_CLEAR_RADIUS * 1.2 && distToGoal > EXIT_CLEAR_RADIUS * 0.8 && !checkPlatformArrayOverlap(snakeRect, platforms, 20)) { const snake = { ...snakeProto }; snake.originX = originX; snake.originY = clampedY; snake.x = snake.originX - snake.width / 2; snake.y = snake.originY - snake.height / 2; snake.state = (Math.random() < 0.5) ? 'idle' : 'patrolling'; [snake.patrolTargetX, snake.patrolTargetY] = getRandomPatrolPoint(snake.originX, snake.originY, snake.patrolRange); snake.stateTimer = getRandom(1, 3); snake.health = 1; snake.randomMoveTimer = getRandom(0, 1); snakes.push(snake); placedSnakes++; } } if (placedSnakes < NUM_SNAKES_TO_SPAWN) console.warn(`Only placed ${placedSnakes}/${NUM_SNAKES_TO_SPAWN} snakes.`);
+            console.log(`Level Generated: ${platforms.length} platforms, ${collectibles.length} rewards, ${bats.length} bats, ${groundPatrollers.length} patrollers, ${snakes.length} snakes. EndX: ${levelEndX.toFixed(0)}`); return { platforms, collectibles, bats, groundPatrollers, snakes, goal, startPlatform, levelEndX };
         }
      }
 
@@ -273,7 +309,7 @@
     class GameplayScene extends Scene {
         constructor() {
             super();
-            this.player = { ...player }; this.platforms = []; this.collectibles = []; this.bats = []; this.groundPatrollers = []; this.goal = { ...goal }; this.stars = []; this.fireballs = [];
+            this.player = { ...player }; this.platforms = []; this.collectibles = []; this.bats = []; this.groundPatrollers = []; this.snakes = []; this.goal = { ...goal }; this.stars = []; this.fireballs = [];
             this.orbiterAngle = 0; this.levelEndX = 0; this.gameWon = false; this.gameStartTime = null; this.lastFrameTime = 0; this.levelNumber = 1; this.messageTimeoutId = null; this.startPlatform = null; this.levelGenerator = null; this.effectsSystem = null; this.powerUpSystem = null; this.screenFlashTimer = 0; this.screenFlashColor = null;
         }
 
@@ -300,8 +336,8 @@
              console.log("GameplayScene.generateLevel called (Full Reset).");
              try {
                  const levelData = this.levelGenerator.generateLevel();
-                 if (!levelData || !levelData.startPlatform || !levelData.collectibles || !levelData.goal || !levelData.bats || !levelData.groundPatrollers) { throw new Error("Level generator failed to return valid data."); }
-                 this.platforms = levelData.platforms; this.goal = levelData.goal; this.collectibles = levelData.collectibles; this.bats = levelData.bats; this.groundPatrollers = levelData.groundPatrollers; this.levelEndX = levelData.levelEndX; this.startPlatform = levelData.startPlatform;
+                 if (!levelData || !levelData.startPlatform || !levelData.collectibles || !levelData.goal || !levelData.bats || !levelData.groundPatrollers || !levelData.snakes) { throw new Error("Level generator failed to return valid data."); }
+                 this.platforms = levelData.platforms; this.goal = levelData.goal; this.collectibles = levelData.collectibles; this.bats = levelData.bats; this.groundPatrollers = levelData.groundPatrollers; this.snakes = levelData.snakes; this.levelEndX = levelData.levelEndX; this.startPlatform = levelData.startPlatform;
                  this.player.x = this.startPlatform.x + this.startPlatform.width / 2 - this.player.width / 2; this.player.y = this.startPlatform.y - this.player.height - 1;
                  this.player.velocityX = 0; this.player.velocityY = 0; this.player.onGround = false; this.player.groundPlatform = null;
                  this.player.animationState = 'idle'; this.player.animationTimer = 0; this.player.animationFrameIndex = 0;
@@ -311,6 +347,22 @@
                  this.player.fireballCooldownTimer = 0; // Reset fireball cooldown
                  this.collectibles.forEach(c => c.collected = false); this.gameWon = false; this.orbiterAngle = 0; this.screenFlashTimer = 0; this.screenFlashColor = null;
                  this.fireballs = []; // Clear existing fireballs
+                 this.snakes.forEach(snake => { 
+                     if (snake.health > 0) { 
+                         snake.x = snake.originX - snake.width / 2; 
+                         snake.y = snake.originY - snake.height / 2; 
+                         snake.velocityX = 0; 
+                         snake.velocityY = 0; 
+                         snake.state = (Math.random() < 0.5) ? 'idle' : 'patrolling'; 
+                         [snake.patrolTargetX, snake.patrolTargetY] = getRandomPatrolPoint(snake.originX, snake.originY, snake.patrolRange); 
+                         snake.stateTimer = getRandom(1, 3); 
+                         snake.randomMoveTimer = getRandom(0, 1); 
+                         snake.undulationTimer = getRandom(0, Math.PI * 2);
+                     } else { 
+                         snake.x = -1000; 
+                         snake.y = -1000; 
+                     } 
+                 });
                  this.updateLivesDisplay(); this.updateOrbShieldDisplay();
                  console.log(`Level generated. Lives: ${this.player.lives}, Shield: ${this.player.orbShieldCount}`);
              } catch (error) { console.error("CRITICAL ERROR within GameplayScene.generateLevel:", error); alert("Failed to generate the level layout. Please try refreshing."); if(this.game) this.game.stop(); }
@@ -330,6 +382,7 @@
             this.updatePlayer(deltaTime, combinedInput);
             this.updateBats(deltaTime);
             this.updateGroundPatrollers(deltaTime);
+            this.updateSnakes(deltaTime); // Added snake update
             this.updateFireballs(deltaTime); // Added fireball update
             if (this.player.isAttacking) { this.checkAttackCollisions(); }
             this.effectsSystem.update(deltaTime);
@@ -563,75 +616,298 @@
         updateGroundPatrollers(deltaTime) {
             for (let i = this.groundPatrollers.length - 1; i >= 0; i--) {
                 const patroller = this.groundPatrollers[i];
-                if (patroller.health <= 0) { this.effectsSystem.emitBatExplosion(patroller.x + patroller.width / 2, patroller.y + patroller.height / 2, 10, PATROLLER_COLOR); if (game && game.audioCtx) triggerPatrollerDestroy(game.audioCtx.currentTime); this.groundPatrollers.splice(i, 1); continue; }
-                const platform = patroller.onPlatform; if (!platform) { console.warn("Patroller lost its platform link!", patroller); this.groundPatrollers.splice(i, 1); continue; }
+                if (patroller.health <= 0) { 
+                    this.effectsSystem.emitBatExplosion(patroller.x + patroller.width / 2, patroller.y + patroller.height / 2, 10, PATROLLER_COLOR); 
+                    if (game && game.audioCtx) triggerPatrollerDestroy(game.audioCtx.currentTime); 
+                    this.groundPatrollers.splice(i, 1); 
+                    continue; 
+                }
+                
+                const platform = patroller.onPlatform; 
+                if (!platform) { 
+                    console.warn("Patroller lost its platform link!", patroller); 
+                    this.groundPatrollers.splice(i, 1); 
+                    continue; 
+                }
 
-                // Apply reduced friction
-                patroller.velocityX *= 0.96; if (Math.abs(patroller.velocityX) < 0.1) patroller.velocityX = 0;
+                // Apply friction (using the patroller's specific friction value)
+                patroller.velocityX *= patroller.friction || 0.6;
+                if (Math.abs(patroller.velocityX) < 0.1) patroller.velocityX = 0;
 
-                let currentSpeed = PATROLLER_SPEED * patroller.direction; let totalVelocityX = patroller.velocityX + currentSpeed; let nextX = patroller.x + totalVelocityX * deltaTime; let reverseDirection = false;
-                if (patroller.direction > 0 && (nextX + patroller.width > platform.x + platform.width)) { patroller.x = platform.x + platform.width - patroller.width; reverseDirection = true; patroller.velocityX = 0; }
-                else if (patroller.direction < 0 && (nextX < platform.x)) { patroller.x = platform.x; reverseDirection = true; patroller.velocityX = 0; }
-                else { patroller.x = nextX; }
-                for (const otherPlat of this.platforms) { if (otherPlat === platform) continue; const patrollerRectNext = {x: patroller.x, y: patroller.y - 1, width: patroller.width, height: patroller.height + 2}; if (checkRectOverlap(patrollerRectNext, otherPlat)) { if (totalVelocityX > 0 && patroller.x + patroller.width > otherPlat.x && patroller.x < otherPlat.x) { patroller.x = otherPlat.x - patroller.width - 0.1; reverseDirection = true; patroller.velocityX = 0; break; } if (totalVelocityX < 0 && patroller.x < otherPlat.x + otherPlat.width && patroller.x + patroller.width > otherPlat.x + otherPlat.width) { patroller.x = otherPlat.x + otherPlat.width + 0.1; reverseDirection = true; patroller.velocityX = 0; break; } } }
-                if (reverseDirection) { patroller.direction *= -1; }
+                // Calculate current movement speed based on direction
+                const currentSpeed = PATROLLER_SPEED * patroller.direction;
+                
+                // Add calculated speed to current velocity
+                patroller.velocityX += currentSpeed * deltaTime * 3;
+                
+                // Calculate next position
+                let nextX = patroller.x + patroller.velocityX * deltaTime;
+                let reverseDirection = false;
+                
+                // Handle platform edge detection
+                if (patroller.direction > 0 && (nextX + patroller.width > platform.x + platform.width)) { 
+                    patroller.x = platform.x + platform.width - patroller.width; 
+                    reverseDirection = true; 
+                    patroller.velocityX = -patroller.velocityX * 0.5; // Bounce slightly when changing direction
+                }
+                else if (patroller.direction < 0 && (nextX < platform.x)) { 
+                    patroller.x = platform.x; 
+                    reverseDirection = true; 
+                    patroller.velocityX = -patroller.velocityX * 0.5; // Bounce slightly when changing direction
+                }
+                else { 
+                    patroller.x = nextX; 
+                }
+                
+                // Check for obstacles or gaps ahead
+                for (const otherPlat of this.platforms) { 
+                    if (otherPlat === platform) continue; 
+                    
+                    const patrollerRectNext = {
+                        x: patroller.x, 
+                        y: patroller.y - 1, 
+                        width: patroller.width, 
+                        height: patroller.height + 2
+                    }; 
+                    
+                    if (checkRectOverlap(patrollerRectNext, otherPlat)) { 
+                        if (patroller.velocityX > 0 && patroller.x + patroller.width > otherPlat.x && patroller.x < otherPlat.x) { 
+                            patroller.x = otherPlat.x - patroller.width - 0.1; 
+                            reverseDirection = true; 
+                            patroller.velocityX = -patroller.velocityX * 0.5; // Bounce slightly
+                            break; 
+                        } 
+                        if (patroller.velocityX < 0 && patroller.x < otherPlat.x + otherPlat.width && patroller.x + patroller.width > otherPlat.x + otherPlat.width) { 
+                            patroller.x = otherPlat.x + otherPlat.width + 0.1; 
+                            reverseDirection = true; 
+                            patroller.velocityX = -patroller.velocityX * 0.5; // Bounce slightly
+                            break; 
+                        } 
+                    }
+                }
+                
+                // Check for gap ahead and reverse if needed
+                if (!reverseDirection) {
+                    const gapCheckDistance = 10; // Distance to check ahead for gaps
+                    const checkX = patroller.direction > 0 ? 
+                        patroller.x + patroller.width + gapCheckDistance : 
+                        patroller.x - gapCheckDistance;
+                    
+                    // Create a point just beyond the patroller's position to check for gaps
+                    const pointBeyondEdge = {
+                        x: checkX,
+                        y: platform.y + 5, // Slightly below platform top
+                        width: 1,
+                        height: 1
+                    };
+                    
+                    // If no platform under the check point, reverse direction
+                    let hasGroundAhead = false;
+                    for (const plat of this.platforms) {
+                        if (checkRectOverlap(pointBeyondEdge, plat)) {
+                            hasGroundAhead = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!hasGroundAhead) {
+                        reverseDirection = true;
+                        patroller.velocityX = -patroller.velocityX * 0.5; // Bounce slightly
+                    }
+                }
+                
+                if (reverseDirection) { 
+                    patroller.direction *= -1; 
+                }
+                
+                // Keep patroller on platform
                 patroller.y = platform.y - patroller.height;
+                
+                // Add a small random chance to jump
+                if (Math.random() < 0.003 && Math.abs(patroller.velocityX) > 0.5) {
+                    // Jump action - add a small upward velocity
+                    patroller.y -= 1; // Lift slightly off platform
+                    patroller.velocityY = -5 - Math.random() * 3; // Random jump height
+                    patroller.onGround = false;
+                    
+                    // We'll need to handle this in the next update
+                    // For now, just force it back to position on next frame
+                }
             }
         }
 
-         updateFireballs(dt) {
-             for (let i = this.fireballs.length - 1; i >= 0; i--) {
-                 const fb = this.fireballs[i];
-                 if (!fb.active) continue;
+        updateSnakes(deltaTime) {
+            const SNAKE_ACCELERATION = 450;
+            const SNAKE_FRICTION = 0.92;
 
-                 fb.life -= dt;
-                 if (fb.life <= 0) {
-                     fb.active = false;
-                     this.triggerFireballExplosion(fb.x, fb.y); // Explode at end of life
-                     continue;
-                 }
+            this.snakes.forEach(snake => {
+                if (snake.health <= 0) { 
+                    snake.x = -1000; 
+                    return; 
+                }
 
-                 fb.x += fb.vx * dt;
-                 fb.y += fb.vy * dt;
+                snake.undulationTimer += deltaTime * SNAKE_UNDULATION_SPEED;
+                snake.stateTimer -= deltaTime;
 
-                 // Check collision with platforms
-                 for (const platform of this.platforms) {
-                     if (fb.x + fb.radius > platform.x && fb.x - fb.radius < platform.x + platform.width &&
-                         fb.y + fb.radius > platform.y && fb.y - fb.radius < platform.y + platform.height) {
-                         fb.active = false;
-                         this.triggerFireballExplosion(fb.x, fb.y);
-                         break; // Stop checking platforms for this fireball
-                     }
-                 }
-                 if (!fb.active) continue; // Skip enemy check if already exploded
+                const playerCenterX = this.player.x + this.player.width / 2;
+                const playerCenterY = this.player.y + this.player.height / 2;
+                const snakeCenterX = snake.x + snake.width / 2;
+                const snakeCenterY = snake.y + snake.height / 2;
 
-                 // Check collision with bats
-                 for (const bat of this.bats) {
-                     if (bat.health > 0 && checkRectOverlap({ x: fb.x - fb.radius, y: fb.y - fb.radius, width: fb.radius * 2, height: fb.radius * 2 }, bat)) {
-                         bat.health = 0; // Kill bat
-                         this.effectsSystem.emitBatExplosion(bat.x + bat.width / 2, bat.y + bat.height / 2);
+                const dxPlayer = playerCenterX - snakeCenterX;
+                const dyPlayer = playerCenterY - snakeCenterY;
+                const distSqPlayer = dxPlayer * dxPlayer + dyPlayer * dyPlayer;
+
+                const dxOrigin = snake.originX - snakeCenterX;
+                const dyOrigin = snake.originY - snakeCenterY;
+                const distSqOrigin = dxOrigin * dxOrigin + dyOrigin * dyOrigin;
+
+                // --- State Transitions ---
+                if (snake.state === 'chasing') {
+                    if (distSqPlayer > snake.leashRadius * snake.leashRadius) {
+                        snake.state = 'returning';
+                        snake.stateTimer = 10;
+                    }
+                } else if (snake.state === 'returning') {
+                    if (distSqOrigin < BAT_ORIGIN_THRESHOLD_SQ || snake.stateTimer <= 0) {
+                        snake.state = 'patrolling';
+                        [snake.patrolTargetX, snake.patrolTargetY] = getRandomPatrolPoint(snake.originX, snake.originY, snake.patrolRange);
+                        snake.stateTimer = getRandom(3, 6);
+                    }
+                } else {
+                    if (distSqPlayer < snake.detectionRadius * snake.detectionRadius) {
+                        snake.state = 'chasing';
+                        snake.stateTimer = 0;
+                    } else if (snake.state === 'patrolling' && snake.stateTimer <= 0) {
+                        [snake.patrolTargetX, snake.patrolTargetY] = getRandomPatrolPoint(snake.originX, snake.originY, snake.patrolRange);
+                        snake.stateTimer = getRandom(3, 6);
+                    } else if (snake.state === 'idle' && snake.stateTimer <= 0) {
+                        snake.state = 'patrolling';
+                        [snake.patrolTargetX, snake.patrolTargetY] = getRandomPatrolPoint(snake.originX, snake.originY, snake.patrolRange);
+                        snake.stateTimer = getRandom(3, 6);
+                    }
+                }
+
+                // --- Movement Logic ---
+                let targetX, targetY, maxSpeed, acceleration;
+
+                if (snake.state === 'chasing') {
+                    targetX = playerCenterX;
+                    targetY = playerCenterY;
+                    maxSpeed = snake.chaseSpeed;
+                    acceleration = SNAKE_ACCELERATION * 1.2;
+                } else if (snake.state === 'returning') {
+                    targetX = snake.originX;
+                    targetY = snake.originY;
+                    maxSpeed = snake.patrolSpeed * BAT_RETURN_SPEED_MULTIPLIER;
+                    acceleration = SNAKE_ACCELERATION * 0.9;
+                } else {
+                    targetX = snake.patrolTargetX;
+                    targetY = snake.patrolTargetY;
+                    maxSpeed = snake.patrolSpeed;
+                    acceleration = SNAKE_ACCELERATION * 0.8;
+                }
+
+                const dxTarget = targetX - snakeCenterX;
+                const dyTarget = targetY - snakeCenterY;
+                const distTarget = Math.sqrt(dxTarget * dxTarget + dyTarget * dyTarget);
+
+                if (distTarget > 1) {
+                    let accelX = (dxTarget / distTarget) * acceleration;
+                    let accelY = (dyTarget / distTarget) * acceleration;
+
+                    if (snake.state !== 'chasing') {
+                        accelY += Math.sin(snake.undulationTimer * 1.5) * SNAKE_ACCELERATION * 0.3;
+                    }
+
+                    snake.velocityX += accelX * deltaTime;
+                    snake.velocityY += accelY * deltaTime;
+                }
+
+                snake.velocityX *= SNAKE_FRICTION;
+                snake.velocityY *= SNAKE_FRICTION;
+
+                const currentSpeedSq = snake.velocityX * snake.velocityX + snake.velocityY * snake.velocityY;
+                const maxSpeedSq = maxSpeed * maxSpeed;
+                if (currentSpeedSq > maxSpeedSq) {
+                    const scale = Math.sqrt(maxSpeedSq / currentSpeedSq);
+                    snake.velocityX *= scale;
+                    snake.velocityY *= scale;
+                }
+
+                snake.x += snake.velocityX * deltaTime;
+                snake.y += snake.velocityY * deltaTime;
+
+                snake.x = Math.max(0, Math.min(this.levelEndX - snake.width, snake.x));
+                snake.y = Math.max(0, Math.min(canvas.height - LAVA_BASE_HEIGHT - snake.height, snake.y));
+            });
+        }
+
+        updateFireballs(dt) {
+            for (let i = this.fireballs.length - 1; i >= 0; i--) {
+                const fb = this.fireballs[i];
+                if (!fb.active) continue;
+
+                fb.life -= dt;
+                if (fb.life <= 0) {
+                    fb.active = false;
+                    this.triggerFireballExplosion(fb.x, fb.y); // Explode at end of life
+                    continue;
+                }
+
+                fb.x += fb.vx * dt;
+                fb.y += fb.vy * dt;
+
+                // Check collision with platforms
+                for (const platform of this.platforms) {
+                    if (fb.x + fb.radius > platform.x && fb.x - fb.radius < platform.x + platform.width &&
+                        fb.y + fb.radius > platform.y && fb.y - fb.radius < platform.y + platform.height) {
+                        fb.active = false;
+                        this.triggerFireballExplosion(fb.x, fb.y);
+                        break; // Stop checking platforms for this fireball
+                    }
+                }
+                if (!fb.active) continue; // Skip enemy check if already exploded
+
+                // Check collision with bats
+                for (const bat of this.bats) {
+                    if (bat.health > 0 && checkRectOverlap({ x: fb.x - fb.radius, y: fb.y - fb.radius, width: fb.radius * 2, height: fb.radius * 2 }, bat)) {
+                        bat.health = 0; // Kill bat
+                        this.effectsSystem.emitBatExplosion(bat.x + bat.width / 2, bat.y + bat.height / 2);
+                        fb.active = false;
+                        this.triggerFireballExplosion(fb.x, fb.y);
+                        break; // Stop checking enemies for this fireball
+                    }
+                }
+                if (!fb.active) continue;
+
+                // Check collision with ground patrollers
+                for (const patroller of this.groundPatrollers) {
+                     if (patroller.health > 0 && checkRectOverlap({ x: fb.x - fb.radius, y: fb.y - fb.radius, width: fb.radius * 2, height: fb.radius * 2 }, patroller)) {
+                         patroller.health = 0; // Kill patroller
+                         this.effectsSystem.emitBatExplosion(patroller.x + patroller.width / 2, patroller.y + patroller.height / 2, 10, PATROLLER_COLOR);
+                         if (game && game.audioCtx) triggerPatrollerDestroy(game.audioCtx.currentTime);
                          fb.active = false;
                          this.triggerFireballExplosion(fb.x, fb.y);
                          break; // Stop checking enemies for this fireball
                      }
-                 }
-                 if (!fb.active) continue;
+                }
+                if (!fb.active) continue;
 
-                 // Check collision with ground patrollers
-                 for (const patroller of this.groundPatrollers) {
-                      if (patroller.health > 0 && checkRectOverlap({ x: fb.x - fb.radius, y: fb.y - fb.radius, width: fb.radius * 2, height: fb.radius * 2 }, patroller)) {
-                          patroller.health = 0; // Kill patroller
-                          this.effectsSystem.emitBatExplosion(patroller.x + patroller.width / 2, patroller.y + patroller.height / 2, 10, PATROLLER_COLOR);
-                          if (game && game.audioCtx) triggerPatrollerDestroy(game.audioCtx.currentTime);
-                          fb.active = false;
-                          this.triggerFireballExplosion(fb.x, fb.y);
-                          break; // Stop checking enemies for this fireball
-                      }
-                 }
-             }
-             // Clean up inactive fireballs (optional, could pool them)
-             this.fireballs = this.fireballs.filter(fb => fb.active);
-         }
+                // Check collision with snakes
+                for (const snake of this.snakes) {
+                    if (snake.health > 0 && checkRectOverlap({ x: fb.x - fb.radius, y: fb.y - fb.radius, width: fb.radius * 2, height: fb.radius * 2 }, snake)) {
+                        snake.health = 0; // Kill snake
+                        this.effectsSystem.emitBatExplosion(snake.x + snake.width / 2, snake.y + snake.height / 2, 10, SNAKE_COLOR);
+                        fb.active = false;
+                        this.triggerFireballExplosion(fb.x, fb.y);
+                        break; // Stop checking enemies for this fireball
+                    }
+                }
+            }
+            // Clean up inactive fireballs (optional, could pool them)
+            this.fireballs = this.fireballs.filter(fb => fb.active);
+        }
 
          spawnFireball() {
             if (this.player.fireballCooldownTimer > 0) return;
@@ -698,6 +974,16 @@
                      }
                  }
              }
+             for (const snake of this.snakes) {
+                 if (snake.health > 0) {
+                     const dx = (snake.x + snake.width / 2) - x;
+                     const dy = (snake.y + snake.height / 2) - y;
+                     if (dx * dx + dy * dy < explosionRadiusSq) {
+                         snake.health = 0;
+                         this.effectsSystem.emitBatExplosion(snake.x + snake.width / 2, snake.y + snake.height / 2, 10, SNAKE_COLOR);
+                     }
+                 }
+             }
          }
 
         updateOrbiter(dt) { this.orbiterAngle += ORBITER_SPEED * dt; }
@@ -710,6 +996,7 @@
             let hitSomething = false; const knockbackDir = (this.player.facingDirection === 'right' ? 1 : -1);
             for (const bat of this.bats) { if (bat.health > 0 && checkRectOverlap(attackHitbox, bat)) { bat.health = 0; this.effectsSystem.emitBatExplosion(bat.x + bat.width / 2, bat.y + bat.height / 2); bat.velocityX = knockbackDir * SWORD_KNOCKBACK_STRENGTH; bat.velocityY = SWORD_VERTICAL_KNOCKBACK; hitSomething = true; } }
             for (const patroller of this.groundPatrollers) { if (patroller.health > 0 && checkRectOverlap(attackHitbox, patroller)) { patroller.health--; this.effectsSystem.emitRewardSparkles(patroller.x + patroller.width/2, patroller.y + patroller.height/2, 5, '#ffccaa'); patroller.velocityX = knockbackDir * SWORD_KNOCKBACK_STRENGTH; hitSomething = true; if (patroller.health > 0) { if (game && game.audioCtx) triggerPatrollerHit(game.audioCtx.currentTime); } } }
+            for (const snake of this.snakes) { if (snake.health > 0 && checkRectOverlap(attackHitbox, snake)) { snake.health = 0; this.effectsSystem.emitBatExplosion(snake.x + snake.width / 2, snake.y + snake.height / 2, 10, SNAKE_COLOR); hitSomething = true; } }
             if (hitSomething && game && game.audioCtx) { triggerSwordHit(game.audioCtx.currentTime); }
         }
 
@@ -719,6 +1006,7 @@
              if (this.screenFlashTimer <= 0) {
                 for (const bat of this.bats) { if (bat.health > 0 && checkRectOverlap(this.player, bat)) { this.handlePlayerDamage("bat"); return; } }
                 for (const patroller of this.groundPatrollers) { if (patroller.health > 0 && checkRectOverlap(this.player, patroller)) { this.handlePlayerDamage("patroller"); return; } }
+                for (const snake of this.snakes) { if (snake.health > 0 && checkRectOverlap(this.player, snake)) { this.handlePlayerDamage("snake"); return; } }
                 for (const platform of this.platforms) { if (platform.hasCactus) { const cactusRect = { x: platform.x + (platform.width / 2) - (CACTUS_WIDTH / 2), y: platform.y - CACTUS_HEIGHT, width: CACTUS_WIDTH, height: CACTUS_HEIGHT }; if (checkRectOverlap(this.player, cactusRect)) { this.handlePlayerDamage("cactus"); return; } } }
              }
         }
@@ -740,7 +1028,9 @@
         triggerOrbBomb() {
             const playerCenterX = this.player.x + this.player.width / 2; const playerCenterY = this.player.y + this.player.height / 2; const destroyRadiusSq = BAT_DESTROY_RADIUS * BAT_DESTROY_RADIUS; let batsDestroyed = 0;
             for (let i = this.bats.length - 1; i >= 0; i--) { const bat = this.bats[i]; if (bat.health > 0) { const batCenterX = bat.x + bat.width / 2; const batCenterY = bat.y + bat.height / 2; const dx = playerCenterX - batCenterX; const dy = playerCenterY - batCenterY; const distSq = dx * dx + dy * dy; if (distSq < destroyRadiusSq) { bat.health = 0; batsDestroyed++; this.effectsSystem.emitBatExplosion(batCenterX, batCenterY); } } }
-            this.effectsSystem.emitPlayerBombExplosion(playerCenterX, playerCenterY); console.log(`Bomb destroyed ${batsDestroyed} bats.`);
+            let snakesDestroyed = 0;
+            for (let i = this.snakes.length - 1; i >= 0; i--) { const snake = this.snakes[i]; if (snake.health > 0) { const snakeCenterX = snake.x + snake.width / 2; const snakeCenterY = snake.y + snake.height / 2; const dx = playerCenterX - snakeCenterX; const dy = playerCenterY - snakeCenterY; const distSq = dx * dx + dy * dy; if (distSq < destroyRadiusSq) { snake.health = 0; snakesDestroyed++; this.effectsSystem.emitBatExplosion(snakeCenterX, snakeCenterY, 10, SNAKE_COLOR); } } }
+            this.effectsSystem.emitPlayerBombExplosion(playerCenterX, playerCenterY); console.log(`Bomb destroyed ${batsDestroyed} bats and ${snakesDestroyed} snakes.`);
          }
 
         restartCurrentLevelOnDeath(logLifeLoss = true) {
@@ -756,6 +1046,22 @@
             this.fireballs = []; // Clear fireballs on death
             this.bats.forEach(bat => { if (bat.health > 0) { bat.x = bat.originX - bat.width / 2; bat.y = bat.originY - bat.height / 2; bat.velocityX = 0; bat.velocityY = 0; bat.state = (Math.random() < 0.5) ? 'idle' : 'patrolling'; [bat.patrolTargetX, bat.patrolTargetY] = getRandomPatrolPoint(bat.originX, bat.originY, bat.patrolRange); bat.stateTimer = getRandom(1, 3); bat.randomMoveTimer = getRandom(0, 1); } else { bat.x = -1000; bat.y = -1000; } });
             this.groundPatrollers.forEach(p => { if (p.health > 0 && p.onPlatform) { p.x = p.onPlatform.x + p.onPlatform.width / 2 - p.width / 2; p.y = p.onPlatform.y - p.height; p.direction = (Math.random() < 0.5) ? 1 : -1; p.velocityX = 0; } else if (p.health <= 0) { p.x = -1000; p.y = -1000; } });
+            this.snakes.forEach(snake => { 
+                if (snake.health > 0) { 
+                    snake.x = snake.originX - snake.width / 2; 
+                    snake.y = snake.originY - snake.height / 2; 
+                    snake.velocityX = 0; 
+                    snake.velocityY = 0; 
+                    snake.state = (Math.random() < 0.5) ? 'idle' : 'patrolling'; 
+                    [snake.patrolTargetX, snake.patrolTargetY] = getRandomPatrolPoint(snake.originX, snake.originY, snake.patrolRange); 
+                    snake.stateTimer = getRandom(1, 3); 
+                    snake.randomMoveTimer = getRandom(0, 1); 
+                    snake.undulationTimer = getRandom(0, Math.PI * 2);
+                } else { 
+                    snake.x = -1000; 
+                    snake.y = -1000; 
+                } 
+            });
         }
 
         updateLivesDisplay() { if (livesDisplayDiv) { livesDisplayDiv.textContent = `Lives: ${this.player.lives}`; if (!this.gameWon && this.player.lives === 1 && this.player.orbShieldCount === 0) { const pulse = (Math.sin(this.game.currentTime * LOW_STATUS_PULSE_SPEED) + 1) / 2; livesDisplayDiv.style.color = `rgb(255, ${150 * (1-pulse)}, ${150 * (1-pulse)})`; livesDisplayDiv.style.textShadow = `1px 1px ${2 + pulse * 3}px #000`; } else { livesDisplayDiv.style.color = '#f99'; livesDisplayDiv.style.textShadow = '1px 1px 2px #000'; } } }
@@ -778,6 +1084,7 @@
             this.drawDoorway(this.goal.x, this.goal.y, this.goal.width, this.goal.height, this.goal.color, time, ctx);
             this.bats.forEach(b => { if (b.health > 0) this.drawBat(b, ctx); });
             this.groundPatrollers.forEach(p => { if (p.health > 0) this.drawGroundPatroller(p, ctx); }); // Calls the updated draw function
+            this.snakes.forEach(s => { if (s.health > 0) this.drawSnake(s, ctx); }); // Draw snakes
             this.fireballs.forEach(fb => this.drawFireball(fb, ctx)); // Draw fireballs
             if (!this.player.onGround) { this.drawMagicCarpet(this.player, time, ctx); }
             this.drawPlayer(ctx); this.drawOrbiters(time, ctx);
@@ -788,6 +1095,7 @@
             this.debugDrawRect(this.player, '#00FF00', ctx);
             this.groundPatrollers.forEach(p => this.debugDrawRect(p, '#FFA500', ctx));
             this.bats.forEach(b => this.debugDrawRect(b, '#FF00FF', ctx));
+            this.snakes.forEach(s => this.debugDrawRect(s, '#FFD700', ctx)); // Debug snake rectangle
             this.platforms.forEach(p => { if(p.hasCactus) this.debugDrawRect({ x: p.x + (p.width / 2) - (CACTUS_WIDTH / 2), y: p.y - CACTUS_HEIGHT, width: CACTUS_WIDTH, height: CACTUS_HEIGHT }, '#00DD00', ctx); });
             if(this.player.coyoteTimer > 0) { ctx.fillStyle = 'yellow'; ctx.fillRect(this.player.x, this.player.y - 10, this.player.width * (this.player.coyoteTimer / COYOTE_TIME_DURATION), 5); }
             */// --- End Debug ---
@@ -1071,6 +1379,65 @@
             }
             ctx.restore();
         }
+
+        drawSnake(snake, ctx) {
+            ctx.save();
+            const centerX = snake.x + snake.width / 2;
+            const centerY = snake.y + snake.height / 2;
+
+            snake.facingDirection = snake.velocityX === 0 ? snake.facingDirection : 
+                                   (snake.velocityX > 0 ? 1 : -1);
+
+            snake.undulationTimer += this.game.deltaTime * SNAKE_UNDULATION_SPEED;
+
+            for (let i = 0; i < SNAKE_BODY_SEGMENTS; i++) {
+                const segmentPhase = snake.undulationTimer - i * 0.5;
+                const segmentX = centerX - (snake.width * 0.5) * snake.facingDirection + 
+                                 (i * (snake.width / SNAKE_BODY_SEGMENTS)) * snake.facingDirection;
+
+                const undulationFactor = Math.sin(i / SNAKE_BODY_SEGMENTS * Math.PI);
+                const offsetY = Math.sin(segmentPhase) * SNAKE_UNDULATION_AMPLITUDE * undulationFactor;
+
+                const segmentY = centerY + offsetY;
+
+                const segmentWidth = snake.width / SNAKE_BODY_SEGMENTS * 0.8;
+                const segmentHeight = i === 0 ? snake.height * 1.2 : snake.height;
+
+                ctx.fillStyle = i % 2 === 0 ? SNAKE_COLOR : SNAKE_ACCENT_COLOR;
+
+                ctx.beginPath();
+                ctx.ellipse(
+                    segmentX, 
+                    segmentY, 
+                    segmentWidth / 2, 
+                    segmentHeight / 2, 
+                    0, 0, Math.PI * 2
+                );
+                ctx.fill();
+
+                if (i === 0) {
+                    const eyeX = segmentX + (segmentWidth * 0.3) * snake.facingDirection;
+                    const eyeY = segmentY - segmentHeight * 0.2;
+
+                    ctx.fillStyle = '#FF0000';
+                    ctx.beginPath();
+                    ctx.arc(eyeX, eyeY, segmentHeight * 0.25, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = '#000';
+                    ctx.beginPath();
+                    ctx.arc(
+                        eyeX + (segmentHeight * 0.08) * snake.facingDirection, 
+                        eyeY, 
+                        segmentHeight * 0.12, 
+                        0, Math.PI * 2
+                    );
+                    ctx.fill();
+                }
+            }
+            ctx.restore();
+        }
+
         debugDrawRect(rect, color, ctx) { ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.strokeRect(rect.x, rect.y, rect.width, rect.height); }
         drawMagicCarpet(player, time, ctx) {
             const anchorX = player.x + player.width / 2;
