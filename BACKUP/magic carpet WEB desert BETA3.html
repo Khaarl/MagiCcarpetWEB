@@ -1,0 +1,2156 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Refactored Psy Flight N+-1 (v3.7: Wizard Fire)</title> <!-- Title updated -->
+<style>
+    body { margin: 0; background-color: #000; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+    canvas { background-color: #050510; border: 2px solid #445; cursor: pointer; max-width: 100%; max-height: 100%; object-fit: contain; }
+    #message { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); color: #9ef; background-color: rgba(0,10,20,0.7); padding: 5px 10px; border-radius: 5px; font-size: 24px; font-family: sans-serif; text-align: center; display: none; z-index: 10; text-shadow: 1px 1px 2px #000; }
+    #instructions { position: absolute; bottom: 10px; left: 10px; color: #bbb; font-size: 12px; font-family: sans-serif; text-shadow: 1px 1px 2px #000; }
+    #audioOverlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7); color: white; font-size: 30px; font-family: sans-serif; display: flex; justify-content: center; align-items: center; text-align: center; cursor: pointer; z-index: 20; }
+    #timer { position: absolute; top: 10px; right: 15px; color: #eee; font-size: 20px; font-family: monospace; text-shadow: 1px 1px 2px #000; z-index: 5; }
+    #livesDisplay { position: absolute; top: 35px; right: 15px; color: #f99; font-size: 18px; font-family: monospace; text-shadow: 1px 1px 2px #000; z-index: 5; transition: color 0.1s ease-out, text-shadow 0.1s ease-out; }
+    #orbShieldDisplay { position: absolute; top: 55px; right: 15px; color: #9cf; font-size: 16px; font-family: monospace; text-shadow: 1px 1px 2px #000; z-index: 5; transition: color 0.1s ease-out, text-shadow 0.1s ease-out; }
+
+    /* Custom cursor for magic wand */
+    .magic-cursor {
+        cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><defs><radialGradient id="glow" cx="50%" cy="50%" r="50%" fx="50%" fy="50%"><stop offset="0%" stop-color="rgba(255, 220, 120, 0.9)" /><stop offset="100%" stop-color="rgba(255, 220, 120, 0)" /></radialGradient></defs><g><circle cx="16" cy="16" r="7" fill="url(%23glow)" /><path stroke="white" stroke-width="2" fill="none" d="M16,3 L16,1 M16,31 L16,29 M3,16 L1,16 M31,16 L29,16 M8,8 L6.5,6.5 M24,24 L22.5,22.5 M8,24 L6.5,25.5 M24,8 L22.5,9.5" /><rect x="11" y="11" width="10" height="1.5" fill="white" transform="rotate(45, 16, 16)" /><rect x="11" y="19.5" width="10" height="1.5" fill="white" transform="rotate(-45, 16, 16)" /><circle cx="16" cy="16" r="3" fill="rgba(255, 150, 50, 0.8)" /><circle cx="16" cy="16" r="1" fill="white" /></g></svg>') 16 16, auto;
+    }
+</style>
+</head>
+<body>
+
+<div id="audioOverlay">Click or Tap<br>to Start Audio & Game</div>
+<div id="message"></div>
+<div id="instructions">Arrows/AD: Move | W/Up/Space: Fly/Jump | X: Attack | F: Fireball | R: New Level/Next | M: Mute</div>
+<div id="timer">0.00</div>
+<div id="livesDisplay">Lives: 3</div>
+<div id="orbShieldDisplay">Shield: 0</div>
+<canvas id="gameCanvas"></canvas>
+
+<script>
+    // --- DOM Elements ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const messageDiv = document.getElementById('message');
+    const audioOverlay = document.getElementById('audioOverlay');
+    const timerDiv = document.getElementById('timer');
+    const livesDisplayDiv = document.getElementById('livesDisplay');
+    const orbShieldDisplayDiv = document.getElementById('orbShieldDisplay');
+
+    // --- Constants ---
+    canvas.width = 1280; canvas.height = 720;
+    // --- Base Physics ---
+    const gravity = 0.6;
+    const JUMP_STRENGTH = 14.5;
+
+    // --- Ground Movement (Fast) ---
+    const GROUND_ACCELERATION = 3.6; // Doubled from 1.8
+    const GROUND_MAX_SPEED = 24; // Doubled from 12
+    const GROUND_FRICTION = 0.5; // Changed
+
+    // --- Air/Flying Movement (Fast but Controllable) ---
+    const AIR_ACCELERATION = 1.2;
+    const AIR_MAX_SPEED = 255; // Changed
+    const AIR_FRICTION = 0.98;
+    const FLY_STRENGTH = 2.1;
+    const MAX_FLY_SPEED = 255; // Changed
+    const FLYING_GRAVITY_MULTIPLIER = 0.4;
+
+    // --- Wall Interaction Removed ---
+
+    // --- Magic Carpet (Larger) ---
+    const CARPET_WIDTH = 110; // Doubled from 55
+    const CARPET_HEIGHT = 10;
+    const CARPET_COLOR_1 = '#a060ff';
+    const CARPET_COLOR_2 = '#d0a0ff';
+    const CARPET_OFFSET_Y = 5;
+    const CARPET_WAVE_SPEED = 8;
+    const CARPET_WAVE_AMP_X = 0.08;
+    const CARPET_WAVE_AMP_Y = 0.15;
+
+    // --- Sword FX ---
+    const SWORD_GLOW_COLOR = 'rgba(200, 200, 255, 0.7)';
+    const SWORD_GLOW_BLUR = 12;
+    const SWORD_LIGHTNING_COLOR = 'rgba(220, 220, 255, 0.8)';
+    const SWORD_LIGHTNING_SPEED = 150;
+    const SWORD_LIGHTNING_LIFESPAN = 0.15;
+    const SWORD_LIGHTNING_CHANCE = 0.1;
+
+    // --- Other Gameplay ---
+    const animationSpeed = 8.0;
+    const NUM_REWARDS = 3;
+    const STARTING_LIVES = 3;
+    const SCREEN_FLASH_DURATION = 0.3; const SCREEN_FLASH_COLOR_DAMAGE = 'rgba(255, 50, 50, 0.5)'; const SCREEN_FLASH_COLOR_POWER = 'rgba(255, 255, 150, 0.6)';
+    const BAT_DESTROY_RADIUS = 180; const BACKGROUND_COLOR = '#0a0a1a'; const PLATFORM_BASE_COLOR = '#d2b48c'; // Changed from '#202530' to sandy tan
+    const PLATFORM_EDGE_COLOR = '#f7d78f'; // Changed from '#a0c0ff' to light gold
+    const PLATFORM_EDGE_GLOW_BLUR = 6;
+    const PLAYER_COLOR = '#ffffff'; const GOAL_FRAME_COLOR = '#a0a0ff'; const GOAL_INNER_COLOR = '#100510'; const COLLECTIBLE_COLOR = '#ffccff';
+    const SWORD_COLOR = '#e0e0ff'; const SWORD_LINE_WIDTH = 2; const REWARD_BASE_RADIUS = 15; const REWARD_COLLISION_SIZE = REWARD_BASE_RADIUS * 2;
+    const GOAL_DOOR_WIDTH = 80; const GOAL_DOOR_HEIGHT = 120; const PULSE_SPEED = 4.0; const PULSE_MAGNITUDE_ORB = 0.3;
+    const GLOW_BLUR = 10; const GLOW_OFFSET = 0; const WIN_TEXT_COLOR = '#ffffff'; const WIN_TEXT_FONT = 'bold 80px sans-serif';
+    const STAR_COUNT = 150; const BG_BLOB_COUNT = 15; const BG_SCROLL_FACTOR_STARS = 0.02; const BG_SCROLL_FACTOR_BLOBS = 0.05;
+    const LAVA_BASE_HEIGHT = 80; const LAVA_STRIP_HEIGHT = 10; const LAVA_HEIGHT = LAVA_BASE_HEIGHT; const LAVA_SPEED = 0.004; const LAVA_SCALE_X1 = 0.02; const LAVA_SCALE_X2 = 0.05; const LAVA_WAVE_HEIGHT = 25; const LAVA_VERTICAL_SPEED = 0.0015; const LAVA_SEGMENT_WIDTH = 4;
+    const CACTUS_WIDTH = 50; const CACTUS_HEIGHT = 80; const CACTUS_COLOR = '#44bb44'; const CACTUS_CHANCE = 0.30;
+    const ORBITER_DISTANCE = 40; const ORBITER_RADIUS = 5; const ORBITER_SPEED = 4; const ORBITER_COLOR = '#80ff80';
+    const PARTICLE_LIFESPAN = 0.5; const PARTICLE_SPEED = 40; const PARTICLE_DRAG = 0.95; const PARTICLE_GRAVITY = 30;
+    const STARDUST_LIFESPAN = 0.4; const STARDUST_SPEED = 20; const STARDUST_DRAG = 0.97; const STARDUST_COLOR = '#ddeeff'; const STARDUST_EMIT_RATE = 0.35;
+    const CHUNK_WIDTH = canvas.width; const NUM_CHUNKS = 10; const PLATFORM_HEIGHT = 20; const PLATFORM_BUFFER = 30;
+    const MIN_PLAT_WIDTH_CHUNK = 100; const MAX_PLAT_WIDTH_CHUNK = 250; const STEP_HEIGHT_MIN = 40; const STEP_HEIGHT_MAX = 80; const STEP_WIDTH_MIN = 100; const STEP_WIDTH_MAX = 180;
+    const FLOAT_PLAT_MIN_SEP_X = 80; const FLOAT_PLAT_MAX_SEP_X = 200; const FLOAT_PLAT_MIN_SEP_Y = 50; const FLOAT_PLAT_MAX_SEP_Y = 120;
+    const SPAWN_CLEAR_RADIUS = 120; const REWARD_CLEAR_RADIUS = 100; const EXIT_CLEAR_RADIUS = 150; const START_PLATFORM_WIDTH = 200; const MAX_REWARD_PLACEMENT_ATTEMPTS = 25; const MAX_PLACEMENT_ATTEMPTS = 25;
+    const NUM_BATS_TO_SPAWN = 10; const BAT_PATROL_RANGE = 200; const BAT_DETECTION_RADIUS = 400; const BAT_LEASH_RADIUS = BAT_DETECTION_RADIUS * 1.6; const BAT_RETURN_SPEED_MULTIPLIER = 1.2; const BAT_ORIGIN_THRESHOLD_SQ = 30 * 30;
+    const BPM = 145; const SIXTEENTH_NOTE_DURATION = 60 / BPM / 4; const KICK_FREQ = 55; const KICK_DECAY = 0.18; const KICK_PITCH_ENV_AMOUNT = 30; const SNARE_DECAY = 0.1; const SNARE_FREQ = 1600; const HAT_DECAY = 0.03; const HAT_DECAY_OPEN = 0.15; const HAT_FREQ = 9000; const BASS_FREQ = 41; const BASS_FILTER_FREQ = 350; const BASS_DECAY = SIXTEENTH_NOTE_DURATION * 1.8; const LEAD_FREQ_BASE = 220; const LEAD_FILTER_FREQ_START = 5000; const LEAD_FILTER_FREQ_END = 500; const LEAD_FILTER_Q = 8; const LEAD_DECAY = SIXTEENTH_NOTE_DURATION * 0.9; const ZAP_FREQ_START = 4000; const ZAP_FREQ_END = 100; const ZAP_DECAY = 0.05; const NOISE_BURST_DECAY = 0.04; const SWEEP_DURATION = SIXTEENTH_NOTE_DURATION * 16; const MASTER_VOLUME = 0.3; const DISTORTION_AMOUNT = 40; const PAD_VOLUME = 0.08; const PAD_LFO_RATE = 0.1; const PAD_LFO_DEPTH = 5;
+    const ATTACK_DURATION = 0.25; const ATTACK_COOLDOWN = 0.1;
+    const SWORD_HITBOX_WIDTH = 45; const SWORD_HITBOX_HEIGHT = 30; const SWORD_HITBOX_OFFSET_X = 15;
+    const PATROLLER_SPEED = 1.5; const PATROLLER_WIDTH = 25; const PATROLLER_HEIGHT = 60; const PATROLLER_COLOR = '#dd8855'; const PATROLLER_HEALTH = 2; const NUM_PATROLLERS_TO_SPAWN = 4;
+    const LOW_STATUS_PULSE_SPEED = 8.0;
+    const COYOTE_TIME_DURATION = 0.1;
+    const SWORD_KNOCKBACK_STRENGTH = 6;
+    const SWORD_VERTICAL_KNOCKBACK = -2;
+    const FIREBALL_SPEED = 400;
+    const FIREBALL_RADIUS = 8;
+    const FIREBALL_COOLDOWN = 0.5;
+    const FIREBALL_LIFESPAN = 5.0; // seconds
+    const FIREBALL_EXPLOSION_RADIUS = 50;
+    const FIREBALL_EXPLOSION_PARTICLES = 25;
+    const FIREBALL_COLOR = '#ff8800';
+    const FIREBALL_EXPLOSION_COLOR = '#ffcc66';
+
+    // --- Giant Bat Boss Constants ---
+    const GIANT_BAT_BOSS_WIDTH = 80;
+    const GIANT_BAT_BOSS_HEIGHT = 50;
+    const GIANT_BAT_BOSS_COLOR_1 = '#4b0082';
+    const GIANT_BAT_BOSS_COLOR_2 = '#8a2be2';
+    const GIANT_BAT_BOSS_EYE_COLOR = '#ff1493';
+    const GIANT_BAT_BOSS_HEALTH = 20;
+    const GIANT_BAT_BOSS_CHASE_SPEED = 95.0;
+    const GIANT_BAT_BOSS_PATROL_SPEED = 55.0;
+    const GIANT_BAT_BOSS_DETECTION_RADIUS = 550;
+    const GIANT_BAT_BOSS_LEASH_RADIUS = GIANT_BAT_BOSS_DETECTION_RADIUS * 1.8;
+    const GIANT_BAT_BOSS_SPAWN_INTERVAL = 15.0;
+    const GIANT_BAT_BOSS_SPAWN_COUNT = 2;
+    const GIANT_BAT_BOSS_SPAWN_RADIUS = 200;
+    const GIANT_BAT_BOSS_FLAP_SPEED_MULT = 0.7;
+    const GIANT_BAT_BOSS_KNOCKBACK_RESISTANCE = 0.4;
+
+    // --- Snake Enemy Constants ---
+    const NUM_SNAKES_TO_SPAWN = 10;
+    const SNAKE_WIDTH = 40;
+    const SNAKE_HEIGHT = 20;
+    const SNAKE_COLOR = '#d4af37';
+    const SNAKE_ACCENT_COLOR = '#8b4513';
+    const SNAKE_PATROL_RANGE = 250;
+    const SNAKE_DETECTION_RADIUS = 350;
+    const SNAKE_LEASH_RADIUS = SNAKE_DETECTION_RADIUS * 1.4;
+    const SNAKE_PATROL_SPEED = 120.0;
+    const SNAKE_CHASE_SPEED = 120.0;
+    const SNAKE_HEALTH = 3;
+    const SNAKE_BODY_SEGMENTS = 64;
+    const SNAKE_UNDULATION_SPEED = 6.0;
+    const SNAKE_UNDULATION_AMPLITUDE = 15.0;
+
+    // --- Initial Game Object States ---
+    const player = { x: 100, y: canvas.height - 100, width: 20, height: 45, velocityX: 0, velocityY: 0, onGround: false, groundPlatform: null, facingDirection: 'right', animationState: 'idle', animationTimer: 0, animationFrameIndex: 0, isAttacking: false, attackTimer: 0, attackCooldownTimer: 0, landingTimer: 0, coyoteTimer: 0, lives: STARTING_LIVES, orbShieldCount: 0, fireballCooldownTimer: 0 };
+    const goal = { x: 0, y: 0, width: GOAL_DOOR_WIDTH, height: GOAL_DOOR_HEIGHT, color: GOAL_FRAME_COLOR };
+    const batProto = { x: 0, y: 0, width: 25, height: 15, velocityX: 0, velocityY: 0, type: 'bat', state: 'idle', stateTimer: 0, originX: 0, originY: 0, patrolTargetX: 0, patrolTargetY: 0, patrolRange: BAT_PATROL_RANGE, detectionRadius: BAT_DETECTION_RADIUS, leashRadius: BAT_LEASH_RADIUS, chaseSpeed: 80.0, patrolSpeed: 48.0, flapTimer: 0, health: 1, randomMoveTimer: 0 }; // Increased speeds again (ludicrous speed)
+    const groundPatrollerProto = { 
+        x: 0, 
+        y: 0, 
+        width: PATROLLER_WIDTH, 
+        height: PATROLLER_HEIGHT, 
+        velocityX: 10, // Changed from 20 to 0 (initial velocity)
+        type: 'patroller', 
+        health: PATROLLER_HEALTH, 
+        onPlatform: null, 
+        direction: 1,
+        friction: 0.9 // Added friction property
+    };
+    const fireballProto = { x: 0, y: 0, vx: 0, vy: 0, radius: FIREBALL_RADIUS, life: FIREBALL_LIFESPAN, active: false };
+    const snakeProto = { 
+        x: 0, y: 0, width: SNAKE_WIDTH, height: SNAKE_HEIGHT, velocityX: 0, velocityY: 0, 
+        type: 'snake', state: 'idle', stateTimer: 0, originX: 0, originY: 0, 
+        patrolTargetX: 0, patrolTargetY: 0, patrolRange: SNAKE_PATROL_RANGE, 
+        detectionRadius: SNAKE_DETECTION_RADIUS, leashRadius: SNAKE_LEASH_RADIUS, 
+        chaseSpeed: SNAKE_CHASE_SPEED, patrolSpeed: SNAKE_PATROL_SPEED, 
+        undulationTimer: 0, health: SNAKE_HEALTH, randomMoveTimer: 0, facingDirection: 1 
+    };
+    const giantBatBossProto = {
+        x: 0, y: 0, width: GIANT_BAT_BOSS_WIDTH, height: GIANT_BAT_BOSS_HEIGHT,
+        velocityX: 0, velocityY: 0, type: 'giantBatBoss',
+        state: 'idle', stateTimer: 0, originX: 0, originY: 0,
+        patrolTargetX: 0, patrolTargetY: 0, patrolRange: BAT_PATROL_RANGE * 1.5,
+        detectionRadius: GIANT_BAT_BOSS_DETECTION_RADIUS, leashRadius: GIANT_BAT_BOSS_LEASH_RADIUS,
+        chaseSpeed: GIANT_BAT_BOSS_CHASE_SPEED, patrolSpeed: GIANT_BAT_BOSS_PATROL_SPEED,
+        flapTimer: 0, health: GIANT_BAT_BOSS_HEALTH, randomMoveTimer: 0,
+        batSpawnTimer: GIANT_BAT_BOSS_SPAWN_INTERVAL, isDefeated: false
+    };
+
+    // --- Utility Functions ---
+    function getRandom(min, max) { return Math.random() * (max - min) + min; }
+    function getRandomInt(min, max) { return Math.floor(getRandom(min, max + 1)); }
+    function checkRectOverlap(rect1, rect2) { if (!rect1 || !rect2) return false; return rect1.x < rect2.x + rect2.width && rect1.x + rect1.width > rect2.x && rect1.y < rect2.y + rect2.height && rect1.y + rect1.height > rect2.y; }
+    function checkPlatformArrayOverlap(rect1, existingPlatforms, buffer = PLATFORM_BUFFER) { for (const rect2 of existingPlatforms) { const bufferedRect2 = { x: rect2.x - buffer, y: rect2.y - buffer, width: rect2.width + buffer * 2, height: rect2.height + buffer * 2 }; if (checkRectOverlap(rect1, bufferedRect2)) return true; } return false; }
+    function checkRewardArrayOverlap(rect1, existingRewards, buffer = REWARD_COLLISION_SIZE * 0.5) { for (const rect2 of existingRewards) { const bufferedRect2 = { x: rect2.x - buffer, y: rect2.y - buffer, width: rect2.width + buffer * 2, height: rect2.height + buffer * 2 }; if (checkRectOverlap(rect1, bufferedRect2)) return true; } return false; }
+    function freqMult(semitones) { return Math.pow(2, semitones / 12); }
+    function getRandomPatrolPoint(originX, originY, range) { const angle = Math.random() * Math.PI * 2; const distance = Math.random() * range; const targetX = originX + Math.cos(angle) * distance; const targetY = Math.max(PLATFORM_HEIGHT, Math.min(canvas.height - LAVA_BASE_HEIGHT - batProto.height, originY + Math.sin(angle) * distance)); return [targetX, targetY]; }
+    function checkBatArrayOverlap(rect1, existingBats, buffer = 10) { for (const bat of existingBats) { const rect2 = { x: bat.x, y: bat.y, width: bat.width, height: bat.height }; const bufferedRect2 = { x: rect2.x - buffer, y: rect2.y - buffer, width: rect2.width + buffer * 2, height: rect2.height + buffer * 2 }; if (checkRectOverlap(rect1, bufferedRect2)) return true; } return false; }
+
+    // --- Stick Figure Definition ---
+    const stickFigure = {
+        headRadius: 8, jointColor: PLAYER_COLOR, lineWidth: 3,
+        sword: { hiltOffset: [0, -3], hiltLength: 8, bladeLength: 25, angle: -Math.PI / 5 },
+        staff: { hand: 'left', length: 45, topOffset: [0, -5], color: '#8B4513', gemColor: '#FF4500', gemRadius: 4 }, // Added staff definition
+        hat: { color: '#6a0dad', tipOffset: [0, -15], brimWidth: 15, brimHeight: 4 }, // Added hat definition
+        poses: {
+            idle: [ { head: [0, -35], neck: [0, -28], shoulder: [0, -28], hip: [0, -10], armL: [[-5, -28], [-10, -18], [-12, -8]], armR: [[5, -28], [12, -22], [15, -15]], legL: [[-4, -10], [-6, 0], [-8, 10]], legR: [[4, -10], [6, 0], [8, 10]] } ],
+            running: [ { head: [0, -35], neck: [0, -28], shoulder: [0, -28], hip: [0, -10], armL: [[-5, -28], [-15, -22], [-25, -15]], armR: [[5, -28], [10, -25], [12, -20]], legL: [[-4, -10], [-5, 0], [-5, 10]], legR: [[4, -10], [15, -5], [20, 5]] }, { head: [0, -35], neck: [0, -28], shoulder: [0, -28], hip: [0, -10], armL: [[-5, -28], [-10, -25], [-5, -20]], armR: [[5, -28], [15, -22], [18, -16]], legL: [[-4, -10], [-15, -5], [-20, 5]], legR: [[4, -10], [5, 0], [5, 10]] } ],
+            jumping: [ { head: [0, -35], neck: [0, -28], shoulder: [0, -28], hip: [0, -10], armL: [[-5, -28], [-10, -35], [-15, -40]], armR: [[5, -28], [10, -30], [12, -25]], legL: [[-4, -10], [-8, -5], [-12, 0]], legR: [[4, -10], [8, -5], [12, 0]] } ],
+            // wallSliding Removed
+            attacking: [ { head: [0, -35], neck: [0, -28], shoulder: [0, -28], hip: [0, -10], armL: [[-5, -28], [-10, -18], [-12, -8]], armR: [[5, -28], [20, -25], [35, -25]], legL: [[-4, -10], [-6, 0], [-8, 10]], legR: [[4, -10], [6, 0], [8, 10]] } ],
+            landing: [ { head: [0, -33], neck: [0, -26], shoulder: [0, -26], hip: [0, -8], armL: [[-5, -26], [-8, -16], [-10, -6]], armR: [[5, -26], [8, -20], [10, -13]], legL: [[-4, -8], [-8, -2], [-10, 5]], legR: [[4, -8], [8, -2], [10, 5]] } ],
+            // wallJumping Removed
+        }
+    };
+
+    // --- Audio Functions ---
+    function makeDistortionCurve(amount) { const k = typeof amount === 'number' ? amount : 50; const n_samples = 44100; const curve = new Float32Array(n_samples); const deg = Math.PI / 180; let i = 0; let x; for ( ; i < n_samples; ++i ) { x = i * 2 / n_samples - 1; curve[i] = ( 3 + k ) * x * 20 * deg / ( Math.PI + k * Math.abs(x) ); } return curve; }
+    function createWhiteNoiseBuffer(seconds = 1) { if (!game || !game.audioCtx) return null; const bufferSize = game.audioCtx.sampleRate * seconds; const buffer = game.audioCtx.createBuffer(1, bufferSize, game.audioCtx.sampleRate); const output = buffer.getChannelData(0); for (let i = 0; i < bufferSize; i++) { output[i] = Math.random() * 2 - 1; } return buffer; }
+    function triggerKick(time) { if (!game || !game.audioCtx || !game.masterGain) return; try { const osc = game.audioCtx.createOscillator(); const gain = game.audioCtx.createGain(); osc.type = 'sine'; const startFreq = KICK_FREQ + KICK_PITCH_ENV_AMOUNT; const endFreq = KICK_FREQ; osc.frequency.setValueAtTime(startFreq, time); osc.frequency.exponentialRampToValueAtTime(endFreq, time + 0.05); gain.gain.setValueAtTime(1.0, time); gain.gain.exponentialRampToValueAtTime(0.001, time + KICK_DECAY); osc.connect(gain); gain.connect(game.masterGain); osc.start(time); osc.stop(time + KICK_DECAY + 0.05); } catch(e) { console.error("Error in triggerKick:", e); } }
+    function triggerSnare(time) { if (!game || !game.audioCtx || !game.distortion || !game.masterGain) return; try { const noiseSource = game.audioCtx.createBufferSource(); const noiseBuf = createWhiteNoiseBuffer(0.5); if (!noiseBuf) return; noiseSource.buffer = noiseBuf; const filter = game.audioCtx.createBiquadFilter(); const gain = game.audioCtx.createGain(); filter.type = 'bandpass'; filter.frequency.setValueAtTime(SNARE_FREQ, time); filter.Q.setValueAtTime(1.0, time); gain.gain.setValueAtTime(0.8, time); gain.gain.exponentialRampToValueAtTime(0.01, time + SNARE_DECAY); noiseSource.connect(filter); filter.connect(gain); gain.connect(game.distortion); noiseSource.start(time); noiseSource.stop(time + SNARE_DECAY + 0.05); } catch(e) { console.error("Error in triggerSnare:", e); } }
+    function triggerHat(time, isOpen = false) { if (!game || !game.audioCtx || !game.distortion || !game.masterGain) return; try { const noiseSource = game.audioCtx.createBufferSource(); const noiseBuf = createWhiteNoiseBuffer(0.5); if (!noiseBuf) return; noiseSource.buffer = noiseBuf; const filter = game.audioCtx.createBiquadFilter(); const gain = game.audioCtx.createGain(); const decay = isOpen ? HAT_DECAY_OPEN : HAT_DECAY; const vol = isOpen ? 0.5 : 0.4; filter.type = 'highpass'; filter.frequency.setValueAtTime(HAT_FREQ, time); gain.gain.setValueAtTime(vol, time); gain.gain.exponentialRampToValueAtTime(0.001, time + decay); noiseSource.connect(filter); filter.connect(gain); gain.connect(game.distortion); noiseSource.start(time); noiseSource.stop(time + decay + 0.05); } catch(e) { console.error("Error in triggerHat:", e); } }
+    function triggerBass(time, note) { if (!game || !game.audioCtx || !game.masterGain) return; try { const osc = game.audioCtx.createOscillator(); const filter = game.audioCtx.createBiquadFilter(); const gain = game.audioCtx.createGain(); osc.type = 'sawtooth'; const freq = BASS_FREQ * freqMult(note); osc.frequency.setValueAtTime(freq, time); filter.type = 'lowpass'; filter.frequency.setValueAtTime(BASS_FILTER_FREQ, time); filter.Q.setValueAtTime(1.0, time); gain.gain.setValueAtTime(0.7, time); gain.gain.linearRampToValueAtTime(0.001, time + BASS_DECAY); osc.connect(filter); filter.connect(gain); gain.connect(game.masterGain); osc.start(time); osc.stop(time + BASS_DECAY); } catch(e) { console.error("Error in triggerBass:", e); } }
+    function triggerLead(time, note) { if (!game || !game.audioCtx || !game.distortion || !game.masterGain) return; try { const osc = game.audioCtx.createOscillator(); const filter = game.audioCtx.createBiquadFilter(); const gain = game.audioCtx.createGain(); osc.type = 'square'; const freq = LEAD_FREQ_BASE * freqMult(note + getRandom(-0.1, 0.1)); osc.frequency.setValueAtTime(freq, time); filter.type = 'bandpass'; filter.frequency.setValueAtTime(LEAD_FILTER_FREQ_START, time); filter.Q.setValueAtTime(LEAD_FILTER_Q, time); filter.frequency.linearRampToValueAtTime(LEAD_FILTER_FREQ_END, time + LEAD_DECAY * 0.6); gain.gain.setValueAtTime(0.4, time); gain.gain.exponentialRampToValueAtTime(0.001, time + LEAD_DECAY); osc.connect(filter); filter.connect(gain); gain.connect(game.distortion); osc.start(time); osc.stop(time + LEAD_DECAY); } catch(e) { console.error("Error in triggerLead:", e); } }
+    function triggerZap(time) { if (!game || !game.audioCtx || !game.distortion || !game.masterGain) return; try { const osc = game.audioCtx.createOscillator(); const gain = game.audioCtx.createGain(); osc.type = 'sawtooth'; osc.frequency.setValueAtTime(ZAP_FREQ_START, time); osc.frequency.exponentialRampToValueAtTime(ZAP_FREQ_END, time + ZAP_DECAY); gain.gain.setValueAtTime(0.5, time); gain.gain.exponentialRampToValueAtTime(0.001, time + ZAP_DECAY); osc.connect(gain); gain.connect(game.distortion); osc.start(time); osc.stop(time + ZAP_DECAY + 0.02); } catch(e) { console.error("Error in triggerZap:", e); } }
+    function triggerSweep(time) { if (!game || !game.audioCtx || !game.masterGain) return; try { const noiseSource = game.audioCtx.createBufferSource(); const noiseBuf = createWhiteNoiseBuffer(SWEEP_DURATION); if (!noiseBuf) return; noiseSource.buffer = noiseBuf; const filter = game.audioCtx.createBiquadFilter(); const gain = game.audioCtx.createGain(); filter.type = 'bandpass'; filter.frequency.setValueAtTime(200, time); filter.frequency.exponentialRampToValueAtTime(12000, time + SWEEP_DURATION); filter.Q.setValueAtTime(3, time); gain.gain.setValueAtTime(0.3, time); gain.gain.linearRampToValueAtTime(0.001, time + SWEEP_DURATION); noiseSource.connect(filter); filter.connect(gain); gain.connect(game.masterGain); noiseSource.start(time); noiseSource.stop(time + SWEEP_DURATION); } catch(e) { console.error("Error in triggerSweep:", e); } }
+    function musicSequencer() { if (!game || !game.audioCtx || game.isMuted || !game.isAudioInitialized) return; try { const now = game.audioCtx.currentTime; const noteTime = SIXTEENTH_NOTE_DURATION; const thirtySecondNote = noteTime * 0.5; const beat16 = game.stepCounter % 16; const beat64 = game.stepCounter % 64; if (game.stepCounter % 4 === 0) { triggerKick(now); } const bassStep = game.stepCounter % game.bassNotes.length; if ((beat16 % 4 === 1 || beat16 % 4 === 3) || (beat16 % 8 === 0 && Math.random() < 0.3)) { triggerBass(now, game.bassNotes[bassStep]); } triggerHat(now); if (Math.random() < 0.4) { triggerHat(now + thirtySecondNote); } if (beat16 === 14 && Math.random() < 0.5) { triggerHat(now + noteTime * 0.5, true); } if ((beat64 === 12 || beat64 === 28 || beat64 === 44 || beat64 === 60) && Math.random() < 0.8) { triggerSnare(now); } if ((beat64 >= 8 && beat64 < 24) || (beat64 >= 40 && beat64 < 56)) { if (Math.random() < 0.6) { triggerLead(now, game.leadNotes[beat16 % game.leadNotes.length] + (Math.random() < 0.2 ? 12 : 0)); } } if (Math.random() < 0.06) { triggerZap(now); } if (game.stepCounter % 32 === 0 && Math.random() < 0.7) { triggerSweep(now); } game.stepCounter = (game.stepCounter + 1) % 64; } catch(e) { console.error("Error in musicSequencer:", e); } }
+    function triggerSwordSwing(time) { if (!game || !game.audioCtx || !game.distortion || !game.masterGain) return; try { const noiseSource = game.audioCtx.createBufferSource(); const noiseBuf = createWhiteNoiseBuffer(0.1); if (!noiseBuf) return; noiseSource.buffer = noiseBuf; const filter = game.audioCtx.createBiquadFilter(); const gain = game.audioCtx.createGain(); filter.type = 'bandpass'; filter.frequency.setValueAtTime(1500, time); filter.Q.setValueAtTime(5, time); filter.frequency.exponentialRampToValueAtTime(400, time + 0.08); gain.gain.setValueAtTime(0.3, time); gain.gain.exponentialRampToValueAtTime(0.001, time + 0.08); noiseSource.connect(filter); filter.connect(gain); gain.connect(game.distortion); noiseSource.start(time); noiseSource.stop(time + 0.1); } catch(e) { console.error("Error in triggerSwordSwing:", e); } }
+    function triggerSwordHit(time) { if (!game || !game.audioCtx || !game.distortion || !game.masterGain) return; try { const noiseSource = game.audioCtx.createBufferSource(); const noiseBuf = createWhiteNoiseBuffer(0.08); if (!noiseBuf) return; noiseSource.buffer = noiseBuf; const filter = game.audioCtx.createBiquadFilter(); const gain = game.audioCtx.createGain(); filter.type = 'highpass'; filter.frequency.setValueAtTime(3000, time); gain.gain.setValueAtTime(0.4, time); gain.gain.exponentialRampToValueAtTime(0.01, time + 0.05); noiseSource.connect(filter); filter.connect(gain); gain.connect(game.distortion); noiseSource.start(time); noiseSource.stop(time + 0.08); const osc = game.audioCtx.createOscillator(); const gainOsc = game.audioCtx.createGain(); osc.type = 'triangle'; osc.frequency.setValueAtTime(120, time); osc.frequency.exponentialRampToValueAtTime(60, time + 0.06); gainOsc.gain.setValueAtTime(0.6, time); gainOsc.gain.exponentialRampToValueAtTime(0.01, time + 0.07); osc.connect(gainOsc); gainOsc.connect(game.masterGain); osc.start(time); osc.stop(time + 0.07); } catch(e) { console.error("Error in triggerSwordHit:", e); } }
+    function triggerPatrollerHit(time) { if (!game || !game.audioCtx || !game.distortion || !game.masterGain) return; try { const noiseSource = game.audioCtx.createBufferSource(); const noiseBuf = createWhiteNoiseBuffer(0.06); if (!noiseBuf) return; noiseSource.buffer = noiseBuf; const filter = game.audioCtx.createBiquadFilter(); const gain = game.audioCtx.createGain(); filter.type = 'bandpass'; filter.frequency.setValueAtTime(2500, time); filter.Q.value = 3; gain.gain.setValueAtTime(0.3, time); gain.gain.exponentialRampToValueAtTime(0.01, time + 0.04); noiseSource.connect(filter); filter.connect(gain); gain.connect(game.distortion); noiseSource.start(time); noiseSource.stop(time + 0.06); } catch(e) { console.error("Error in triggerPatrollerHit:", e); } }
+    function triggerPatrollerDestroy(time) { if (!game || !game.audioCtx || !game.masterGain) return; try { const noiseSource = game.audioCtx.createBufferSource(); const noiseBuf = createWhiteNoiseBuffer(0.2); if (!noiseBuf) return; noiseSource.buffer = noiseBuf; const filter = game.audioCtx.createBiquadFilter(); const gain = game.audioCtx.createGain(); filter.type = 'lowpass'; filter.frequency.setValueAtTime(500, time); filter.Q.value = 1; gain.gain.setValueAtTime(0.5, time); gain.gain.exponentialRampToValueAtTime(0.001, time + 0.15); noiseSource.connect(filter); filter.connect(gain); gain.connect(game.masterGain); noiseSource.start(time); noiseSource.stop(time + 0.2); } catch(e) { console.error("Error in triggerPatrollerDestroy:", e); } }
+    function triggerJumpSound(time) { if (!game || !game.audioCtx || !game.masterGain) return; try { const osc = game.audioCtx.createOscillator(); const gain = game.audioCtx.createGain(); osc.type = 'triangle'; osc.frequency.setValueAtTime(440, time); osc.frequency.exponentialRampToValueAtTime(880, time + 0.1); gain.gain.setValueAtTime(0.2, time); gain.gain.exponentialRampToValueAtTime(0.001, time + 0.1); osc.connect(gain); gain.connect(game.masterGain); osc.start(time); osc.stop(time + 0.12); } catch(e) { console.error("Error in triggerJumpSound:", e); } }
+    function triggerLandSound(time) { if (!game || !game.audioCtx || !game.masterGain) return; try { const noiseSource = game.audioCtx.createBufferSource(); const noiseBuf = createWhiteNoiseBuffer(0.08); if (!noiseBuf) return; noiseSource.buffer = noiseBuf; const filter = game.audioCtx.createBiquadFilter(); const gain = game.audioCtx.createGain(); filter.type = 'lowpass'; filter.frequency.setValueAtTime(600, time); gain.gain.setValueAtTime(0.25, time); gain.gain.exponentialRampToValueAtTime(0.01, time + 0.06); noiseSource.connect(filter); filter.connect(gain); gain.connect(game.masterGain); noiseSource.start(time); noiseSource.stop(time + 0.08); } catch(e) { console.error("Error in triggerLandSound:", e); } }
+    function triggerFireballShoot(time) { if (!game || !game.audioCtx || !game.masterGain) return; try { const osc = game.audioCtx.createOscillator(); const gain = game.audioCtx.createGain(); osc.type = 'square'; osc.frequency.setValueAtTime(600, time); osc.frequency.exponentialRampToValueAtTime(300, time + 0.1); gain.gain.setValueAtTime(0.2, time); gain.gain.exponentialRampToValueAtTime(0.001, time + 0.1); osc.connect(gain); gain.connect(game.masterGain); osc.start(time); osc.stop(time + 0.12); } catch(e) { console.error("Error in triggerFireballShoot:", e); } }
+    function triggerFireballExplode(time) { if (!game || !game.audioCtx || !game.distortion || !game.masterGain) return; try { const noiseSource = game.audioCtx.createBufferSource(); const noiseBuf = createWhiteNoiseBuffer(0.3); if (!noiseBuf) return; noiseSource.buffer = noiseBuf; const filter = game.audioCtx.createBiquadFilter(); const gain = game.audioCtx.createGain(); filter.type = 'lowpass'; filter.frequency.setValueAtTime(800, time); filter.frequency.exponentialRampToValueAtTime(100, time + 0.2); filter.Q.value = 5; gain.gain.setValueAtTime(0.6, time); gain.gain.exponentialRampToValueAtTime(0.001, time + 0.25); noiseSource.connect(filter); filter.connect(gain); gain.connect(game.distortion); noiseSource.start(time); noiseSource.stop(time + 0.3); } catch(e) { console.error("Error in triggerFireballExplode:", e); } }
+
+
+    // --- Particle Pool Class ---
+    class ParticlePool {
+        constructor(size) { this.pool = []; this.activeParticles = []; for (let i = 0; i < size; i++) { this.pool.push(this.createParticle()); } }
+        createParticle() { return { x: 0, y: 0, vx: 0, vy: 0, life: 0, maxLife: 0, color: '#fff', size: 2, active: false, useGravity: false, drag: PARTICLE_DRAG }; }
+        get() { let particle; if (this.pool.length > 0) { particle = this.pool.pop(); } else { particle = this.createParticle(); } particle.active = true; this.activeParticles.push(particle); return particle; }
+        update(deltaTime) { for (let i = this.activeParticles.length - 1; i >= 0; i--) { const p = this.activeParticles[i]; p.life -= deltaTime; if (p.life <= 0) { p.active = false; this.activeParticles.splice(i, 1); this.pool.push(p); continue; } p.x += p.vx * deltaTime; p.y += p.vy * deltaTime; p.vx *= p.drag; p.vy *= p.drag; if (p.useGravity) { p.vy += PARTICLE_GRAVITY * deltaTime; } } }
+        render(ctx) { ctx.save(); for (const p of this.activeParticles) { const alpha = p.life / p.maxLife; ctx.globalAlpha = alpha * 0.8; ctx.fillStyle = p.color; ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size); } ctx.restore(); }
+     }
+
+    // --- Effects System ---
+    function createEffectsSystem() {
+        const particlePool = new ParticlePool(1500); // Increased pool size
+        return {
+            emitRewardSparkles(x, y, count, color = COLLECTIBLE_COLOR) { for (let i = 0; i < count; i++) { const angle = Math.random() * Math.PI * 2; const velocity = Math.random() * PARTICLE_SPEED + PARTICLE_SPEED * 0.5; const life = PARTICLE_LIFESPAN * (0.7 + Math.random() * 0.6); const particle = particlePool.get(); if (!particle) continue; particle.x = x; particle.y = y; particle.vx = Math.cos(angle) * velocity; particle.vy = Math.sin(angle) * velocity; particle.color = color; particle.size = getRandom(1, 3); particle.life = particle.maxLife = life; particle.useGravity = false; particle.drag = PARTICLE_DRAG; } },
+            emitBatExplosion(x, y, count = 15, color = '#504060') { for (let i = 0; i < count; i++) { const angle = Math.random() * Math.PI * 2; const velocity = Math.random() * PARTICLE_SPEED * 1.5 + PARTICLE_SPEED * 0.8; const life = PARTICLE_LIFESPAN * (0.5 + Math.random() * 0.5); const particle = particlePool.get(); if (!particle) continue; particle.x = x + getRandom(-5, 5); particle.y = y + getRandom(-5, 5); particle.vx = Math.cos(angle) * velocity; particle.vy = Math.sin(angle) * velocity - 30; particle.color = color; particle.size = getRandom(2, 5); particle.life = particle.maxLife = life; particle.useGravity = true; particle.drag = PARTICLE_DRAG; } },
+            emitPlayerBombExplosion(x, y, count = 40, color = ORBITER_COLOR) { for (let i = 0; i < count; i++) { const angle = Math.random() * Math.PI * 2; const velocity = Math.random() * PARTICLE_SPEED * 2.5 + PARTICLE_SPEED; const life = PARTICLE_LIFESPAN * (0.6 + Math.random() * 0.7); const particle = particlePool.get(); if (!particle) continue; particle.x = x; particle.y = y; particle.vx = Math.cos(angle) * velocity; particle.vy = Math.sin(angle) * velocity; const lerp = Math.random(); const r = Math.floor(parseInt(color.slice(1,3), 16) * (1-lerp) + 255 * lerp); const g = Math.floor(parseInt(color.slice(3,5), 16) * (1-lerp) + 255 * lerp); const b = Math.floor(parseInt(color.slice(5,7), 16) * (1-lerp) + 150 * lerp); particle.color = `rgb(${r},${g},${b})`; particle.size = getRandom(2, 6); particle.life = particle.maxLife = life; particle.useGravity = false; particle.drag = PARTICLE_DRAG; } },
+            emitPlayerTrail(x, y, playerVelX, playerVelY) {
+                const count = 1; for (let i = 0; i < count; i++) { const particle = particlePool.get(); if (!particle) continue; particle.x = x + getRandom(-player.width * 0.2, player.width * 0.2); particle.y = y + getRandom(-player.height * 0.1, player.height * 0.1); const baseVelX = -playerVelX * 0.1; const baseVelY = -playerVelY * 0.1; particle.vx = baseVelX + getRandom(-STARDUST_SPEED * 0.5, STARDUST_SPEED * 0.5); particle.vy = baseVelY + getRandom(-STARDUST_SPEED * 0.5, STARDUST_SPEED * 0.5); particle.color = STARDUST_COLOR; particle.size = getRandom(1, 2.5); particle.life = particle.maxLife = STARDUST_LIFESPAN * (0.8 + Math.random() * 0.4); particle.useGravity = false; particle.drag = STARDUST_DRAG; }
+            },
+            emitSwordLightning(startX, startY, endX, endY) {
+                const count = getRandomInt(1, 3);
+                for (let i = 0; i < count; i++) {
+                     const particle = particlePool.get();
+                     if (!particle) continue;
+                     const lerp = Math.random(); particle.x = startX + (endX - startX) * lerp; particle.y = startY + (endY - startY) * lerp;
+                     const angle = Math.atan2(particle.y - (startY + endY)/2, particle.x - (startX + endX)/2) + getRandom(-0.5, 0.5);
+                     const velocity = SWORD_LIGHTNING_SPEED * (0.8 + Math.random() * 0.4);
+                     particle.vx = Math.cos(angle) * velocity; particle.vy = Math.sin(angle) * velocity;
+                     particle.color = SWORD_LIGHTNING_COLOR; particle.size = getRandom(1, 2);
+                     particle.life = particle.maxLife = SWORD_LIGHTNING_LIFESPAN * (0.7 + Math.random() * 0.6);
+                     particle.useGravity = false; particle.drag = 0.9;
+                }
+            },
+            emitFireballExplosion(x, y, count = FIREBALL_EXPLOSION_PARTICLES, color = FIREBALL_EXPLOSION_COLOR) {
+                for (let i = 0; i < count; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const velocity = Math.random() * PARTICLE_SPEED * 2.0 + PARTICLE_SPEED * 0.5;
+                    const life = PARTICLE_LIFESPAN * (0.4 + Math.random() * 0.6);
+                    const particle = particlePool.get();
+                    if (!particle) continue;
+                    particle.x = x + getRandom(-5, 5);
+                    particle.y = y + getRandom(-5, 5);
+                    particle.vx = Math.cos(angle) * velocity;
+                    particle.vy = Math.sin(angle) * velocity;
+                    const lerp = Math.random();
+                    const r = Math.floor(parseInt(color.slice(1,3), 16) * (1-lerp) + 255 * lerp);
+                    const g = Math.floor(parseInt(color.slice(3,5), 16) * (1-lerp) + 150 * lerp);
+                    const b = Math.floor(parseInt(color.slice(5,7), 16) * (1-lerp) + 50 * lerp);
+                    particle.color = `rgb(${r},${g},${b})`;
+                    particle.size = getRandom(2, 5);
+                    particle.life = particle.maxLife = life;
+                    particle.useGravity = true;
+                    particle.drag = PARTICLE_DRAG * 0.98;
+                }
+            },
+            update(deltaTime) { particlePool.update(deltaTime); },
+            render(ctx) { particlePool.render(ctx); }
+        };
+     }
+
+    // --- Touch Controls Class ---
+    class TouchControls {
+        constructor(gameInstance) { this.game = gameInstance; this.canvas = gameInstance.canvas; this.leftZone = { x: 0, y: 0, width: 0, height: 0 }; this.rightZone = { x: 0, y: 0, width: 0, height: 0 }; this.jumpZone = { x: 0, y: 0, width: 0, height: 0 }; this.activeTouches = { left: null, right: null, jump: null }; this.calculateZones(); this.addListeners(); }
+        calculateZones() { const thirdWidth = this.canvas.width / 3; this.leftZone = { x: 0, y: 0, width: thirdWidth, height: this.canvas.height }; this.rightZone = { x: thirdWidth, y: 0, width: thirdWidth, height: this.canvas.height }; this.jumpZone = { x: thirdWidth * 2, y: 0, width: thirdWidth, height: this.canvas.height }; }
+        addListeners() { this.canvas.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: false }); this.canvas.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false }); this.canvas.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: false }); this.canvas.addEventListener('touchcancel', this.handleTouchEnd.bind(this), { passive: false }); window.addEventListener('resize', this.calculateZones.bind(this)); }
+        handleTouchStart(event) { event.preventDefault(); const touches = event.changedTouches; for (let i = 0; i < touches.length; i++) { const touch = touches[i]; const touchX = touch.clientX - this.canvas.offsetLeft; const touchY = touch.clientY - this.canvas.offsetTop; if (this.isInside(touchX, touchY, this.leftZone) && this.activeTouches.left === null) { this.activeTouches.left = touch.identifier; } else if (this.isInside(touchX, touchY, this.rightZone) && this.activeTouches.right === null) { this.activeTouches.right = touch.identifier; } else if (this.isInside(touchX, touchY, this.jumpZone) && this.activeTouches.jump === null) { this.activeTouches.jump = touch.identifier; } } }
+        handleTouchMove(event) { event.preventDefault(); }
+        handleTouchEnd(event) { event.preventDefault(); const touches = event.changedTouches; for (let i = 0; i < touches.length; i++) { const touch = touches[i]; if (touch.identifier === this.activeTouches.left) this.activeTouches.left = null; if (touch.identifier === this.activeTouches.right) this.activeTouches.right = null; if (touch.identifier === this.activeTouches.jump) this.activeTouches.jump = null; } }
+        isInside(x, y, zone) { return x >= zone.x && x <= zone.x + zone.width && y >= zone.y && y <= zone.y + zone.height; }
+        getInput() { return { left: this.activeTouches.left !== null, right: this.activeTouches.right !== null, space: this.activeTouches.jump !== null, attack: false }; }
+        render(ctx) { ctx.save(); ctx.globalAlpha = 0.2; ctx.fillStyle = 'white'; ctx.fillRect(this.leftZone.x, this.leftZone.y, this.leftZone.width, this.leftZone.height); ctx.fillRect(this.rightZone.x, this.rightZone.y, this.rightZone.width, this.rightZone.height); ctx.fillStyle = 'lightblue'; ctx.fillRect(this.jumpZone.x, this.jumpZone.y, this.jumpZone.width, this.jumpZone.height); ctx.globalAlpha = 0.4; if (this.activeTouches.left !== null) ctx.fillRect(this.leftZone.x, this.leftZone.y, this.leftZone.width, this.leftZone.height); if (this.activeTouches.right !== null) ctx.fillRect(this.rightZone.x, this.rightZone.y, this.rightZone.width, this.rightZone.height); if (this.activeTouches.jump !== null) ctx.fillRect(this.jumpZone.x, this.jumpZone.y, this.jumpZone.width, this.jumpZone.height); ctx.restore(); }
+     }
+
+    // --- Level Generator Class ---
+    class LevelGenerator {
+        constructor(canvasWidth, canvasHeight) { this.width = canvasWidth; this.height = canvasHeight; this.safeSpawnBuffer = LAVA_WAVE_HEIGHT * 1.5 + 100; }
+        generateLevel() {
+            console.log("Generating Level..."); const platforms = []; const collectibles = []; const bats = []; const groundPatrollers = []; const snakes = []; let currentX = 0; const safeStartY = this.height - LAVA_BASE_HEIGHT - this.safeSpawnBuffer; let currentY = safeStartY; let levelEndX = CHUNK_WIDTH * NUM_CHUNKS;
+            const startPlatform = { x: 50, y: safeStartY, width: START_PLATFORM_WIDTH, height: PLATFORM_HEIGHT, color: PLATFORM_BASE_COLOR, hasCactus: false }; platforms.push(startPlatform); currentX = startPlatform.x + startPlatform.width;
+            console.log(`Start Platform Y: ${startPlatform.y.toFixed(0)} (Safe Buffer: ${this.safeSpawnBuffer.toFixed(0)}, Base Lava Y: ${this.height - LAVA_BASE_HEIGHT})`);
+            for (let i = 0; i < NUM_CHUNKS; i++) { const chunkStartX = i * CHUNK_WIDTH; const chunkEndX = chunkStartX + CHUNK_WIDTH; let chunkPlatCount = 0; let attempts = 0; while (currentX < chunkEndX && attempts < MAX_PLACEMENT_ATTEMPTS * 2) { attempts++; const stepUp = Math.random() < 0.4; const stepDown = !stepUp && Math.random() < 0.3; const isFloating = !stepUp && !stepDown; let nextWidth = getRandom(MIN_PLAT_WIDTH_CHUNK, MAX_PLAT_WIDTH_CHUNK); let nextX, nextY; if (isFloating) { nextX = currentX + getRandom(FLOAT_PLAT_MIN_SEP_X, FLOAT_PLAT_MAX_SEP_X); nextY = currentY + getRandom(-FLOAT_PLAT_MAX_SEP_Y, FLOAT_PLAT_MAX_SEP_Y); nextY = Math.max(PLATFORM_HEIGHT * 2, Math.min(this.height - LAVA_BASE_HEIGHT - PLATFORM_HEIGHT * 3, nextY)); } else { nextX = currentX + getRandom(STEP_WIDTH_MIN, STEP_WIDTH_MAX); let yChange = getRandom(STEP_HEIGHT_MIN, STEP_HEIGHT_MAX); if (stepDown) yChange *= -1; nextY = currentY + yChange; nextY = Math.max(PLATFORM_HEIGHT, Math.min(this.height - LAVA_BASE_HEIGHT - PLATFORM_HEIGHT, nextY)); } const newPlat = { x: nextX, y: nextY, width: nextWidth, height: PLATFORM_HEIGHT, color: PLATFORM_BASE_COLOR, hasCactus: Math.random() < CACTUS_CHANCE && nextWidth > CACTUS_WIDTH * 1.5 }; const checkRadius = MAX_PLAT_WIDTH_CHUNK + FLOAT_PLAT_MAX_SEP_X; const nearbyPlatforms = platforms.filter(p => Math.abs(p.x + p.width/2 - newPlat.x + newPlat.width/2) < checkRadius); if (!checkPlatformArrayOverlap(newPlat, nearbyPlatforms)) { const distToSpawn = Math.sqrt(Math.pow(newPlat.x + newPlat.width/2 - (startPlatform.x + startPlatform.width/2), 2) + Math.pow(newPlat.y + newPlat.height/2 - (startPlatform.y + startPlatform.height/2), 2)); if (distToSpawn > SPAWN_CLEAR_RADIUS) { platforms.push(newPlat); currentX = newPlat.x + newPlat.width; currentY = newPlat.y; chunkPlatCount++; if (groundPatrollers.length < NUM_PATROLLERS_TO_SPAWN && !newPlat.hasCactus && newPlat.width > PATROLLER_WIDTH * 2 && Math.random() < 0.15) { const patroller = { ...groundPatrollerProto }; patroller.x = newPlat.x + newPlat.width / 2 - patroller.width / 2; patroller.y = newPlat.y - patroller.height; patroller.onPlatform = newPlat; patroller.direction = (Math.random() < 0.5) ? 1 : -1; patroller.velocityX = 0; let tooClose = false; for(const gp of groundPatrollers) { if (Math.abs(gp.x - patroller.x) < 100 && Math.abs(gp.y - patroller.y) < 50) { tooClose = true; break; } } if (!tooClose) { groundPatrollers.push(patroller); } } } } } if (chunkPlatCount === 0) { currentX = chunkEndX; } }
+            let endPlatform = platforms[platforms.length - 1]; if (platforms.length > 2) { endPlatform = platforms[getRandomInt(Math.floor(platforms.length * 0.8), platforms.length - 1)]; } levelEndX = Math.max(levelEndX, endPlatform.x + endPlatform.width + 100); const goal = { x: endPlatform.x + (endPlatform.width / 2) - (GOAL_DOOR_WIDTH / 2), y: endPlatform.y - GOAL_DOOR_HEIGHT, width: GOAL_DOOR_WIDTH, height: GOAL_DOOR_HEIGHT, color: GOAL_FRAME_COLOR }; const goalRect = { x: goal.x, y: goal.y, width: goal.width, height: goal.height }; if (checkPlatformArrayOverlap(goalRect, platforms.filter(p => p !== endPlatform), -10)) { goal.x = endPlatform.x + endPlatform.width - goal.width - 5; goal.y = endPlatform.y - goal.height; console.warn("Goal position adjusted due to overlap."); }
+            let placedRewards = 0; let rewardAttempts = 0; while (placedRewards < NUM_REWARDS && rewardAttempts < MAX_REWARD_PLACEMENT_ATTEMPTS) { rewardAttempts++; const platformIndex = getRandomInt(1, platforms.length - 2); const targetPlatform = platforms[platformIndex]; if (!targetPlatform || targetPlatform.hasCactus) continue; const rewardX = targetPlatform.x + targetPlatform.width / 2 - REWARD_COLLISION_SIZE / 2; const rewardY = targetPlatform.y - REWARD_COLLISION_SIZE - getRandom(5, 25); const rewardRect = { x: rewardX, y: rewardY, width: REWARD_COLLISION_SIZE, height: REWARD_COLLISION_SIZE }; const distToSpawn = Math.sqrt(Math.pow(rewardX - startPlatform.x, 2) + Math.pow(rewardY - startPlatform.y, 2)); const distToGoal = Math.sqrt(Math.pow(rewardX - goal.x, 2) + Math.pow(rewardY - goal.y, 2)); if (distToSpawn > REWARD_CLEAR_RADIUS && distToGoal > REWARD_CLEAR_RADIUS && !checkRewardArrayOverlap(rewardRect, collectibles) && !checkPlatformArrayOverlap(rewardRect, platforms.filter(p => p !== targetPlatform), -REWARD_COLLISION_SIZE * 0.8)) { collectibles.push({ x: rewardX, y: rewardY, width: REWARD_COLLISION_SIZE, height: REWARD_COLLISION_SIZE, color: COLLECTIBLE_COLOR, collected: false }); placedRewards++; } } if (placedRewards < NUM_REWARDS) console.warn(`Only placed ${placedRewards}/${NUM_REWARDS} rewards.`);
+            let placedBats = 0; let batAttempts = 0; while (placedBats < NUM_BATS_TO_SPAWN && batAttempts < MAX_PLACEMENT_ATTEMPTS * 2) { batAttempts++; const targetPlatform = platforms[getRandomInt(1, platforms.length - 1)]; if (!targetPlatform) continue; const originX = targetPlatform.x + targetPlatform.width / 2 + getRandom(-CHUNK_WIDTH/3, CHUNK_WIDTH/3); const originY = targetPlatform.y - getRandom(batProto.height * 2, batProto.height * 6); const clampedY = Math.max(batProto.height + 10, Math.min(this.height - LAVA_BASE_HEIGHT - batProto.height - 10, originY)); const batRect = { x: originX - batProto.width / 2, y: clampedY - batProto.height / 2, width: batProto.width, height: batProto.height }; const distToSpawn = Math.sqrt(Math.pow(originX - startPlatform.x, 2) + Math.pow(clampedY - startPlatform.y, 2)); const distToGoal = Math.sqrt(Math.pow(originX - goal.x, 2) + Math.pow(clampedY - goal.y, 2)); if (distToSpawn > SPAWN_CLEAR_RADIUS * 1.2 && distToGoal > EXIT_CLEAR_RADIUS * 0.8 && !checkPlatformArrayOverlap(batRect, platforms, 20) && !checkBatArrayOverlap(batRect, bats, 50)) { const bat = { ...batProto }; bat.originX = originX; bat.originY = clampedY; bat.x = bat.originX - bat.width / 2; bat.y = bat.originY - bat.height / 2; bat.state = (Math.random() < 0.5) ? 'idle' : 'patrolling'; [bat.patrolTargetX, bat.patrolTargetY] = getRandomPatrolPoint(bat.originX, bat.originY, bat.patrolRange); bat.stateTimer = getRandom(1, 3); bat.health = 1; bat.randomMoveTimer = getRandom(0, 1); bats.push(bat); placedBats++; } } if (placedBats < NUM_BATS_TO_SPAWN) console.warn(`Only placed ${placedBats}/${NUM_BATS_TO_SPAWN} bats.`);
+            let placedSnakes = 0; let snakeAttempts = 0; while (placedSnakes < NUM_SNAKES_TO_SPAWN && snakeAttempts < MAX_PLACEMENT_ATTEMPTS * 2) { snakeAttempts++; const targetPlatform = platforms[getRandomInt(1, platforms.length - 1)]; if (!targetPlatform) continue; const originX = targetPlatform.x + targetPlatform.width / 2 + getRandom(-CHUNK_WIDTH/3, CHUNK_WIDTH/3); const originY = targetPlatform.y - getRandom(snakeProto.height * 2, snakeProto.height * 4); const clampedY = Math.max(snakeProto.height + 10, Math.min(this.height - LAVA_BASE_HEIGHT - snakeProto.height - 10, originY)); const snakeRect = { x: originX - snakeProto.width / 2, y: clampedY - snakeProto.height / 2, width: snakeProto.width, height: snakeProto.height }; const distToSpawn = Math.sqrt(Math.pow(originX - startPlatform.x, 2) + Math.pow(clampedY - startPlatform.y, 2)); const distToGoal = Math.sqrt(Math.pow(originX - goal.x, 2) + Math.pow(clampedY - goal.y, 2)); if (distToSpawn > SPAWN_CLEAR_RADIUS * 1.2 && distToGoal > EXIT_CLEAR_RADIUS * 0.8 && !checkPlatformArrayOverlap(snakeRect, platforms, 20)) { const snake = { ...snakeProto }; snake.originX = originX; snake.originY = clampedY; snake.x = snake.originX - snake.width / 2; snake.y = snake.originY - snake.height / 2; snake.state = (Math.random() < 0.5) ? 'idle' : 'patrolling'; [snake.patrolTargetX, snake.patrolTargetY] = getRandomPatrolPoint(snake.originX, snake.originY, snake.patrolRange); snake.stateTimer = getRandom(1, 3); snake.health = 1; snake.randomMoveTimer = getRandom(0, 1); snakes.push(snake); placedSnakes++; } } if (placedSnakes < NUM_SNAKES_TO_SPAWN) console.warn(`Only placed ${placedSnakes}/${NUM_SNAKES_TO_SPAWN} snakes.`);
+            let giantBatBoss = null;
+            let bossSpawnAttempts = 0;
+            const MAX_BOSS_SPAWN_ATTEMPTS = 10;
+            let bossPlaced = false;
+
+            while (!bossPlaced && bossSpawnAttempts < MAX_BOSS_SPAWN_ATTEMPTS) {
+                bossSpawnAttempts++;
+                const bossOriginX = goal.x + goal.width / 2 - getRandom(50, 150);
+                const bossOriginY = goal.y - GIANT_BAT_BOSS_HEIGHT - getRandom(80, 150);
+                const clampedBossY = Math.max(GIANT_BAT_BOSS_HEIGHT + 20, Math.min(this.height - LAVA_BASE_HEIGHT - GIANT_BAT_BOSS_HEIGHT - 20, bossOriginY));
+
+                const bossRect = {
+                    x: bossOriginX - GIANT_BAT_BOSS_WIDTH / 2,
+                    y: clampedBossY - GIANT_BAT_BOSS_HEIGHT / 2,
+                    width: GIANT_BAT_BOSS_WIDTH,
+                    height: GIANT_BAT_BOSS_HEIGHT
+                };
+
+                if (!checkPlatformArrayOverlap(bossRect, platforms, 40)) {
+                    giantBatBoss = { ...giantBatBossProto };
+                    giantBatBoss.originX = bossOriginX;
+                    giantBatBoss.originY = clampedBossY;
+                    giantBatBoss.x = bossRect.x;
+                    giantBatBoss.y = bossRect.y;
+                    [giantBatBoss.patrolTargetX, giantBatBoss.patrolTargetY] = getRandomPatrolPoint(giantBatBoss.originX, giantBatBoss.originY, giantBatBoss.patrolRange);
+                    giantBatBoss.stateTimer = getRandom(2, 4);
+                    bossPlaced = true;
+                }
+            }
+            console.log(`Level Generated: ${platforms.length} platforms, ${collectibles.length} rewards, ${bats.length} bats, ${groundPatrollers.length} patrollers, ${snakes.length} snakes. EndX: ${levelEndX.toFixed(0)}`);
+            return { platforms, collectibles, bats, groundPatrollers, snakes, goal, startPlatform, levelEndX, giantBatBoss };
+        }
+     }
+
+    // --- Save System Class ---
+    class SaveSystem { constructor(storageKey = 'psyFlightSaveData') { this.storageKey = storageKey; this.data = this.load(); } load() { try { const saved = localStorage.getItem(this.storageKey); if (saved) { const parsed = JSON.parse(saved); if (typeof parsed.currentLevel === 'number') { console.log("Save data loaded:", parsed); return parsed; } } } catch (e) { console.error("Error loading save data:", e); } console.log("No valid save data found, using defaults."); return this.getDefaults(); } save() { try { localStorage.setItem(this.storageKey, JSON.stringify(this.data)); } catch (e) { console.error("Error saving game data:", e); } } getDefaults() { return { currentLevel: 1, highScores: {} }; } levelCompleted(levelNumber, time) { console.log(`Level ${levelNumber} completed in ${time.toFixed(2)}s`); if (!this.data.highScores[levelNumber] || time < this.data.highScores[levelNumber]) { console.log(`New best time for level ${levelNumber}!`); this.data.highScores[levelNumber] = time; } this.data.currentLevel = levelNumber + 1; this.save(); } resetProgress() { console.log("Resetting save data to defaults."); this.data = this.getDefaults(); this.save(); } }
+
+    // --- PowerUp System Class (Placeholder) ---
+    class PowerUpSystem { constructor(player) { this.player = player; this.activePowerUps = []; } update(deltaTime) {} addPowerUp(type) {} removePowerUp(type) {} render(ctx) {} }
+
+    // --- Scene Base Class ---
+    class Scene { constructor() { this.game = null; } onEnter() {} update(deltaTime) {} render(ctx) {} onExit() {} }
+
+    // --- Gameplay Scene ---
+    class GameplayScene extends Scene {
+        constructor() {
+            super();
+            this.player = { ...player }; this.platforms = []; this.collectibles = []; this.bats = []; this.groundPatrollers = []; this.snakes = []; this.goal = { ...goal }; this.stars = []; this.fireballs = [];
+            this.orbiterAngle = 0; this.levelEndX = 0; this.gameWon = false; this.gameStartTime = null; this.lastFrameTime = 0; this.levelNumber = 1; this.messageTimeoutId = null; this.startPlatform = null; this.levelGenerator = null; this.effectsSystem = null; this.powerUpSystem = null; this.screenFlashTimer = 0; this.screenFlashColor = null;
+            this.boss = null;
+        }
+
+        onEnter() {
+            console.log("Entering Gameplay Scene...");
+            try {
+                this.levelNumber = this.game.saveSystem.data.currentLevel || 1;
+                this.levelGenerator = new LevelGenerator(canvas.width, canvas.height);
+                this.effectsSystem = createEffectsSystem();
+                this.powerUpSystem = new PowerUpSystem(this.player);
+                this.generateLevel();
+                this.gameStartTime = performance.now(); this.lastFrameTime = this.gameStartTime; this.gameWon = false;
+                messageDiv.style.display = 'none'; if (this.messageTimeoutId) clearTimeout(this.messageTimeoutId);
+                this.initStars();
+                this.screenFlashTimer = 0; this.screenFlashColor = null;
+                if (this.game.isAudioInitialized && this.game.musicIntervalId === null && !this.game.isMuted) { this.game.startMusic(); }
+                console.log("Gameplay Scene onEnter finished successfully.");
+            } catch (error) { console.error("CRITICAL ERROR during GameplayScene onEnter:", error); alert("A critical error occurred loading the level. Check the console."); if(this.game) this.game.stop(); }
+         }
+
+        onExit() { if (this.messageTimeoutId) clearTimeout(this.messageTimeoutId); }
+
+        generateLevel() {
+             console.log("GameplayScene.generateLevel called (Full Reset).");
+             try {
+                 const levelData = this.levelGenerator.generateLevel();
+                 if (!levelData || !levelData.startPlatform || !levelData.collectibles || !levelData.goal || !levelData.bats || !levelData.groundPatrollers || !levelData.snakes) { throw new Error("Level generator failed to return valid data."); }
+                 this.platforms = levelData.platforms; this.goal = levelData.goal; this.collectibles = levelData.collectibles; this.bats = levelData.bats; this.groundPatrollers = levelData.groundPatrollers; this.snakes = levelData.snakes; this.levelEndX = levelData.levelEndX; this.startPlatform = levelData.startPlatform;
+                 this.player.x = this.startPlatform.x + this.startPlatform.width / 2 - this.player.width / 2; this.player.y = this.startPlatform.y - this.player.height - 1;
+                 this.player.velocityX = 0; this.player.velocityY = 0; this.player.onGround = false; this.player.groundPlatform = null;
+                 this.player.animationState = 'idle'; this.player.animationTimer = 0; this.player.animationFrameIndex = 0;
+                 this.player.lives = STARTING_LIVES; this.player.orbShieldCount = 0;
+                 this.player.isAttacking = false; this.player.attackTimer = 0; this.player.attackCooldownTimer = 0;
+                 this.player.landingTimer = 0; this.player.coyoteTimer = 0;
+                 this.player.fireballCooldownTimer = 0; // Reset fireball cooldown
+                 this.collectibles.forEach(c => c.collected = false); this.gameWon = false; this.orbiterAngle = 0; this.screenFlashTimer = 0; this.screenFlashColor = null;
+                 this.fireballs = []; // Clear existing fireballs
+                 this.snakes.forEach(snake => { 
+                     if (snake.health > 0) { 
+                         snake.x = snake.originX - snake.width / 2; 
+                         snake.y = snake.originY - snake.height / 2; 
+                         snake.velocityX = 0; 
+                         snake.velocityY = 0; 
+                         snake.state = (Math.random() < 0.5) ? 'idle' : 'patrolling'; 
+                         [snake.patrolTargetX, snake.patrolTargetY] = getRandomPatrolPoint(snake.originX, snake.originY, snake.patrolRange); 
+                         snake.stateTimer = getRandom(1, 3); 
+                         snake.randomMoveTimer = getRandom(0, 1); 
+                         snake.undulationTimer = getRandom(0, Math.PI * 2);
+                     } else { 
+                         snake.x = -1000; 
+                         snake.y = -1000; 
+                     } 
+                 });
+                 this.boss = levelData.giantBatBoss;
+                 this.updateLivesDisplay(); this.updateOrbShieldDisplay();
+                 console.log(`Level generated. Lives: ${this.player.lives}, Shield: ${this.player.orbShieldCount}`);
+             } catch (error) { console.error("CRITICAL ERROR within GameplayScene.generateLevel:", error); alert("Failed to generate the level layout. Please try refreshing."); if(this.game) this.game.stop(); }
+         }
+
+        initStars() { this.stars = []; for (let i = 0; i < STAR_COUNT; i++) { this.stars.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, z: Math.random() * canvas.width }); } }
+
+        update(deltaTime) {
+            if (this.gameWon) return;
+            if (this.screenFlashTimer > 0) { this.screenFlashTimer -= deltaTime; }
+
+            const kbdInput = this.game.inputState.keys;
+            const touchInput = this.game.touchControls ? this.game.touchControls.getInput() : { left: false, right: false, space: false, attack: false };
+            const jumpOrFlyInput = kbdInput.space || kbdInput.up || kbdInput.w || touchInput.space;
+            const combinedInput = { left: kbdInput.left || touchInput.left, right: kbdInput.right || touchInput.right, jumpOrFly: jumpOrFlyInput, attack: kbdInput.x || touchInput.attack, shoot: kbdInput.f }; // Added shoot input
+
+            this.updatePlayer(deltaTime, combinedInput);
+            this.updateBats(deltaTime);
+            this.updateGroundPatrollers(deltaTime);
+            this.updateSnakes(deltaTime); // Added snake update
+            this.updateFireballs(deltaTime); // Added fireball update
+            this.updateGiantBatBoss(deltaTime); // Added boss update
+            if (this.player.isAttacking) { this.checkAttackCollisions(); }
+            this.effectsSystem.update(deltaTime);
+            this.powerUpSystem.update(deltaTime);
+            this.updateOrbiter(deltaTime);
+            this.checkCollisions();
+            this.checkBoundaries();
+        }
+
+        updatePlayer(dt, input) {
+            // --- Timers ---
+            if (this.player.attackCooldownTimer > 0) this.player.attackCooldownTimer -= dt;
+            if (this.player.attackTimer > 0) this.player.attackTimer -= dt;
+            if (this.player.landingTimer > 0) this.player.landingTimer -= dt;
+            if (this.player.coyoteTimer > 0) this.player.coyoteTimer -= dt;
+            if (this.player.fireballCooldownTimer > 0) this.player.fireballCooldownTimer -= dt; // Fireball cooldown
+
+            // --- Attack State ---
+            if (this.player.isAttacking && this.player.attackTimer <= 0) { this.player.isAttacking = false; }
+            if (input.attack && !this.player.isAttacking && this.player.attackCooldownTimer <= 0) { this.player.isAttacking = true; this.player.attackTimer = ATTACK_DURATION; this.player.attackCooldownTimer = ATTACK_DURATION + ATTACK_COOLDOWN; if (game && game.audioCtx) triggerSwordSwing(game.audioCtx.currentTime); }
+
+            // --- Fireball Shooting ---
+            if (input.shoot && this.player.fireballCooldownTimer <= 0) {
+                this.spawnFireball();
+                this.player.fireballCooldownTimer = FIREBALL_COOLDOWN;
+            }
+
+            const wasOnGround = this.player.onGround;
+
+            // --- Horizontal Movement ---
+            let targetVelX = this.player.velocityX;
+            const currentAccel = this.player.onGround ? GROUND_ACCELERATION : AIR_ACCELERATION;
+            const currentMaxSpeed = this.player.onGround ? GROUND_MAX_SPEED : AIR_MAX_SPEED;
+            const currentFriction = this.player.onGround ? GROUND_FRICTION : AIR_FRICTION;
+            const effectiveAccel = this.player.isAttacking ? currentAccel * 0.3 : currentAccel;
+
+            if (input.left) { targetVelX -= effectiveAccel; this.player.facingDirection = 'left'; }
+            else if (input.right) { targetVelX += effectiveAccel; this.player.facingDirection = 'right'; }
+            else { targetVelX *= currentFriction; }
+            this.player.velocityX = Math.max(-currentMaxSpeed, Math.min(currentMaxSpeed, targetVelX));
+            if (Math.abs(this.player.velocityX) < 0.1) this.player.velocityX = 0;
+
+            // --- Vertical Movement (Gravity) ---
+            const holdingFlyInAir = input.jumpOrFly && !this.player.onGround && !this.player.isAttacking;
+            const currentGravity = holdingFlyInAir ? gravity * FLYING_GRAVITY_MULTIPLIER : gravity;
+            this.player.velocityY += currentGravity;
+
+            // --- Jumping & Flying ---
+            const canJump = this.player.onGround || this.player.coyoteTimer > 0;
+            if (input.jumpOrFly && !this.player.isAttacking) {
+                 if (canJump) { this.player.velocityY = -JUMP_STRENGTH; this.player.coyoteTimer = 0; this.player.onGround = false; if (game && game.audioCtx) triggerJumpSound(game.audioCtx.currentTime); }
+                 else if (!this.player.onGround) { this.player.velocityY -= FLY_STRENGTH; this.player.velocityY = Math.max(-MAX_FLY_SPEED, this.player.velocityY); }
+            }
+
+            // --- Platform Collision (Vertical) ---
+            this.player.onGround = false; this.player.groundPlatform = null; const currentY = this.player.y; const nextY = this.player.y + this.player.velocityY * dt;
+            for (const platform of this.platforms) { if (this.player.x + this.player.width > platform.x && this.player.x < platform.x + platform.width) { if (this.player.velocityY >= 0 && currentY + this.player.height <= platform.y + 1 && nextY + this.player.height >= platform.y) { this.player.y = platform.y - this.player.height; this.player.velocityY = 0; this.player.onGround = true; this.player.groundPlatform = platform; this.player.coyoteTimer = 0; if (!wasOnGround) { this.player.landingTimer = 0.15; if (game && game.audioCtx) triggerLandSound(game.audioCtx.currentTime); } break; } if (this.player.velocityY < 0 && currentY >= platform.y + platform.height -1 && nextY <= platform.y + platform.height) { this.player.y = platform.y + platform.height; this.player.velocityY = 0; } } }
+
+            // --- Coyote Timer Activation ---
+            if (wasOnGround && !this.player.onGround) { this.player.coyoteTimer = COYOTE_TIME_DURATION; }
+
+            // --- Update Position ---
+            this.player.x += this.player.velocityX * dt;
+             // Apply vertical velocity only if not blocked by ground collision logic above
+            if (!this.player.onGround || this.player.velocityY < 0) {
+                 this.player.y += this.player.velocityY * dt;
+             }
+
+            // --- Animation State Logic ---
+            let newState = 'idle';
+            if (this.player.isAttacking) newState = 'attacking';
+            else if (this.player.landingTimer > 0) newState = 'landing';
+            else if (!this.player.onGround && this.player.coyoteTimer <= 0) newState = 'jumping';
+            else if (this.player.onGround && Math.abs(this.player.velocityX) > 0.1) newState = 'running';
+            else if (this.player.onGround) newState = 'idle';
+
+            if (this.player.animationState !== newState) { this.player.animationState = newState; this.player.animationTimer = 0; this.player.animationFrameIndex = 0; }
+
+            // --- Animation Frame Update ---
+            const animSpeedNorm = this.player.onGround ? GROUND_MAX_SPEED : AIR_MAX_SPEED;
+            this.player.animationTimer += dt * animationSpeed * (this.player.animationState === 'running' ? Math.abs(this.player.velocityX / animSpeedNorm) : 1);
+            const currentPoseArray = stickFigure.poses[this.player.animationState];
+            if (currentPoseArray) { this.player.animationFrameIndex = Math.floor(this.player.animationTimer) % currentPoseArray.length; }
+            else { this.player.animationFrameIndex = 0; if (this.player.animationState !== 'idle') console.warn("Missing pose for state:", this.player.animationState); }
+
+            // --- Player Stardust Trail Emission ---
+            const emitStardust = (holdingFlyInAir && Math.random() < STARDUST_EMIT_RATE * 1.5) || (!this.player.onGround && Math.abs(this.player.velocityY) > gravity * 5 && Math.random() < STARDUST_EMIT_RATE) || (this.player.onGround && Math.abs(this.player.velocityX) > GROUND_MAX_SPEED * 0.8 && Math.random() < STARDUST_EMIT_RATE);
+            if (emitStardust) { const trailX = this.player.x + this.player.width / 2; const trailY = this.player.y + this.player.height; this.effectsSystem.emitPlayerTrail(trailX, trailY, this.player.velocityX, this.player.velocityY); }
+         } // End updatePlayer
+
+         updateBats(deltaTime) {
+             const BAT_ACCELERATION = 500; // How quickly the bat changes direction
+             const BAT_FRICTION = 0.9; // Slows down the bat gradually
+
+             this.bats.forEach(bat => {
+                 if (bat.health <= 0) { bat.x = -1000; return; } // Keep dead bats off-screen
+
+                 bat.flapTimer += deltaTime * 15; // Keep flapping animation
+                 bat.stateTimer -= deltaTime;
+
+                 const playerCenterX = this.player.x + this.player.width / 2;
+                 const playerCenterY = this.player.y + this.player.height / 2;
+                 const batCenterX = bat.x + bat.width / 2;
+                 const batCenterY = bat.y + bat.height / 2;
+
+                 const dxPlayer = playerCenterX - batCenterX;
+                 const dyPlayer = playerCenterY - batCenterY;
+                 const distSqPlayer = dxPlayer * dxPlayer + dyPlayer * dyPlayer;
+
+                 const dxOrigin = bat.originX - batCenterX;
+                 const dyOrigin = bat.originY - batCenterY;
+                 const distSqOrigin = dxOrigin * dxOrigin + dyOrigin * dyOrigin;
+
+                 // --- State Transitions ---
+                 if (bat.state === 'chasing') {
+                     // If player gets too far away, return to origin
+                     if (distSqPlayer > bat.leashRadius * bat.leashRadius) {
+                         bat.state = 'returning';
+                         bat.stateTimer = 10; // Time limit to return
+                         // console.log(`Bat ${this.bats.indexOf(bat)}: Returning (Leash broken)`);
+                     }
+                 } else if (bat.state === 'returning') {
+                     // If returned close to origin, go back to patrolling
+                     if (distSqOrigin < BAT_ORIGIN_THRESHOLD_SQ || bat.stateTimer <= 0) {
+                         bat.state = 'patrolling';
+                         [bat.patrolTargetX, bat.patrolTargetY] = getRandomPatrolPoint(bat.originX, bat.originY, bat.patrolRange);
+                         bat.stateTimer = getRandom(3, 6); // Time for next patrol point
+                         // console.log(`Bat ${this.bats.indexOf(bat)}: Patrolling (Returned)`);
+                     }
+                 } else { // Idle or Patrolling
+                     // If player gets close, start chasing
+                     if (distSqPlayer < bat.detectionRadius * bat.detectionRadius) {
+                         bat.state = 'chasing';
+                         bat.stateTimer = 0; // No timer for chasing
+                         // console.log(`Bat ${this.bats.indexOf(bat)}: Chasing (Player detected)`);
+                     }
+                     // If patrol timer runs out or reached target, get new patrol point
+                     else if (bat.state === 'patrolling' && bat.stateTimer <= 0) {
+                         [bat.patrolTargetX, bat.patrolTargetY] = getRandomPatrolPoint(bat.originX, bat.originY, bat.patrolRange);
+                         bat.stateTimer = getRandom(3, 6);
+                         // console.log(`Bat ${this.bats.indexOf(bat)}: Patrolling (New target)`);
+                     } else if (bat.state === 'idle' && bat.stateTimer <= 0) {
+                         // Start patrolling after idle time
+                         bat.state = 'patrolling';
+                         [bat.patrolTargetX, bat.patrolTargetY] = getRandomPatrolPoint(bat.originX, bat.originY, bat.patrolRange);
+                         bat.stateTimer = getRandom(3, 6);
+                         // console.log(`Bat ${this.bats.indexOf(bat)}: Patrolling (From Idle)`);
+                     }
+                 }
+
+                 // --- Movement Logic ---
+                 let targetX, targetY, maxSpeed, acceleration;
+
+                 if (bat.state === 'chasing') {
+                     targetX = playerCenterX;
+                     targetY = playerCenterY;
+                     maxSpeed = bat.chaseSpeed * 500; // Convert speed to pixels/sec
+                     acceleration = BAT_ACCELERATION * 1.2;
+                 } else if (bat.state === 'returning') {
+                     targetX = bat.originX;
+                     targetY = bat.originY;
+                     maxSpeed = bat.patrolSpeed * BAT_RETURN_SPEED_MULTIPLIER * 100;
+                     acceleration = BAT_ACCELERATION * 100.1;
+                 } else { // Patrolling or Idle (moves towards patrol target)
+                     targetX = bat.patrolTargetX;
+                     targetY = bat.patrolTargetY;
+                     maxSpeed = bat.patrolSpeed * 60;
+                     acceleration = BAT_ACCELERATION;
+                 }
+
+                 // Calculate direction towards target
+                 const dxTarget = targetX - batCenterX;
+                 const dyTarget = targetY - batCenterY;
+                 const distTarget = Math.sqrt(dxTarget * dxTarget + dyTarget * dyTarget);
+
+                 // Apply acceleration towards target
+                 if (distTarget > 1) { // Avoid division by zero and jittering at target
+                     const accelX = (dxTarget / distTarget) * acceleration;
+                     const accelY = (dyTarget / distTarget) * acceleration;
+                     bat.velocityX += accelX * deltaTime;
+                     bat.velocityY += accelY * deltaTime;
+                 }
+
+                 // Apply friction
+                 bat.velocityX *= BAT_FRICTION;
+                 bat.velocityY *= BAT_FRICTION;
+
+                 // Clamp speed
+                 const currentSpeedSq = bat.velocityX * bat.velocityX + bat.velocityY * bat.velocityY;
+                 const maxSpeedSq = maxSpeed * maxSpeed;
+                 if (currentSpeedSq > maxSpeedSq) {
+                     const scale = Math.sqrt(maxSpeedSq / currentSpeedSq);
+                     bat.velocityX *= scale;
+                     bat.velocityY *= scale;
+                 }
+
+                 // Apply Velocity
+                 bat.x += bat.velocityX * deltaTime;
+                 bat.y += bat.velocityY * deltaTime;
+
+                 // Boundary checks (keep within level bounds, above lava)
+                 bat.x = Math.max(0, Math.min(this.levelEndX - bat.width, bat.x));
+                 bat.y = Math.max(0, Math.min(canvas.height - LAVA_BASE_HEIGHT - bat.height, bat.y));
+
+                 // Simple collision avoidance with platforms (push away slightly)
+                 for (const platform of this.platforms) {
+                     const batRect = { x: bat.x, y: bat.y, width: bat.width, height: bat.height };
+                     if (checkRectOverlap(batRect, platform)) {
+                         const overlapX = (batCenterX) - (platform.x + platform.width / 2);
+                         const overlapY = (batCenterY) - (platform.y + platform.height / 2);
+                         const pushForce = 1.5; // Increased push force
+                         const combinedHalfWidth = (bat.width + platform.width) / 2;
+                         const combinedHalfHeight = (bat.height + platform.height) / 2;
+                         const overlapAmountX = combinedHalfWidth - Math.abs(overlapX);
+                         const overlapAmountY = combinedHalfHeight - Math.abs(overlapY);
+
+                         if (overlapAmountX > 0 && overlapAmountY > 0) {
+                             if (overlapAmountX < overlapAmountY) { // Horizontal collision is shallower
+                                 bat.velocityX += Math.sign(overlapX) * pushForce;
+                                 bat.x += Math.sign(overlapX) * overlapAmountX * 0.5; // Nudge out
+                             } else { // Vertical collision is shallower
+                                 bat.velocityY += Math.sign(overlapY) * pushForce;
+                                 bat.y += Math.sign(overlapY) * overlapAmountY * 0.5; // Nudge out
+                             }
+                         }
+                     }
+                 }
+             });
+         }
+
+        updateGroundPatrollers(deltaTime) {
+            for (let i = this.groundPatrollers.length - 1; i >= 0; i--) {
+                const patroller = this.groundPatrollers[i];
+                if (patroller.health <= 0) { 
+                    this.effectsSystem.emitBatExplosion(patroller.x + patroller.width / 2, patroller.y + patroller.height / 2, 10, PATROLLER_COLOR); 
+                    if (game && game.audioCtx) triggerPatrollerDestroy(game.audioCtx.currentTime); 
+                    this.groundPatrollers.splice(i, 1); 
+                    continue; 
+                }
+                
+                const platform = patroller.onPlatform; 
+                if (!platform) { 
+                    console.warn("Patroller lost its platform link!", patroller); 
+                    this.groundPatrollers.splice(i, 1); 
+                    continue; 
+                }
+
+                // Apply friction (using the patroller's specific friction value)
+                patroller.velocityX *= patroller.friction || 0.6;
+                if (Math.abs(patroller.velocityX) < 0.1) patroller.velocityX = 0;
+
+                // Calculate current movement speed based on direction
+                const currentSpeed = PATROLLER_SPEED * patroller.direction;
+                
+                // Add calculated speed to current velocity
+                patroller.velocityX += currentSpeed * deltaTime * 3;
+                
+                // Calculate next position
+                let nextX = patroller.x + patroller.velocityX * deltaTime;
+                let reverseDirection = false;
+                
+                // Handle platform edge detection
+                if (patroller.direction > 0 && (nextX + patroller.width > platform.x + platform.width)) { 
+                    patroller.x = platform.x + platform.width - patroller.width; 
+                    reverseDirection = true; 
+                    patroller.velocityX = -patroller.velocityX * 0.5; // Bounce slightly when changing direction
+                }
+                else if (patroller.direction < 0 && (nextX < platform.x)) { 
+                    patroller.x = platform.x; 
+                    reverseDirection = true; 
+                    patroller.velocityX = -patroller.velocityX * 0.5; // Bounce slightly when changing direction
+                }
+                else { 
+                    patroller.x = nextX; 
+                }
+                
+                // Check for obstacles or gaps ahead
+                for (const otherPlat of this.platforms) { 
+                    if (otherPlat === platform) continue; 
+                    
+                    const patrollerRectNext = {
+                        x: patroller.x, 
+                        y: patroller.y - 1, 
+                        width: patroller.width, 
+                        height: patroller.height + 2
+                    }; 
+                    
+                    if (checkRectOverlap(patrollerRectNext, otherPlat)) { 
+                        if (patroller.velocityX > 0 && patroller.x + patroller.width > otherPlat.x && patroller.x < otherPlat.x) { 
+                            patroller.x = otherPlat.x - patroller.width - 0.1; 
+                            reverseDirection = true; 
+                            patroller.velocityX = -patroller.velocityX * 0.5; // Bounce slightly
+                            break; 
+                        } 
+                        if (patroller.velocityX < 0 && patroller.x < otherPlat.x + otherPlat.width && patroller.x + patroller.width > otherPlat.x + otherPlat.width) { 
+                            patroller.x = otherPlat.x + otherPlat.width + 0.1; 
+                            reverseDirection = true; 
+                            patroller.velocityX = -patroller.velocityX * 0.5; // Bounce slightly
+                            break; 
+                        } 
+                    }
+                }
+                
+                // Check for gap ahead and reverse if needed
+                if (!reverseDirection) {
+                    const gapCheckDistance = 10; // Distance to check ahead for gaps
+                    const checkX = patroller.direction > 0 ? 
+                        patroller.x + patroller.width + gapCheckDistance : 
+                        patroller.x - gapCheckDistance;
+                    
+                    // Create a point just beyond the patroller's position to check for gaps
+                    const pointBeyondEdge = {
+                        x: checkX,
+                        y: platform.y + 5, // Slightly below platform top
+                        width: 1,
+                        height: 1
+                    };
+                    
+                    // If no platform under the check point, reverse direction
+                    let hasGroundAhead = false;
+                    for (const plat of this.platforms) {
+                        if (checkRectOverlap(pointBeyondEdge, plat)) {
+                            hasGroundAhead = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!hasGroundAhead) {
+                        reverseDirection = true;
+                        patroller.velocityX = -patroller.velocityX * 0.5; // Bounce slightly
+                    }
+                }
+                
+                if (reverseDirection) { 
+                    patroller.direction *= -1; 
+                }
+                
+                // Keep patroller on platform
+                patroller.y = platform.y - patroller.height;
+                
+                // Add a small random chance to jump
+                if (Math.random() < 0.003 && Math.abs(patroller.velocityX) > 0.5) {
+                    // Jump action - add a small upward velocity
+                    patroller.y -= 1; // Lift slightly off platform
+                    patroller.velocityY = -5 - Math.random() * 3; // Random jump height
+                    patroller.onGround = false;
+                    
+                    // We'll need to handle this in the next update
+                    // For now, just force it back to position on next frame
+                }
+            }
+        }
+
+        updateSnakes(deltaTime) {
+            const SNAKE_ACCELERATION = 450;
+            const SNAKE_FRICTION = 0.92;
+
+            this.snakes.forEach(snake => {
+                if (snake.health <= 0) { 
+                    snake.x = -1000; 
+                    return; 
+                }
+
+                snake.undulationTimer += deltaTime * SNAKE_UNDULATION_SPEED;
+                snake.stateTimer -= deltaTime;
+
+                const playerCenterX = this.player.x + this.player.width / 2;
+                const playerCenterY = this.player.y + this.player.height / 2;
+                const snakeCenterX = snake.x + snake.width / 2;
+                const snakeCenterY = snake.y + snake.height / 2;
+
+                const dxPlayer = playerCenterX - snakeCenterX;
+                const dyPlayer = playerCenterY - snakeCenterY;
+                const distSqPlayer = dxPlayer * dxPlayer + dyPlayer * dyPlayer;
+
+                const dxOrigin = snake.originX - snakeCenterX;
+                const dyOrigin = snake.originY - snakeCenterY;
+                const distSqOrigin = dxOrigin * dxOrigin + dyOrigin * dyOrigin;
+
+                // --- State Transitions ---
+                if (snake.state === 'chasing') {
+                    if (distSqPlayer > snake.leashRadius * snake.leashRadius) {
+                        snake.state = 'returning';
+                        snake.stateTimer = 10;
+                    }
+                } else if (snake.state === 'returning') {
+                    if (distSqOrigin < BAT_ORIGIN_THRESHOLD_SQ || snake.stateTimer <= 0) {
+                        snake.state = 'patrolling';
+                        [snake.patrolTargetX, snake.patrolTargetY] = getRandomPatrolPoint(snake.originX, snake.originY, snake.patrolRange);
+                        snake.stateTimer = getRandom(3, 6);
+                    }
+                } else {
+                    if (distSqPlayer < snake.detectionRadius * snake.detectionRadius) {
+                        snake.state = 'chasing';
+                        snake.stateTimer = 0;
+                    } else if (snake.state === 'patrolling' && snake.stateTimer <= 0) {
+                        [snake.patrolTargetX, snake.patrolTargetY] = getRandomPatrolPoint(snake.originX, snake.originY, snake.patrolRange);
+                        snake.stateTimer = getRandom(3, 6);
+                    } else if (snake.state === 'idle' && snake.stateTimer <= 0) {
+                        snake.state = 'patrolling';
+                        [snake.patrolTargetX, snake.patrolTargetY] = getRandomPatrolPoint(snake.originX, snake.originY, snake.patrolRange);
+                        snake.stateTimer = getRandom(3, 6);
+                    }
+                }
+
+                // --- Movement Logic ---
+                let targetX, targetY, maxSpeed, acceleration;
+
+                if (snake.state === 'chasing') {
+                    targetX = playerCenterX;
+                    targetY = playerCenterY;
+                    maxSpeed = snake.chaseSpeed;
+                    acceleration = SNAKE_ACCELERATION * 1.2;
+                } else if (snake.state === 'returning') {
+                    targetX = snake.originX;
+                    targetY = snake.originY;
+                    maxSpeed = snake.patrolSpeed * BAT_RETURN_SPEED_MULTIPLIER;
+                    acceleration = SNAKE_ACCELERATION * 0.9;
+                } else {
+                    targetX = snake.patrolTargetX;
+                    targetY = snake.patrolTargetY;
+                    maxSpeed = snake.patrolSpeed;
+                    acceleration = SNAKE_ACCELERATION * 0.8;
+                }
+
+                const dxTarget = targetX - snakeCenterX;
+                const dyTarget = targetY - snakeCenterY;
+                const distTarget = Math.sqrt(dxTarget * dxTarget + dyTarget * dyTarget);
+
+                if (distTarget > 1) {
+                    let accelX = (dxTarget / distTarget) * acceleration;
+                    let accelY = (dyTarget / distTarget) * acceleration;
+
+                    // Add vertical undulation for more natural snake movement
+                    if (snake.state !== 'chasing') {
+                        accelY += Math.sin(snake.undulationTimer * 1.5) * SNAKE_ACCELERATION * 0.3;
+                    }
+
+                    snake.velocityX += accelX * deltaTime;
+                    snake.velocityY += accelY * deltaTime;
+                }
+
+                // Apply friction for smoother movement
+                snake.velocityX *= SNAKE_FRICTION;
+                snake.velocityY *= SNAKE_FRICTION;
+
+                // Cap the maximum speed
+                const currentSpeedSq = snake.velocityX * snake.velocityX + snake.velocityY * snake.velocityY;
+                const maxSpeedSq = maxSpeed * maxSpeed;
+                if (currentSpeedSq > maxSpeedSq) {
+                    const scale = Math.sqrt(maxSpeedSq / currentSpeedSq);
+                    snake.velocityX *= scale;
+                    snake.velocityY *= scale;
+                }
+
+                // Update position
+                snake.x += snake.velocityX * deltaTime;
+                snake.y += snake.velocityY * deltaTime;
+
+                // Boundary checks
+                snake.x = Math.max(0, Math.min(this.levelEndX - snake.width, snake.x));
+                snake.y = Math.max(0, Math.min(canvas.height - LAVA_BASE_HEIGHT - snake.height, snake.y));
+
+                // Update facing direction based on velocity
+                if (Math.abs(snake.velocityX) > 1) {
+                    snake.facingDirection = snake.velocityX > 0 ? 1 : -1;
+                }
+            });
+        }
+
+        updateFireballs(dt) {
+            for (let i = this.fireballs.length - 1; i >= 0; i--) {
+                const fb = this.fireballs[i];
+                if (!fb.active) continue;
+
+                fb.life -= dt;
+                if (fb.life <= 0) {
+                    fb.active = false;
+                    this.triggerFireballExplosion(fb.x, fb.y); // Explode at end of life
+                    continue;
+                }
+
+                fb.x += fb.vx * dt;
+                fb.y += fb.vy * dt;
+
+                // Check collision with platforms
+                for (const platform of this.platforms) {
+                    if (fb.x + fb.radius > platform.x && fb.x - fb.radius < platform.x + platform.width &&
+                        fb.y + fb.radius > platform.y && fb.y - fb.radius < platform.y + platform.height) {
+                        fb.active = false;
+                        this.triggerFireballExplosion(fb.x, fb.y);
+                        break; // Stop checking platforms for this fireball
+                    }
+                }
+                if (!fb.active) continue; // Skip enemy check if already exploded
+
+                // Check collision with bats
+                for (const bat of this.bats) {
+                    if (bat.health > 0 && checkRectOverlap({ x: fb.x - fb.radius, y: fb.y - fb.radius, width: fb.radius * 2, height: fb.radius * 2 }, bat)) {
+                        bat.health = 0; // Kill bat
+                        this.effectsSystem.emitBatExplosion(bat.x + bat.width / 2, bat.y + bat.height / 2);
+                        fb.active = false;
+                        this.triggerFireballExplosion(fb.x, fb.y);
+                        break; // Stop checking enemies for this fireball
+                    }
+                }
+                if (!fb.active) continue;
+
+                // Check collision with ground patrollers
+                for (const patroller of this.groundPatrollers) {
+                     if (patroller.health > 0 && checkRectOverlap({ x: fb.x - fb.radius, y: fb.y - fb.radius, width: fb.radius * 2, height: fb.radius * 2 }, patroller)) {
+                         patroller.health = 0; // Kill patroller
+                         this.effectsSystem.emitBatExplosion(patroller.x + patroller.width / 2, patroller.y + patroller.height / 2, 10, PATROLLER_COLOR);
+                         if (game && game.audioCtx) triggerPatrollerDestroy(game.audioCtx.currentTime);
+                         fb.active = false;
+                         this.triggerFireballExplosion(fb.x, fb.y);
+                         break; // Stop checking enemies for this fireball
+                     }
+                }
+                if (!fb.active) continue;
+
+                // Check collision with snakes
+                for (const snake of this.snakes) {
+                    if (snake.health > 0 && checkRectOverlap({ x: fb.x - fb.radius, y: fb.y - fb.radius, width: fb.radius * 2, height: fb.radius * 2 }, snake)) {
+                        snake.health = 0; // Kill snake
+                        this.effectsSystem.emitBatExplosion(snake.x + snake.width / 2, snake.y + snake.height / 2, 10, SNAKE_COLOR);
+                        fb.active = false;
+                        this.triggerFireballExplosion(fb.x, fb.y);
+                        break; // Stop checking enemies for this fireball
+                    }
+                }
+                if (!fb.active) continue;
+
+                // Check collision with Giant Bat Boss
+                if (this.boss && this.boss.health > 0 && checkRectOverlap({ x: fb.x - fb.radius, y: fb.y - fb.radius, width: fb.radius * 2, height: fb.radius * 2 }, this.boss)) {
+                    this.boss.health--;
+                    this.effectsSystem.emitRewardSparkles(this.boss.x + this.boss.width / 2, this.boss.y + this.boss.height / 2, 10, GIANT_BAT_BOSS_COLOR_2);
+                    fb.active = false;
+                    this.triggerFireballExplosion(fb.x, fb.y);
+                }
+            }
+            // Clean up inactive fireballs (optional, could pool them)
+            this.fireballs = this.fireballs.filter(fb => fb.active);
+        }
+
+         spawnFireball() {
+            if (this.player.fireballCooldownTimer > 0) return;
+
+            const fireball = { ...fireballProto };
+            const playerCenterX = this.player.x + this.player.width / 2;
+            const playerCenterY = this.player.y + this.player.height / 2;
+
+            const cameraX = playerCenterX - canvas.width / 3;
+            const cameraX_clamped = Math.max(0, Math.min(this.levelEndX - canvas.width, cameraX));
+            const targetX = this.game.mouseX + cameraX_clamped;
+            const targetY = this.game.mouseY;
+
+            const dirX = targetX - playerCenterX;
+            const dirY = targetY - playerCenterY;
+            const distance = Math.sqrt(dirX * dirX + dirY * dirY);
+
+            if (distance > 0) {
+                const normalizedDirX = dirX / distance;
+                const normalizedDirY = dirY / distance;
+
+                const spawnDistance = this.player.width / 2 + FIREBALL_RADIUS + 5;
+                fireball.x = playerCenterX + normalizedDirX * spawnDistance;
+                fireball.y = playerCenterY + normalizedDirY * spawnDistance;
+
+                fireball.vx = normalizedDirX * FIREBALL_SPEED;
+                fireball.vy = normalizedDirY * FIREBALL_SPEED;
+
+                this.player.facingDirection = normalizedDirX >= 0 ? 'right' : 'left';
+
+                fireball.life = FIREBALL_LIFESPAN;
+                fireball.active = true;
+                this.fireballs.push(fireball);
+
+                this.player.fireballCooldownTimer = FIREBALL_COOLDOWN;
+
+                if (game && game.audioCtx) triggerFireballShoot(game.audioCtx.currentTime);
+            }
+         }
+
+         triggerFireballExplosion(x, y) {
+             this.effectsSystem.emitFireballExplosion(x, y);
+             if (game && game.audioCtx) triggerFireballExplode(game.audioCtx.currentTime);
+             // Optional: Check for nearby enemies in explosion radius
+             const explosionRadiusSq = FIREBALL_EXPLOSION_RADIUS * FIREBALL_EXPLOSION_RADIUS;
+             for (const bat of this.bats) {
+                 if (bat.health > 0) {
+                     const dx = (bat.x + bat.width / 2) - x;
+                     const dy = (bat.y + bat.height / 2) - y;
+                     if (dx * dx + dy * dy < explosionRadiusSq) {
+                         bat.health = 0;
+                         this.effectsSystem.emitBatExplosion(bat.x + bat.width / 2, bat.y + bat.height / 2);
+                     }
+                 }
+             }
+              for (const patroller of this.groundPatrollers) {
+                 if (patroller.health > 0) {
+                     const dx = (patroller.x + patroller.width / 2) - x;
+                     const dy = (patroller.y + patroller.height / 2) - y;
+                     if (dx * dx + dy * dy < explosionRadiusSq) {
+                         patroller.health = 0;
+                         this.effectsSystem.emitBatExplosion(patroller.x + patroller.width / 2, patroller.y + patroller.height / 2, 10, PATROLLER_COLOR);
+                         if (game && game.audioCtx) triggerPatrollerDestroy(game.audioCtx.currentTime);
+                     }
+                 }
+             }
+             for (const snake of this.snakes) {
+                 if (snake.health > 0) {
+                     const dx = (snake.x + snake.width / 2) - x;
+                     const dy = (snake.y + snake.height / 2) - y;
+                     if (dx * dx + dy * dy < explosionRadiusSq) {
+                         snake.health = 0;
+                         this.effectsSystem.emitBatExplosion(snake.x + snake.width / 2, snake.y + snake.height / 2, 10, SNAKE_COLOR);
+                     }
+                 }
+             }
+             if (this.boss && this.boss.health > 0) {
+                 const dx = (this.boss.x + this.boss.width / 2) - x;
+                 const dy = (this.boss.y + this.boss.height / 2) - y;
+                 if (dx * dx + dy * dy < explosionRadiusSq) {
+                     this.boss.health--;
+                     this.effectsSystem.emitRewardSparkles(this.boss.x + this.boss.width / 2, this.boss.y + this.boss.height / 2, 10, GIANT_BAT_BOSS_COLOR_2);
+                 }
+             }
+         }
+
+        updateOrbiter(dt) { this.orbiterAngle += ORBITER_SPEED * dt; }
+
+        updateGiantBatBoss(deltaTime) {
+            if (!this.boss || this.boss.isDefeated || this.boss.health <= 0) return;
+
+            const boss = this.boss;
+            boss.batSpawnTimer -= deltaTime;
+            if (boss.batSpawnTimer <= 0) {
+                this.spawnBatsNearBoss(GIANT_BAT_BOSS_SPAWN_COUNT);
+                boss.batSpawnTimer = GIANT_BAT_BOSS_SPAWN_INTERVAL;
+            }
+
+            boss.flapTimer += deltaTime * 15 * GIANT_BAT_BOSS_FLAP_SPEED_MULT;
+            boss.stateTimer -= deltaTime;
+
+            const playerCenterX = this.player.x + this.player.width / 2;
+            const playerCenterY = this.player.y + this.player.height / 2;
+            const bossCenterX = boss.x + boss.width / 2;
+            const bossCenterY = boss.y + boss.height / 2;
+
+            const dxPlayer = playerCenterX - bossCenterX;
+            const dyPlayer = playerCenterY - bossCenterY;
+            const distSqPlayer = dxPlayer * dxPlayer + dyPlayer * dyPlayer;
+
+            if (boss.state === 'chasing' && distSqPlayer > boss.leashRadius * boss.leashRadius) {
+                boss.state = 'returning';
+            } else if (boss.state === 'returning' && distSqPlayer < BAT_ORIGIN_THRESHOLD_SQ * 2) {
+                boss.state = 'patrolling';
+            } else if (boss.state === 'idle' && distSqPlayer < boss.detectionRadius * boss.detectionRadius) {
+                boss.state = 'chasing';
+            }
+
+            const targetX = boss.state === 'chasing' ? playerCenterX : boss.originX;
+            const targetY = boss.state === 'chasing' ? playerCenterY : boss.originY;
+
+            const dxTarget = targetX - bossCenterX;
+            const dyTarget = targetY - bossCenterY;
+            const distTarget = Math.sqrt(dxTarget * dxTarget + dyTarget * dyTarget);
+
+            if (distTarget > 5) {
+                const accelX = (dxTarget / distTarget) * 500;
+                const accelY = (dyTarget / distTarget) * 500;
+                boss.velocityX += accelX * deltaTime;
+                boss.velocityY += accelY * deltaTime;
+            }
+
+            boss.velocityX *= 0.9;
+            boss.velocityY *= 0.9;
+
+            boss.x += boss.velocityX * deltaTime;
+            boss.y += boss.velocityY * deltaTime;
+        }
+
+        spawnBatsNearBoss(count) {
+            if (!this.boss) return;
+
+            const bossCenterX = this.boss.x + this.boss.width / 2;
+            const bossCenterY = this.boss.y + this.boss.height / 2;
+
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = Math.random() * GIANT_BAT_BOSS_SPAWN_RADIUS;
+                const spawnX = bossCenterX + Math.cos(angle) * distance;
+                const spawnY = bossCenterY + Math.sin(angle) * distance;
+
+                const bat = { ...batProto };
+                bat.originX = spawnX;
+                bat.originY = spawnY;
+                bat.x = spawnX - bat.width / 2;
+                bat.y = spawnY - bat.height / 2;
+                bat.state = 'idle';
+                bat.stateTimer = getRandom(1, 3);
+                bat.health = 1;
+                bat.randomMoveTimer = getRandom(0, 1);
+                this.bats.push(bat);
+            }
+        }
+
+        checkAttackCollisions() {
+            if (!this.player.isAttacking || this.player.attackTimer <= ATTACK_DURATION * 0.2) return;
+            const hitboxX = (this.player.facingDirection === 'right') ? this.player.x + this.player.width * 0.5 + SWORD_HITBOX_OFFSET_X : this.player.x + this.player.width * 0.5 - SWORD_HITBOX_OFFSET_X - SWORD_HITBOX_WIDTH;
+            const hitboxY = this.player.y + this.player.height * 0.2;
+            const attackHitbox = { x: hitboxX, y: hitboxY, width: SWORD_HITBOX_WIDTH, height: SWORD_HITBOX_HEIGHT };
+            let hitSomething = false; const knockbackDir = (this.player.facingDirection === 'right' ? 1 : -1);
+            for (const bat of this.bats) { if (bat.health > 0 && checkRectOverlap(attackHitbox, bat)) { bat.health = 0; this.effectsSystem.emitBatExplosion(bat.x + bat.width / 2, bat.y + bat.height / 2); bat.velocityX = knockbackDir * SWORD_KNOCKBACK_STRENGTH; bat.velocityY = SWORD_VERTICAL_KNOCKBACK; hitSomething = true; } }
+            for (const patroller of this.groundPatrollers) { if (patroller.health > 0 && checkRectOverlap(attackHitbox, patroller)) { patroller.health--; this.effectsSystem.emitRewardSparkles(patroller.x + patroller.width/2, patroller.y + patroller.height/2, 5, '#ffccaa'); patroller.velocityX = knockbackDir * SWORD_KNOCKBACK_STRENGTH; hitSomething = true; if (patroller.health > 0) { if (game && game.audioCtx) triggerPatrollerHit(game.audioCtx.currentTime); } } }
+            for (const snake of this.snakes) { if (snake.health > 0 && checkRectOverlap(attackHitbox, snake)) { snake.health = 0; this.effectsSystem.emitBatExplosion(snake.x + snake.width / 2, snake.y + snake.height / 2, 10, SNAKE_COLOR); hitSomething = true; } }
+            if (this.boss && this.boss.health > 0 && checkRectOverlap(attackHitbox, this.boss)) {
+                this.boss.health--;
+                this.effectsSystem.emitRewardSparkles(this.boss.x + this.boss.width / 2, this.boss.y + this.boss.height / 2, 10, GIANT_BAT_BOSS_COLOR_2);
+                hitSomething = true;
+            }
+            if (hitSomething && game && game.audioCtx) { triggerSwordHit(game.audioCtx.currentTime); }
+        }
+
+        checkCollisions() {
+             for (let i = this.collectibles.length - 1; i >= 0; i--) { const collectible = this.collectibles[i]; if (!collectible.collected && this.screenFlashTimer <= 0 && checkRectOverlap(this.player, collectible)) { collectible.collected = true; this.player.orbShieldCount++; this.updateOrbShieldDisplay(); this.effectsSystem.emitRewardSparkles(collectible.x + collectible.width / 2, collectible.y + collectible.height / 2, 30, collectible.color); console.log(`Collected reward! Shield: ${this.player.orbShieldCount}`); break; } }
+             if (checkRectOverlap(this.player, this.goal)) { if (!this.gameWon) this.winGame(); }
+             if (this.screenFlashTimer <= 0) {
+                for (const bat of this.bats) { if (bat.health > 0 && checkRectOverlap(this.player, bat)) { this.handlePlayerDamage("bat"); return; } }
+                for (const patroller of this.groundPatrollers) { if (patroller.health > 0 && checkRectOverlap(this.player, patroller)) { this.handlePlayerDamage("patroller"); return; } }
+                for (const snake of this.snakes) { if (snake.health > 0 && checkRectOverlap(this.player, snake)) { this.handlePlayerDamage("snake"); return; } }
+                for (const platform of this.platforms) { if (platform.hasCactus) { const cactusRect = { x: platform.x + (platform.width / 2) - (CACTUS_WIDTH / 2), y: platform.y - CACTUS_HEIGHT, width: CACTUS_WIDTH, height: CACTUS_HEIGHT }; if (checkRectOverlap(this.player, cactusRect)) { this.handlePlayerDamage("cactus"); return; } } }
+                if (this.boss && this.boss.health > 0 && checkRectOverlap(this.player, this.boss)) {
+                    this.handlePlayerDamage("giantBatBoss");
+                    return;
+                }
+             }
+        }
+
+        checkBoundaries() {
+            if (this.player.x < 0) { this.player.x = 0; this.player.velocityX = 0; }
+            if (this.player.x + this.player.width > this.levelEndX) { this.player.x = this.levelEndX - this.player.width; this.player.velocityX = 0; }
+            if (this.player.y < 0) { this.player.y = 0; this.player.velocityY = Math.max(0, this.player.velocityY); }
+            const currentLavaTop = this.getLavaTopY(this.player.x + this.player.width / 2, this.game.currentTime * 1000);
+            if (this.screenFlashTimer <= 0 && this.player.y + this.player.height > currentLavaTop) { this.handlePlayerDamage("lava"); }
+        }
+
+        handlePlayerDamage(source = "unknown") {
+            if (this.gameWon || this.screenFlashTimer > 0) return;
+            if (this.player.orbShieldCount > 0) { console.log(`Player hit by ${source} - Shield absorbed!`); this.player.orbShieldCount--; this.updateOrbShieldDisplay(); this.screenFlashColor = SCREEN_FLASH_COLOR_POWER; this.screenFlashTimer = SCREEN_FLASH_DURATION; this.triggerOrbBomb(); this.restartCurrentLevelOnDeath(false); }
+            else { console.log(`Player hit by ${source} - Lost a life!`); this.player.lives--; this.updateLivesDisplay(); this.screenFlashColor = SCREEN_FLASH_COLOR_DAMAGE; this.screenFlashTimer = SCREEN_FLASH_DURATION; if (this.player.lives <= 0) { console.log("Game Over - Restarting Level"); this.goToNextLevelOrGameOver(false); } else { this.restartCurrentLevelOnDeath(true); } }
+        }
+
+        triggerOrbBomb() {
+            const playerCenterX = this.player.x + this.player.width / 2; const playerCenterY = this.player.y + this.player.height / 2; const destroyRadiusSq = BAT_DESTROY_RADIUS * BAT_DESTROY_RADIUS; let batsDestroyed = 0;
+            for (let i = this.bats.length - 1; i >= 0; i--) { const bat = this.bats[i]; if (bat.health > 0) { const batCenterX = bat.x + bat.width / 2; const batCenterY = bat.y + bat.height / 2; const dx = playerCenterX - batCenterX; const dy = playerCenterY - batCenterY; const distSq = dx * dx + dy * dy; if (distSq < destroyRadiusSq) { bat.health = 0; batsDestroyed++; this.effectsSystem.emitBatExplosion(batCenterX, batCenterY); } } }
+            let snakesDestroyed = 0;
+            for (let i = this.snakes.length - 1; i >= 0; i--) { const snake = this.snakes[i]; if (snake.health > 0) { const snakeCenterX = snake.x + snake.width / 2; const snakeCenterY = snake.y + snake.height / 2; const dx = playerCenterX - snakeCenterX; const dy = playerCenterY - snakeCenterY; const distSq = dx * dx + dy * dy; if (distSq < destroyRadiusSq) { snake.health = 0; snakesDestroyed++; this.effectsSystem.emitBatExplosion(snakeCenterX, snakeCenterY, 10, SNAKE_COLOR); } } }
+            if (this.boss && this.boss.health > 0) {
+                const bossCenterX = this.boss.x + this.boss.width / 2;
+                const bossCenterY = this.boss.y + this.boss.height / 2;
+                const dx = playerCenterX - bossCenterX;
+                const dy = playerCenterY - bossCenterY;
+                const distSq = dx * dx + dy * dy;
+                if (distSq < destroyRadiusSq) {
+                    this.boss.health--;
+                    this.effectsSystem.emitRewardSparkles(this.boss.x + this.boss.width / 2, this.boss.y + this.boss.height / 2, 10, GIANT_BAT_BOSS_COLOR_2);
+                }
+            }
+            this.effectsSystem.emitPlayerBombExplosion(playerCenterX, playerCenterY); console.log(`Bomb destroyed ${batsDestroyed} bats and ${snakesDestroyed} snakes.`);
+         }
+
+        restartCurrentLevelOnDeath(logLifeLoss = true) {
+            if(logLifeLoss) console.log("Restarting current level attempt (lost a life)...");
+            else console.log("Restarting current level attempt (shield used)...");
+            if (this.startPlatform) { this.player.x = this.startPlatform.x + this.startPlatform.width / 2 - this.player.width / 2; this.player.y = this.startPlatform.y - this.player.height - 1; }
+            else { this.player.x = 100; this.player.y = canvas.height - 150; }
+            this.player.velocityX = 0; this.player.velocityY = 0; this.player.onGround = false;
+            this.player.animationState = 'idle'; this.player.isAttacking = false; this.player.attackTimer = 0; this.player.attackCooldownTimer = 0;
+            this.player.landingTimer = 0; this.player.coyoteTimer = 0;
+            this.player.fireballCooldownTimer = 0; // Reset fireball cooldown on death
+            this.orbiterAngle = 0;
+            this.fireballs = []; // Clear fireballs on death
+            this.bats.forEach(bat => { if (bat.health > 0) { bat.x = bat.originX - bat.width / 2; bat.y = bat.originY - bat.height / 2; bat.velocityX = 0; bat.velocityY = 0; bat.state = (Math.random() < 0.5) ? 'idle' : 'patrolling'; [bat.patrolTargetX, bat.patrolTargetY] = getRandomPatrolPoint(bat.originX, bat.originY, bat.patrolRange); bat.stateTimer = getRandom(1, 3); bat.randomMoveTimer = getRandom(0, 1); } else { bat.x = -1000; bat.y = -1000; } });
+            this.groundPatrollers.forEach(p => { if (p.health > 0 && p.onPlatform) { p.x = p.onPlatform.x + p.onPlatform.width / 2 - p.width / 2; p.y = p.onPlatform.y - p.height; p.direction = (Math.random() < 0.5) ? 1 : -1; p.velocityX = 0; } else if (p.health <= 0) { p.x = -1000; p.y = -1000; } });
+            this.snakes.forEach(snake => { 
+                if (snake.health > 0) { 
+                    snake.x = snake.originX - snake.width / 2; 
+                    snake.y = snake.originY - snake.height / 2; 
+                    snake.velocityX = 0; 
+                    snake.velocityY = 0; 
+                    snake.state = (Math.random() < 0.5) ? 'idle' : 'patrolling'; 
+                    [snake.patrolTargetX, snake.patrolTargetY] = getRandomPatrolPoint(snake.originX, snake.originY, snake.patrolRange); 
+                    snake.stateTimer = getRandom(1, 3); 
+                    snake.randomMoveTimer = getRandom(0, 1); 
+                    snake.undulationTimer = getRandom(0, Math.PI * 2);
+                } else { 
+                    snake.x = -1000; 
+                    snake.y = -1000; 
+                } 
+            });
+            if (this.boss) {
+                this.boss.x = this.boss.originX - this.boss.width / 2;
+                this.boss.y = this.boss.originY - this.boss.height / 2;
+                this.boss.velocityX = 0;
+                this.boss.velocityY = 0;
+                this.boss.state = 'idle';
+                this.boss.stateTimer = getRandom(2, 4);
+                this.boss.health = GIANT_BAT_BOSS_HEALTH;
+                this.boss.batSpawnTimer = GIANT_BAT_BOSS_SPAWN_INTERVAL;
+            }
+        }
+
+        updateLivesDisplay() { if (livesDisplayDiv) { livesDisplayDiv.textContent = `Lives: ${this.player.lives}`; if (!this.gameWon && this.player.lives === 1 && this.player.orbShieldCount === 0) { const pulse = (Math.sin(this.game.currentTime * LOW_STATUS_PULSE_SPEED) + 1) / 2; livesDisplayDiv.style.color = `rgb(255, ${150 * (1-pulse)}, ${150 * (1-pulse)})`; livesDisplayDiv.style.textShadow = `1px 1px ${2 + pulse * 3}px #000`; } else { livesDisplayDiv.style.color = '#f99'; livesDisplayDiv.style.textShadow = '1px 1px 2px #000'; } } }
+        updateOrbShieldDisplay() { if (orbShieldDisplayDiv) { orbShieldDisplayDiv.textContent = `Shield: ${this.player.orbShieldCount}`; if (!this.gameWon && this.player.orbShieldCount === 1) { const pulse = (Math.sin(this.game.currentTime * LOW_STATUS_PULSE_SPEED + Math.PI / 2) + 1) / 2; orbShieldDisplayDiv.style.color = `rgb(${150 * (1-pulse)}, ${200}, 255)`; orbShieldDisplayDiv.style.textShadow = `1px 1px ${2 + pulse * 3}px #000`; } else { orbShieldDisplayDiv.style.color = '#9cf'; orbShieldDisplayDiv.style.textShadow = '1px 1px 2px #000'; } } }
+        winGame() { if (this.gameWon) return; this.gameWon = true; const finalTime = (performance.now() - this.gameStartTime) / 1000; messageDiv.textContent = `You Win! ${finalTime.toFixed(2)}s (R for Next)`; messageDiv.style.display = 'block'; this.game.stopMusic(); this.game.saveSystem.levelCompleted(this.levelNumber, finalTime); }
+        goToNextLevelOrGameOver(advanceLevel = false) { console.log(`goToNextLevelOrGameOver called. Advance: ${advanceLevel}`); if (advanceLevel) { this.levelNumber = this.game.saveSystem.data.currentLevel; console.log(`Advancing to level ${this.levelNumber}`); } else { console.log(`Game Over on level ${this.levelNumber} or Manual Reset. Regenerating.`); } this.gameWon = false; messageDiv.style.display = 'none'; if (this.messageTimeoutId) clearTimeout(this.messageTimeoutId); this.orbiterAngle = 0; this.generateLevel(); this.gameStartTime = performance.now(); if (this.game.isAudioInitialized && !this.isMuted) { this.game.startMusic(); } }
+        showTemporaryMessage(text) { if (this.gameWon) return; messageDiv.textContent = text; messageDiv.style.display = 'block'; if (this.messageTimeoutId) clearTimeout(this.messageTimeoutId); this.messageTimeoutId = setTimeout(() => { if (!this.gameWon) messageDiv.style.display = 'none'; this.messageTimeoutId = null; }, 2000); }
+
+        render(ctx) {
+            const time = this.game.currentTime; let cameraX = this.player.x - canvas.width / 3; cameraX = Math.max(0, Math.min(this.levelEndX - canvas.width, cameraX)); let cameraY = 0;
+
+            // ** USE THE NEW BACKGROUND FUNCTION HERE **
+            this.drawDesertDunesBackground(time * 1000, cameraX, ctx);
+            // this.drawAlienMarioBackground(time * 1000, cameraX, ctx); // OLD ONE COMMENTED OUT
+
+            this.drawLava(time * 1000, cameraX, ctx);
+            ctx.save(); ctx.translate(-cameraX, -cameraY);
+            this.platforms.forEach(p => { this.drawPlatformSimple(p, ctx); if (p.hasCactus) this.drawCactus(p.x + p.width / 2, p.y, ctx); });
+            this.collectibles.forEach(c => { if (!c.collected) { const pulse = (1 + Math.sin(time * PULSE_SPEED)) / 2; const r = REWARD_BASE_RADIUS * (1 + pulse * PULSE_MAGNITUDE_ORB); this.drawPulsatingOrb(c.x + c.width / 2, c.y + c.height / 2, r, c.color, time, ctx); } });
+            this.drawDoorway(this.goal.x, this.goal.y, this.goal.width, this.goal.height, this.goal.color, time, ctx);
+            this.bats.forEach(b => { if (b.health > 0) this.drawBat(b, ctx); });
+            this.groundPatrollers.forEach(p => { if (p.health > 0) this.drawGroundPatroller(p, ctx); }); // Calls the updated draw function
+            this.snakes.forEach(s => { if (s.health > 0) this.drawSnake(s, ctx); }); // Draw snakes
+            this.fireballs.forEach(fb => this.drawFireball(fb, ctx)); // Draw fireballs
+            if (this.boss) this.drawGiantBatBoss(this.boss, time, ctx); // Draw boss
+            if (!this.player.onGround) { this.drawMagicCarpet(this.player, time, ctx); }
+            this.drawPlayer(ctx); this.drawOrbiters(time, ctx);
+            this.effectsSystem.render(ctx);
+            /* // --- Debug Drawing ---
+            if (this.player.isAttacking) { const hitboxX = (this.player.facingDirection === 'right') ? this.player.x + this.player.width * 0.5 + SWORD_HITBOX_OFFSET_X : this.player.x + this.player.width * 0.5 - SWORD_HITBOX_OFFSET_X - SWORD_HITBOX_WIDTH; const hitboxY = this.player.y + this.player.height * 0.2; this.debugDrawRect({ x: hitboxX, y: hitboxY, width: SWORD_HITBOX_WIDTH, height: SWORD_HITBOX_HEIGHT }, '#FF0000', ctx); }
+            this.fireballs.forEach(fb => { ctx.strokeStyle = '#FFA500'; ctx.beginPath(); ctx.arc(fb.x, fb.y, fb.radius, 0, Math.PI * 2); ctx.stroke(); }); // Debug fireball circle
+            this.debugDrawRect(this.player, '#00FF00', ctx);
+            this.groundPatrollers.forEach(p => this.debugDrawRect(p, '#FFA500', ctx));
+            this.bats.forEach(b => this.debugDrawRect(b, '#FF00FF', ctx));
+            this.snakes.forEach(s => this.debugDrawRect(s, '#FFD700', ctx)); // Debug snake rectangle
+            this.platforms.forEach(p => { if(p.hasCactus) this.debugDrawRect({ x: p.x + (p.width / 2) - (CACTUS_WIDTH / 2), y: p.y - CACTUS_HEIGHT, width: CACTUS_WIDTH, height: CACTUS_HEIGHT }, '#00DD00', ctx); });
+            if(this.player.coyoteTimer > 0) { ctx.fillStyle = 'yellow'; ctx.fillRect(this.player.x, this.player.y - 10, this.player.width * (this.player.coyoteTimer / COYOTE_TIME_DURATION), 5); }
+            */// --- End Debug ---
+            ctx.restore();
+            if (this.screenFlashTimer > 0 && this.screenFlashColor) { const flashAlpha = (this.screenFlashTimer / SCREEN_FLASH_DURATION) * 0.7; const colorWithAlpha = this.screenFlashColor.replace(/[\d\.]+\)$/g, `${flashAlpha.toFixed(2)})`); ctx.fillStyle = colorWithAlpha; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+            this.updateTimerDisplay(); this.updateLivesDisplay(); this.updateOrbShieldDisplay();
+            if (this.game.touchControls) this.game.touchControls.render(ctx);
+            if (this.gameWon) { this.drawWinTextSimple(ctx); }
+        }
+
+        updateTimerDisplay() { if (this.gameStartTime !== null && !this.gameWon) { const elapsedSeconds = (performance.now() - this.gameStartTime) / 1000; timerDiv.textContent = elapsedSeconds.toFixed(2); } else if (!this.gameStartTime) { timerDiv.textContent = "0.00"; } }
+
+        // --- Drawing Helpers ---
+        // drawAlienMarioBackground(time, camX, ctx) { ... } // Original commented out or removed
+
+        // NEW DESERT BACKGROUND FUNCTION
+        drawDesertDunesBackground(time, camX, ctx) {
+            ctx.save();
+
+            // 1. Sky Gradient
+            const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.75); // Gradient covers top 3/4
+            skyGradient.addColorStop(0, '#87CEEB'); // Light Sky Blue
+            skyGradient.addColorStop(0.7, '#FFDAB9'); // Peach Puff / Light Orange near horizon
+            skyGradient.addColorStop(1, '#FFA07A'); // Light Salmon / Orange deeper horizon
+            ctx.fillStyle = skyGradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 2. Optional Sun
+            const sunX = canvas.width * 0.8 - camX * 0.02; // Slow parallax for sun
+            const sunY = canvas.height * 0.15;
+            const sunRadius = 40;
+            ctx.fillStyle = 'rgba(255, 255, 224, 0.9)'; // Light Yellow, slightly transparent
+            ctx.beginPath();
+            ctx.arc(sunX, sunY, sunRadius, 0, Math.PI * 2);
+            ctx.fill();
+            // Sun Glow
+            ctx.shadowColor = 'rgba(255, 255, 0, 0.5)';
+            ctx.shadowBlur = 25;
+            ctx.fillStyle = 'rgba(255, 255, 200, 0.8)';
+            ctx.beginPath();
+            ctx.arc(sunX, sunY, sunRadius * 0.8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowColor = 'transparent'; // Reset shadow for dunes
+
+            // 3. Dunes (Draw from back to front)
+            const duneLayers = [
+                // Far layer
+                {
+                    parallax: 0.08, // Slowest scroll
+                    baseY: canvas.height * 0.65,
+                    amp1: 40, freq1: 0.003, // Main wave
+                    amp2: 15, freq2: 0.007, // Ripple wave
+                    hue: 40, sat: 45, lightBase: 55, lightRange: 10 // Browner tones
+                },
+                // Mid layer
+                {
+                    parallax: 0.15,
+                    baseY: canvas.height * 0.75,
+                    amp1: 60, freq1: 0.004,
+                    amp2: 25, freq2: 0.009,
+                    hue: 45, sat: 55, lightBase: 65, lightRange: 12 // Standard sand
+                },
+                // Near layer
+                {
+                    parallax: 0.30, // Fastest scroll
+                    baseY: canvas.height * 0.85,
+                    amp1: 80, freq1: 0.005,
+                    amp2: 30, freq2: 0.012,
+                    hue: 50, sat: 65, lightBase: 70, lightRange: 15 // Lighter, yellower sand
+                }
+            ];
+
+            const segmentWidth = 5; // Draw dunes in segments
+
+            duneLayers.forEach((layer, index) => {
+                const scrollOffset = camX * layer.parallax;
+                // Introduce a very slow time factor for subtle "wind" shift, different per layer
+                const timeFactor = time * 0.00002 * (index * 0.5 + 1);
+
+                // Create a vertical gradient for this dune layer for shading
+                const gradientYStart = layer.baseY - layer.amp1 - layer.amp2 - 20; // Extend gradient slightly above peaks
+                const gradientYEnd = canvas.height; // Gradient goes to bottom of canvas
+                const duneGradient = ctx.createLinearGradient(0, gradientYStart, 0, gradientYEnd);
+
+                const lightHighlight = Math.min(95, layer.lightBase + layer.lightRange);
+                const lightShadow = Math.max(10, layer.lightBase - layer.lightRange);
+
+                // Gradient stops: Highlight -> Mid -> Shadow -> Darker Shadow at bottom
+                duneGradient.addColorStop(0, `hsl(${layer.hue}, ${layer.sat}%, ${lightHighlight}%)`); // Highlight near top of wave range
+                duneGradient.addColorStop(0.4, `hsl(${layer.hue}, ${layer.sat}%, ${layer.lightBase}%)`); // Mid tone around base Y
+                duneGradient.addColorStop(0.8, `hsl(${layer.hue - 10}, ${layer.sat - 10}%, ${lightShadow}%)`); // Shadow below base Y (Slightly less saturated)
+                duneGradient.addColorStop(1, `hsl(${layer.hue - 15}, ${layer.sat - 15}%, ${lightShadow - 5}%)`); // Darkest at screen bottom (Even less saturated, slightly darker hue)
+
+                ctx.fillStyle = duneGradient;
+                ctx.beginPath();
+                ctx.moveTo(0, canvas.height); // Start bottom-left
+
+                for (let x = 0; x <= canvas.width; x += segmentWidth) {
+                    const worldX = x + scrollOffset;
+                    // Combine sine waves for more natural dune shapes
+                    // Add timeFactor to the sine calculation and a phase shift per layer
+                    const duneY = layer.baseY +
+                                  Math.sin(worldX * layer.freq1 + timeFactor + index * 1.5) * layer.amp1 +
+                                  Math.sin(worldX * layer.freq2 + timeFactor * 1.3 + index * 3.0) * layer.amp2;
+                    ctx.lineTo(x, Math.max(0, duneY)); // Don't let dunes go above screen top visually
+                }
+
+                ctx.lineTo(canvas.width, canvas.height); // End bottom-right
+                ctx.closePath();
+                ctx.fill();
+            });
+
+
+            ctx.restore();
+        }
+        drawStarfield(camX, ctx) { ctx.save(); ctx.fillStyle = '#FFF'; this.stars.forEach(star => { const parallaxFactor = star.z / canvas.width; const starX = (star.x - camX * parallaxFactor) % canvas.width; const finalX = starX < 0 ? starX + canvas.width : starX; const size = (1 - parallaxFactor) * 2 + 0.5; ctx.globalAlpha = (1 - parallaxFactor) * 0.8 + 0.2; ctx.fillRect(finalX, star.y, size, size); }); ctx.restore(); }
+        getLavaTopY(worldX, time) { const timeFactorH = time * LAVA_SPEED; const timeFactorV = time * LAVA_VERTICAL_SPEED; const baseLavaY = canvas.height - LAVA_BASE_HEIGHT; const wave1 = Math.sin(worldX * LAVA_SCALE_X1 + timeFactorH) * LAVA_WAVE_HEIGHT * 0.5; const wave2 = Math.sin(worldX * LAVA_SCALE_X2 + timeFactorH * 0.6 + 1.5) * LAVA_WAVE_HEIGHT * 0.3; const wave3 = Math.sin(timeFactorV + worldX * 0.005) * LAVA_WAVE_HEIGHT * 0.2; return baseLavaY + wave1 + wave2 + wave3; }
+        drawLava(time, cameraX, ctx) { for (let screenX = 0; screenX < canvas.width; screenX += LAVA_SEGMENT_WIDTH) { const worldX = screenX + cameraX; const currentTopY = this.getLavaTopY(worldX, time); const waveHeightNormalized = Math.max(0, Math.min(1, (currentTopY - (canvas.height - LAVA_BASE_HEIGHT)) / LAVA_WAVE_HEIGHT * 0.5 + 0.5)); const hue = 10 + waveHeightNormalized * 40; const saturation = 95 + waveHeightNormalized * 5; const lightness = 45 + waveHeightNormalized * 25; ctx.fillStyle = `hsl(${hue}, ${saturation}%, ${lightness}%)`; ctx.fillRect(screenX, currentTopY, LAVA_SEGMENT_WIDTH, canvas.height - currentTopY); if (waveHeightNormalized > 0.75) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `hsla(${hue + 10}, 100%, 80%, ${0.4 + (waveHeightNormalized - 0.75)*1.2})`; ctx.fillRect(screenX, currentTopY - LAVA_STRIP_HEIGHT, LAVA_SEGMENT_WIDTH, LAVA_STRIP_HEIGHT * 2); ctx.restore(); } } }
+        drawPlatformSimple(platform, ctx) { ctx.save(); ctx.fillStyle = platform.color; ctx.fillRect(platform.x, platform.y, platform.width, platform.height); ctx.shadowColor = PLATFORM_EDGE_COLOR; ctx.shadowBlur = PLATFORM_EDGE_GLOW_BLUR; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0; ctx.strokeStyle = PLATFORM_EDGE_COLOR; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(platform.x, platform.y + 0.5); ctx.lineTo(platform.x + platform.width, platform.y + 0.5); ctx.stroke(); ctx.restore(); }
+        drawCactus(platformCenterX, platformTopY, ctx) { const cactusX = platformCenterX - CACTUS_WIDTH / 2; const cactusY = platformTopY - CACTUS_HEIGHT; ctx.fillStyle = CACTUS_COLOR; ctx.beginPath(); ctx.rect(cactusX + CACTUS_WIDTH * 0.3, cactusY, CACTUS_WIDTH * 0.4, CACTUS_HEIGHT); ctx.rect(cactusX, cactusY + CACTUS_HEIGHT * 0.3, CACTUS_WIDTH * 0.4, CACTUS_HEIGHT * 0.3); ctx.rect(cactusX, cactusY + CACTUS_HEIGHT * 0.3, CACTUS_WIDTH * 0.15, CACTUS_HEIGHT * 0.5); ctx.rect(cactusX + CACTUS_WIDTH * 0.6, cactusY + CACTUS_HEIGHT * 0.2, CACTUS_WIDTH * 0.4, CACTUS_HEIGHT * 0.3); ctx.rect(cactusX + CACTUS_WIDTH * (1 - 0.15), cactusY + CACTUS_HEIGHT * 0.2, CACTUS_WIDTH * 0.15, CACTUS_HEIGHT * 0.6); ctx.fill(); }
+        drawPulsatingOrb(centerX, centerY, radius, color, time, ctx) { ctx.save(); const pulseOuter = (1 + Math.sin(time * PULSE_SPEED * 0.8 + Math.PI)) / 2; const outerRadius = radius * (1.3 + pulseOuter * PULSE_MAGNITUDE_ORB * 1.5); const outerAlpha = 0.3 + pulseOuter * 0.3; const outerHue = (300 + Math.sin(time * 1.5 + 1.0) * 60) % 360; ctx.fillStyle = `hsla(${outerHue}, 90%, 70%, ${outerAlpha * 0.5})`; ctx.beginPath(); ctx.arc(centerX, centerY, outerRadius, 0, Math.PI * 2); ctx.fill(); const glowHue = (300 + Math.sin(time * 1.5) * 60) % 360; ctx.shadowColor = `hsl(${glowHue}, 90%, 70%)`; ctx.shadowBlur = GLOW_BLUR * 1.2; ctx.shadowOffsetX = GLOW_OFFSET; ctx.shadowOffsetY = GLOW_OFFSET; ctx.fillStyle = color; ctx.beginPath(); ctx.arc(centerX, centerY, radius, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)'; ctx.lineWidth = 1; ctx.stroke(); ctx.restore(); }
+        drawDoorway(x, y, width, height, frameColor, time, ctx) { ctx.save(); const glowHue = (120 + Math.sin(time * 1.2) * 30) % 360; ctx.shadowColor = `hsl(${glowHue}, 80%, 60%)`; ctx.shadowBlur = GLOW_BLUR * 1.5; ctx.shadowOffsetX = GLOW_OFFSET; ctx.shadowOffsetY = GLOW_OFFSET; ctx.fillStyle = frameColor; ctx.fillRect(x, y, width, height); ctx.fillStyle = GOAL_INNER_COLOR; const borderWidth = Math.min(width * 0.1, height * 0.08, 8); ctx.fillRect(x + borderWidth, y + borderWidth, width - borderWidth * 2, height - borderWidth); ctx.restore(); }
+        drawPlayer(ctx) {
+             const poseData = stickFigure.poses[this.player.animationState]?.[this.player.animationFrameIndex];
+             if (!poseData) { console.warn("Missing pose data for state:", this.player.animationState, "frame:", this.player.animationFrameIndex); ctx.fillStyle = PLAYER_COLOR; ctx.fillRect(this.player.x, this.player.y, this.player.width, this.player.height); return; }
+             const anchorX = this.player.x + this.player.width / 2;
+             const anchorY = this.player.y + this.player.height;
+             const flip = this.player.facingDirection === 'left' ? -1 : 1;
+             ctx.save();
+             ctx.strokeStyle = stickFigure.jointColor;
+             ctx.lineWidth = stickFigure.lineWidth;
+             ctx.fillStyle = stickFigure.jointColor;
+             const getPos = (relativePos) => [anchorX + relativePos[0] * flip, anchorY + relativePos[1]];
+
+             // Draw Body Parts
+             const headPos = getPos(poseData.head);
+             const neckPos = getPos(poseData.neck);
+             const hipPos = getPos(poseData.hip);
+             const shoulderPos = getPos(poseData.shoulder);
+             let handLPos, handRPos;
+
+             // Torso
+             ctx.beginPath(); ctx.moveTo(neckPos[0], neckPos[1]); ctx.lineTo(hipPos[0], hipPos[1]); ctx.stroke();
+
+             // Arms
+             let armLData = poseData.armL, armRData = poseData.armR;
+             if (armLData) { const elbowLPos = getPos(armLData[1]); handLPos = getPos(armLData[2]); ctx.beginPath(); ctx.moveTo(shoulderPos[0], shoulderPos[1]); ctx.lineTo(elbowLPos[0], elbowLPos[1]); ctx.lineTo(handLPos[0], handLPos[1]); ctx.stroke(); }
+             if (armRData) { const elbowRPos = getPos(armRData[1]); handRPos = getPos(armRData[2]); ctx.beginPath(); ctx.moveTo(shoulderPos[0], shoulderPos[1]); ctx.lineTo(elbowRPos[0], elbowRPos[1]); ctx.lineTo(handRPos[0], handRPos[1]); ctx.stroke(); }
+
+             // Legs
+             const kneeLPos = getPos(poseData.legL[1]); const footLPos = getPos(poseData.legL[2]); ctx.beginPath(); ctx.moveTo(hipPos[0], hipPos[1]); ctx.lineTo(kneeLPos[0], kneeLPos[1]); ctx.lineTo(footLPos[0], footLPos[1]); ctx.stroke();
+             const kneeRPos = getPos(poseData.legR[1]); const footRPos = getPos(poseData.legR[2]); ctx.beginPath(); ctx.moveTo(hipPos[0], hipPos[1]); ctx.lineTo(kneeRPos[0], kneeRPos[1]); ctx.lineTo(footRPos[0], footRPos[1]); ctx.stroke();
+
+             // Draw Head (after body so it's on top)
+             ctx.beginPath(); ctx.arc(headPos[0], headPos[1], stickFigure.headRadius, 0, Math.PI * 2); ctx.fill();
+
+             // Draw Hat
+             const hatDef = stickFigure.hat;
+             const hatTipBase = [headPos[0], headPos[1] - stickFigure.headRadius];
+             const hatTip = [hatTipBase[0] + hatDef.tipOffset[0] * flip, hatTipBase[1] + hatDef.tipOffset[1]];
+             const brimY = hatTipBase[1] + hatDef.brimHeight / 2;
+             ctx.fillStyle = hatDef.color;
+             ctx.beginPath();
+             ctx.moveTo(hatTip[0], hatTip[1]);
+             ctx.lineTo(hatTipBase[0] - hatDef.brimWidth / 2 * flip, brimY);
+             ctx.lineTo(hatTipBase[0] + hatDef.brimWidth / 2 * flip, brimY);
+             ctx.closePath();
+             ctx.fill();
+             // Draw Brim (ellipse)
+             ctx.beginPath();
+             ctx.ellipse(hatTipBase[0], brimY, hatDef.brimWidth / 2, hatDef.brimHeight / 2, 0, 0, Math.PI * 2);
+             ctx.fill();
+
+
+             // Draw Staff
+             const staffDef = stickFigure.staff;
+             const staffHandPos = (staffDef.hand === 'left' && handLPos) ? handLPos : handRPos;
+             if (staffHandPos) {
+                 ctx.strokeStyle = staffDef.color;
+                 ctx.lineWidth = stickFigure.lineWidth + 1; // Slightly thicker staff
+                 ctx.beginPath();
+                 const staffAngle = Math.PI / 7 * flip; // Angle the staff slightly
+                 const staffBottomX = staffHandPos[0] - Math.sin(staffAngle) * staffDef.length * 0.3;
+                 const staffBottomY = staffHandPos[1] + Math.cos(staffAngle) * staffDef.length * 0.3;
+                 const staffTopX = staffHandPos[0] + Math.sin(staffAngle) * staffDef.length * 0.7;
+                 const staffTopY = staffHandPos[1] - Math.cos(staffAngle) * staffDef.length * 0.7;
+                 ctx.moveTo(staffBottomX, staffBottomY);
+                 ctx.lineTo(staffTopX, staffTopY);
+                 ctx.stroke();
+
+                 // Draw Gem
+                 ctx.fillStyle = staffDef.gemColor;
+                 ctx.beginPath();
+                 ctx.arc(staffTopX + staffDef.topOffset[0] * flip, staffTopY + staffDef.topOffset[1], staffDef.gemRadius, 0, Math.PI * 2);
+                 ctx.fill();
+                 // Gem Highlight
+                 ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                 ctx.beginPath();
+                 ctx.arc(staffTopX + staffDef.topOffset[0] * flip + staffDef.gemRadius * 0.3, staffTopY + staffDef.topOffset[1] - staffDef.gemRadius * 0.3, staffDef.gemRadius * 0.4, 0, Math.PI * 2);
+                 ctx.fill();
+             }
+
+             // Draw Sword (if not holding staff in that hand or if attacking)
+             if (handRPos && (staffDef.hand !== 'right' || this.player.isAttacking)) {
+                 ctx.save();
+                 ctx.shadowColor = SWORD_GLOW_COLOR; ctx.shadowBlur = SWORD_GLOW_BLUR;
+                 ctx.strokeStyle = SWORD_COLOR; ctx.lineWidth = SWORD_LINE_WIDTH;
+                 ctx.beginPath();
+                 let swordAngle = stickFigure.sword.angle;
+                 if(this.player.animationState === 'attacking') { swordAngle = -Math.PI / 12; }
+                 swordAngle *= flip;
+                 const hiltStartXRel = stickFigure.sword.hiltOffset[0]; const hiltStartYRel = stickFigure.sword.hiltOffset[1];
+                 const hiltStartX = handRPos[0] + (hiltStartXRel * Math.cos(swordAngle) - hiltStartYRel * Math.sin(swordAngle));
+                 const hiltStartY = handRPos[1] + (hiltStartXRel * Math.sin(swordAngle) + hiltStartYRel * Math.cos(swordAngle));
+                 const hiltEndX = hiltStartX + Math.sin(swordAngle) * stickFigure.sword.hiltLength * flip;
+                 const hiltEndY = hiltStartY + Math.cos(swordAngle) * stickFigure.sword.hiltLength * -1;
+                 const bladeTipX = hiltEndX + Math.sin(swordAngle) * stickFigure.sword.bladeLength * flip;
+                 const bladeTipY = hiltEndY + Math.cos(swordAngle) * stickFigure.sword.bladeLength * -1;
+                 ctx.moveTo(hiltEndX, hiltEndY); ctx.lineTo(bladeTipX, bladeTipY);
+                 ctx.stroke();
+                 ctx.restore();
+                 if (this.player.isAttacking && Math.random() < SWORD_LIGHTNING_CHANCE) {
+                     this.effectsSystem.emitSwordLightning(hiltEndX, hiltEndY, bladeTipX, bladeTipY);
+                 }
+             }
+             ctx.restore();
+         }
+        drawOrbiters(time, ctx) { if (this.player.orbShieldCount <= 0) return; const playerCenterX = this.player.x + this.player.width / 2; const playerCenterY = this.player.y + this.player.height / 2; const angleIncrement = (Math.PI * 2) / this.player.orbShieldCount; for (let i = 0; i < this.player.orbShieldCount; i++) { const currentAngle = this.orbiterAngle + (i * angleIncrement); const orbX = playerCenterX + Math.cos(currentAngle) * ORBITER_DISTANCE; const orbY = playerCenterY + Math.sin(currentAngle) * ORBITER_DISTANCE; const pulseOrb = (1 + Math.sin(time * PULSE_SPEED * 1.5 + i*0.5)) / 2; const currentRadius = ORBITER_RADIUS * (1 + pulseOrb * 0.2); const glowHue = (100 + Math.sin(time * 2.0 + i) * 20) % 360; ctx.save(); ctx.shadowColor = `hsl(${glowHue}, 90%, 60%)`; ctx.shadowBlur = GLOW_BLUR * 0.6; ctx.fillStyle = ORBITER_COLOR; ctx.beginPath(); ctx.arc(orbX, orbY, currentRadius, 0, Math.PI * 2); ctx.fill(); ctx.restore(); } }
+        drawWinTextSimple(ctx) { ctx.save(); ctx.fillStyle = WIN_TEXT_COLOR; ctx.font = WIN_TEXT_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 5; ctx.shadowOffsetX = 2; ctx.shadowOffsetY = 2; ctx.fillText("YOU WIN", canvas.width / 2, canvas.height / 2); ctx.restore(); }
+        drawBat(bat, ctx) { ctx.save(); ctx.fillStyle = '#302040'; const centerX = bat.x + bat.width / 2; const centerY = bat.y + bat.height / 2; const wingSpan = bat.width * 0.8; const wingHeight = bat.height * 0.6; const flapAmount = Math.sin(bat.flapTimer) * wingHeight * 0.5; ctx.beginPath(); ctx.moveTo(centerX - wingSpan, centerY + flapAmount); ctx.lineTo(centerX, centerY - wingHeight * 0.5); ctx.lineTo(centerX + wingSpan, centerY + flapAmount); ctx.lineTo(centerX, centerY + wingHeight * 0.5); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#ffaaaa'; ctx.fillRect(centerX - 3, centerY - 3, 2, 2); ctx.fillRect(centerX + 1, centerY - 3, 2, 2); ctx.restore(); }
+        // UPDATED drawGroundPatroller function
+        drawGroundPatroller(patroller, ctx) {
+            ctx.save();
+            const x = patroller.x;
+            const y = patroller.y;
+            const w = patroller.width;
+            const h = patroller.height;
+            const dir = patroller.direction;
+
+            // Body (slightly darker shade)
+            ctx.fillStyle = '#b86e44'; // Darker version of PATROLLER_COLOR
+            ctx.fillRect(x, y, w, h);
+
+            // Head
+            const headHeight = h * 0.4;
+            const headWidth = w * 0.6;
+            const headX = x + (w - headWidth) / 2;
+            const headY = y - headHeight * 0.8; // Position head slightly above body
+            ctx.fillStyle = PATROLLER_COLOR; // Original color for head
+            ctx.fillRect(headX, headY, headWidth, headHeight);
+
+            // Eye
+            ctx.fillStyle = '#FFF'; // White eye
+            const eyeSize = headHeight * 0.4;
+            const eyeX = headX + (dir > 0 ? headWidth * 0.6 : headWidth * 0.1); // Eye faces movement direction
+            const eyeY = headY + headHeight * 0.3;
+            ctx.fillRect(eyeX, eyeY, eyeSize, eyeSize);
+            // Pupil
+             ctx.fillStyle = '#000'; // Black pupil
+             ctx.fillRect(eyeX + eyeSize * 0.25, eyeY + eyeSize * 0.25, eyeSize * 0.5, eyeSize * 0.5);
+
+
+            // Optional: Simple feet/treads
+            const treadHeight = h * 0.15;
+            const treadWidth = w * 0.8;
+            const treadX = x + (w - treadWidth) / 2;
+            const treadY = y + h - treadHeight / 2; // Position slightly below body
+            ctx.fillStyle = '#555'; // Dark grey for treads
+            ctx.fillRect(treadX, treadY, treadWidth, treadHeight);
+
+
+            // Health Bar (remains the same)
+            if (patroller.health < PATROLLER_HEALTH) {
+                const healthBarWidth = patroller.width * 0.8;
+                const healthBarX = patroller.x + patroller.width * 0.1;
+                const healthBarY = patroller.y - 12; // Adjusted Y slightly for head clearance
+                ctx.fillStyle = '#555';
+                ctx.fillRect(healthBarX, healthBarY, healthBarWidth, 4);
+                ctx.fillStyle = '#ff4444';
+                ctx.fillRect(healthBarX, healthBarY, healthBarWidth * (patroller.health / PATROLLER_HEALTH), 4);
+            }
+            ctx.restore();
+        }
+
+        drawSnake(snake, ctx) {
+            ctx.save();
+            const centerX = snake.x + snake.width / 2;
+            const centerY = snake.y + snake.height / 2;
+
+            const segmentCount = SNAKE_BODY_SEGMENTS;
+
+            for (let i = segmentCount - 1; i >= 0; i--) {
+                const segmentPhase = snake.undulationTimer - i * 0.3;
+
+                let segmentSizeFactor;
+                if (i === 0) segmentSizeFactor = 1.0;
+                else if (i === 1) segmentSizeFactor = 1.0;
+                else segmentSizeFactor = 0.99 - (i / segmentCount) * 0.6;
+
+                const undulationFactor = Math.sin((i / segmentCount) * Math.PI * 0.8);
+
+                const segmentSpacing = (snake.width / segmentCount) * 5;
+                const segmentX = centerX - (i * segmentSpacing) * snake.facingDirection;
+
+                const undulationAmplitude = SNAKE_UNDULATION_AMPLITUDE * (1 - (i / segmentCount) * 0.3);
+                const offsetY = Math.sin(segmentPhase) * undulationAmplitude * undulationFactor;
+                const segmentY = centerY + offsetY;
+
+                const segmentWidth = snake.width * (i === 0 ? 0.5 : 0.4) * segmentSizeFactor;
+                const segmentHeight = snake.height * (i === 0 ? 0.7 : 0.6) * segmentSizeFactor;
+
+                const isEvenSegment = i % 2 === 0;
+                ctx.fillStyle = isEvenSegment ? SNAKE_COLOR : SNAKE_ACCENT_COLOR;
+
+                ctx.beginPath();
+                ctx.ellipse(segmentX, segmentY, segmentWidth, segmentHeight, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                if (i < segmentCount - 2 && isEvenSegment) {
+                    ctx.fillStyle = `rgba(255, 255, 200, 0.2)`;
+                    ctx.beginPath();
+                    ctx.ellipse(
+                        segmentX + segmentWidth * 0.3 * snake.facingDirection,
+                        segmentY - segmentHeight * 0.2,
+                        segmentWidth * 0.4,
+                        segmentHeight * 0.3,
+                        0, 0, Math.PI * 2
+                    );
+                    ctx.fill();
+                }
+
+                if (i === 0) {
+                    const headWidthFactor = 1.0;
+                    const headLengthFactor = 1.3;
+                    const headBaseFactor = 0.4;
+
+                    const tipX = segmentX + segmentWidth * headLengthFactor * snake.facingDirection;
+                    const tipY = segmentY;
+
+                    const wideOffsetY = segmentHeight * headWidthFactor;
+                    const widePointTopX = segmentX;
+                    const widePointTopY = segmentY - wideOffsetY;
+                    const widePointBottomX = segmentX;
+                    const widePointBottomY = segmentY + wideOffsetY;
+
+                    ctx.beginPath();
+                    ctx.moveTo(tipX, tipY);
+                    ctx.lineTo(widePointTopX, widePointTopY);
+                    ctx.lineTo(segmentX - segmentWidth * 0.5 * snake.facingDirection, segmentY);
+                    ctx.lineTo(widePointBottomX, widePointBottomY);
+                    ctx.closePath();
+                    ctx.fill();
+
+                    const eyeX = segmentX + (segmentWidth * 0.6) * snake.facingDirection;
+                    const eyeY = segmentY - segmentHeight * 0.1;
+
+                    ctx.fillStyle = '#FF2200';
+                    ctx.beginPath();
+                    ctx.ellipse(eyeX, eyeY, segmentWidth * 0.3, segmentHeight * 0.25, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = '#000';
+                    ctx.beginPath();
+                    ctx.ellipse(
+                        eyeX + (segmentWidth * 0.15) * snake.facingDirection,
+                        eyeY,
+                        segmentWidth * 0.15,
+                        segmentHeight * 0.04,
+                        0, 0, Math.PI * 2
+                    );
+                    ctx.fill();
+
+                    if (snake.state === 'chasing' && Math.sin(snake.undulationTimer * 5) > 0.7) {
+                        ctx.strokeStyle = '#FF0066';
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        const tongueStartX = segmentX + segmentWidth * 1.1 * snake.facingDirection;
+                        const tongueStartY = segmentY + segmentHeight * 0.1;
+                        const tongueForkLength = segmentWidth * 1.2;
+
+                        ctx.moveTo(tongueStartX, tongueStartY);
+                        ctx.lineTo(
+                            tongueStartX + tongueForkLength * snake.facingDirection,
+                            tongueStartY - tongueForkLength * 0.4
+                        );
+                        ctx.moveTo(tongueStartX + tongueForkLength * 0.7 * snake.facingDirection, tongueStartY);
+                        ctx.lineTo(
+                            tongueStartX + tongueForkLength * snake.facingDirection,
+                            tongueStartY + tongueForkLength * 0.4
+                        );
+                        ctx.stroke();
+                    }
+                }
+            }
+            ctx.restore();
+        }
+
+        debugDrawRect(rect, color, ctx) { ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.strokeRect(rect.x, rect.y, rect.width, rect.height); }
+        drawMagicCarpet(player, time, ctx) {
+            const anchorX = player.x + player.width / 2;
+            const anchorY = player.y + player.height + CARPET_OFFSET_Y;
+            
+            // Enhanced wave calculation with multiple sine waves
+            const waveBase = Math.sin(time * CARPET_WAVE_SPEED);
+            const waveDetail = Math.sin(time * CARPET_WAVE_SPEED * 1.7 + 1.3) * 0.3;
+            const waveCombined = waveBase + waveDetail;
+            
+            const currentWidth = CARPET_WIDTH * (1 + waveCombined * CARPET_WAVE_AMP_X);
+            const currentHeight = CARPET_HEIGHT * (1 - waveCombined * CARPET_WAVE_AMP_Y * 0.5);
+            const carpetX = anchorX - currentWidth / 2;
+            const carpetY = anchorY - currentHeight / 2;
+
+            // Draw carpet trail particles
+            this.drawCarpetTrail(carpetX, carpetY, player.velocityX, player.velocityY, time, ctx);
+
+            ctx.save();
+            
+            // Create carpet base with gradient
+            const carpetGradient = ctx.createLinearGradient(carpetX, carpetY, carpetX, carpetY + currentHeight);
+            carpetGradient.addColorStop(0, CARPET_COLOR_1);
+            carpetGradient.addColorStop(1, CARPET_COLOR_2);
+            
+            // Draw the carpet with curved edges for more natural wave appearance
+            ctx.fillStyle = carpetGradient;
+            ctx.beginPath();
+            
+            // Custom shape with curved edges
+            const cornerRadius = currentHeight * 0.4;
+            
+            // Top edge with wave
+            ctx.moveTo(carpetX + cornerRadius, carpetY);
+            for (let i = 0; i <= 10; i++) {
+                const xPos = carpetX + cornerRadius + (currentWidth - cornerRadius * 2) * (i / 10);
+                const wavePhase = time * CARPET_WAVE_SPEED * 2 + i * 0.5;
+                const yOffset = Math.sin(wavePhase) * (currentHeight * 0.1);
+                ctx.lineTo(xPos, carpetY + yOffset);
+            }
+            
+            // Right curve
+            ctx.quadraticCurveTo(carpetX + currentWidth, carpetY, carpetX + currentWidth, carpetY + cornerRadius);
+            
+            // Bottom edge with opposite wave pattern
+            for (let i = 10; i >= 0; i--) {
+                const xPos = carpetX + cornerRadius + (currentWidth - cornerRadius * 2) * (i / 10);
+                const wavePhase = time * CARPET_WAVE_SPEED * 1.5 + i * 0.6 + Math.PI;
+                const yOffset = Math.sin(wavePhase) * (currentHeight * 0.15);
+                ctx.lineTo(xPos, carpetY + currentHeight + yOffset);
+            }
+            
+            // Left curve
+            ctx.quadraticCurveTo(carpetX, carpetY + currentHeight, carpetX, carpetY + cornerRadius);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Add carpet pattern/decoration
+            ctx.fillStyle = CARPET_COLOR_2;
+            
+            // Central pattern
+            const patternWidth = currentWidth * 0.7;
+            const patternHeight = currentHeight * 0.7;
+            const patternX = carpetX + (currentWidth - patternWidth) / 2;
+            const patternY = carpetY + (currentHeight - patternHeight) / 2;
+            
+            // Draw diamond pattern
+            ctx.beginPath();
+            ctx.moveTo(patternX + patternWidth/2, patternY);
+            ctx.lineTo(patternX + patternWidth, patternY + patternHeight/2);
+            ctx.lineTo(patternX + patternWidth/2, patternY + patternHeight);
+            ctx.lineTo(patternX, patternY + patternHeight/2);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Add smaller decorative patterns
+            ctx.fillStyle = '#8040cc'; // Darker accent color
+            for (let i = 0; i < 3; i++) {
+                const ornX = patternX + patternWidth * (0.3 + i * 0.2);
+                const ornY = patternY + patternHeight * 0.5;
+                const ornSize = patternHeight * 0.15;
+                ctx.beginPath();
+                ctx.arc(ornX, ornY, ornSize, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // Draw tassels with wave motion
+            const tasselCount = 7;
+            const tasselSpacing = currentWidth / (tasselCount + 1);
+            const tasselLength = currentHeight * 0.8;
+            
+            ctx.strokeStyle = '#d0a0ff'; // Tassel color
+            ctx.lineWidth = 2;
+            
+            for (let i = 1; i <= tasselCount; i++) {
+                const tasselX = carpetX + tasselSpacing * i;
+                const phaseOffset = i * 0.7;
+                const tasselWave = Math.sin(time * CARPET_WAVE_SPEED * 1.2 + phaseOffset) * 5;
+                
+                // Create wavy tassels
+                ctx.beginPath();
+                ctx.moveTo(tasselX, carpetY + currentHeight);
+                
+                // Multiple control points for more natural wave
+                const cp1x = tasselX + tasselWave * 0.5;
+                const cp1y = carpetY + currentHeight + tasselLength * 0.3;
+                const cp2x = tasselX - tasselWave;
+                const cp2y = carpetY + currentHeight + tasselLength * 0.6;
+                const endX = tasselX + tasselWave * 1.5;
+                const endY = carpetY + currentHeight + tasselLength;
+                
+                ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, endX, endY);
+                ctx.stroke();
+                
+                // Add small decorative bead at the end of each tassel
+                ctx.fillStyle = '#e0c0ff';
+                ctx.beginPath();
+                ctx.arc(endX, endY, 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // Add a subtle glow effect
+            ctx.shadowColor = CARPET_COLOR_1;
+            ctx.shadowBlur = 10;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.rect(carpetX, carpetY, currentWidth, currentHeight);
+            ctx.stroke();
+            
+            ctx.restore();
+        }
+
+        drawCarpetTrail(carpetX, carpetY, velocityX, velocityY, time, ctx) {
+            // Only draw trail when moving at a certain speed
+            const speed = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
+            if (speed < 5) return;
+
+            ctx.save();
+
+            // Number of trail particles depends on speed
+            const particleCount = Math.min(15, Math.floor(speed / 7) + 6);
+
+            // Direction of movement affects trail position
+            const dirX = velocityX !== 0 ? -Math.sign(velocityX) : 0;
+            const dirY = velocityY !== 0 ? -Math.sign(velocityY) : 0;
+            
+            // Calculate trail starting point at the back of the carpet
+            const trailStartX = carpetX + (dirX < 0 ? CARPET_WIDTH * 0.4 : dirX > 0 ? -CARPET_WIDTH * 0.4 : 0);
+            const trailStartY = carpetY + (dirY < 0 ? CARPET_HEIGHT * 0.4 : dirY > 0 ? -CARPET_HEIGHT * 0.4 : 0);
+
+            // Create glowing particle effect
+            ctx.globalCompositeOperation = 'lighter';
+
+            for (let i = 0; i < particleCount; i++) {
+                // Calculate particle position with more varied distribution
+                const offset = i * 6 + Math.sin(time * 5 + i) * 3;
+                const phaseShift = i * 0.4;
+                
+                // Position particles with more interesting patterns
+                const waveX = Math.sin(time * 3 + phaseShift) * 4;
+                const waveY = Math.cos(time * 2.5 + phaseShift) * 3;
+                
+                const x = trailStartX + dirX * (offset + CARPET_WIDTH * 0.3) + waveX;
+                const y = trailStartY + dirY * (offset * 0.5 + CARPET_HEIGHT * 0.2) + waveY;
+
+                // Particle size decreases with distance but varies with time
+                const sizeVar = Math.sin(time * 4 + i * 0.3) * 0.3 + 1;
+                const size = (5 - (i / particleCount) * 3) * sizeVar;
+
+                // Particle opacity decreases with distance but pulses
+                const alphaVar = Math.sin(time * 3 + i * 0.5) * 0.15 + 1;
+                const alpha = (0.7 - (i / particleCount) * 0.6) * alphaVar;
+
+                // Create colors that shift with time
+                const hue = 270 + Math.sin(time + i * 0.2) * 20;
+                const saturation = 80 + Math.cos(time * 1.5 + i * 0.3) * 10;
+                const lightness = 75 + Math.sin(time * 2 + i * 0.25) * 10;
+                
+                ctx.fillStyle = `hsla(${hue}, ${saturation}%, ${lightness}%, ${alpha})`;
+
+                // Draw particle
+                ctx.beginPath();
+                ctx.arc(x, y, size, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Add occasional star-shaped sparkle effect
+                if (Math.random() < 0.3 && i < particleCount / 2) {
+                    ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.9})`;
+                    
+                    // Draw star-like shape
+                    const starX = x + Math.random() * 4 - 2;
+                    const starY = y + Math.random() * 4 - 2;
+                    const starSize = size * 0.7;
+                    
+                    ctx.beginPath();
+                    for (let j = 0; j < 5; j++) {
+                        const angle = j * Math.PI * 2 / 5 - Math.PI / 2;
+                        const length = j % 2 === 0 ? starSize : starSize * 0.5;
+                        const pointX = starX + Math.cos(angle) * length;
+                        const pointY = starY + Math.sin(angle) * length;
+                        
+                        if (j === 0) ctx.moveTo(pointX, pointY);
+                        else ctx.lineTo(pointX, pointY);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            }
+
+            ctx.restore();
+        }
+
+        drawGiantBatBoss(boss, time, ctx) {
+            ctx.save();
+            
+            // Base color for the giant bat boss
+            ctx.fillStyle = '#4A1942'; // Darker purple than regular bats
+            
+            const centerX = boss.x + boss.width / 2;
+            const centerY = boss.y + boss.height / 2;
+            
+            // Larger wingspan for boss
+            const wingSpan = boss.width * 1.2;
+            const wingHeight = boss.height * 0.8;
+            
+            // More dramatic wing flapping animation
+            const flapAmount = Math.sin(boss.flapTimer) * wingHeight * 0.6;
+            const flapDetail = Math.sin(boss.flapTimer * 1.5) * wingHeight * 0.2;
+            
+            // Draw wings with more complex shape
+            ctx.beginPath();
+            
+            // Left wing
+            ctx.moveTo(centerX, centerY);
+            ctx.quadraticCurveTo(
+                centerX - wingSpan * 0.5, 
+                centerY - flapAmount * 0.5, 
+                centerX - wingSpan, 
+                centerY + flapAmount
+            );
+            ctx.quadraticCurveTo(
+                centerX - wingSpan * 0.7, 
+                centerY + flapAmount + flapDetail, 
+                centerX - wingSpan * 0.3, 
+                centerY + wingHeight * 0.4
+            );
+            
+            // Body
+            ctx.lineTo(centerX, centerY + wingHeight * 0.6);
+            
+            // Right wing
+            ctx.lineTo(centerX + wingSpan * 0.3, centerY + wingHeight * 0.4);
+            ctx.quadraticCurveTo(
+                centerX + wingSpan * 0.7, 
+                centerY + flapAmount + flapDetail, 
+                centerX + wingSpan, 
+                centerY + flapAmount
+            );
+            ctx.quadraticCurveTo(
+                centerX + wingSpan * 0.5, 
+                centerY - flapAmount * 0.5, 
+                centerX, 
+                centerY
+            );
+            
+            ctx.closePath();
+            ctx.fill();
+            
+            // Apply a glow effect
+            ctx.shadowColor = '#FF0000';
+            ctx.shadowBlur = 15;
+            
+            // Add details - eyes
+            ctx.fillStyle = '#FF0000'; // Red eyes
+            const eyeSize = boss.width * 0.15;
+            ctx.beginPath();
+            ctx.arc(centerX - eyeSize * 1.5, centerY - eyeSize, eyeSize, 0, Math.PI * 2);
+            ctx.arc(centerX + eyeSize * 1.5, centerY - eyeSize, eyeSize, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Eye pupils
+            ctx.fillStyle = '#000000';
+            const pupilSize = eyeSize * 0.4;
+            ctx.beginPath();
+            ctx.arc(centerX - eyeSize * 1.5, centerY - eyeSize, pupilSize, 0, Math.PI * 2);
+            ctx.arc(centerX + eyeSize * 1.5, centerY - eyeSize, pupilSize, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Fangs
+            ctx.fillStyle = '#FFFFFF';
+            const fangWidth = boss.width * 0.08;
+            const fangHeight = boss.height * 0.2;
+            
+            ctx.beginPath();
+            ctx.moveTo(centerX - fangWidth * 1.5, centerY + fangHeight * 0.3);
+            ctx.lineTo(centerX - fangWidth * 2, centerY + fangHeight);
+            ctx.lineTo(centerX - fangWidth, centerY + fangHeight * 0.3);
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.moveTo(centerX + fangWidth * 1.5, centerY + fangHeight * 0.3);
+            ctx.lineTo(centerX + fangWidth * 2, centerY + fangHeight);
+            ctx.lineTo(centerX + fangWidth, centerY + fangHeight * 0.3);
+            ctx.fill();
+            
+            ctx.restore();
+        }
+
+    } // End GameplayScene Class
+
+    // --- Game Class ---
+    class Game {
+        constructor(canvas) {
+            this.canvas = canvas;
+            this.ctx = canvas.getContext('2d');
+            this.currentScene = null;
+            this.scenes = {};
+            this.lastTime = 0;
+            this.deltaTime = 0;
+            this.currentTime = 0;
+            this.isPaused = false;
+            this.isRunning = false;
+            this.inputState = { keys: { left: false, right: false, up: false, w: false, space: false, r: false, m: false, x: false, f: false } };
+            this.touchControls = null;
+            this.audioCtx = null;
+            this.masterGain = null;
+            this.distortion = null;
+            this.padLfo = null;
+            this.padOsc = null;
+            this.padGain = null;
+            this.musicIntervalId = null;
+            this.isAudioInitialized = false;
+            this.stepCounter = 0;
+            this.isMuted = false;
+            this.bassNotes = [0, 0, 3, 0, 5, 0, 3, 0];
+            this.leadNotes = [0, 3, 7, 10, 12, 10, 7, 3];
+            this.saveSystem = new SaveSystem();
+            this.mouseX = 0; // Add mouse position tracking
+            this.mouseY = 0; // Add mouse position tracking
+            this.initInput();
+        }
+
+        initInput() {
+            window.addEventListener('keydown', (e) => {
+                const key = e.key.toLowerCase();
+                if (key === 'arrowleft' || key === 'a') this.inputState.keys.left = true;
+                if (key === 'arrowright' || key === 'd') this.inputState.keys.right = true;
+                if (key === 'arrowup') this.inputState.keys.up = true;
+                if (key === 'w') this.inputState.keys.w = true;
+                if (key === ' ') this.inputState.keys.space = true;
+                if (key === 'x') this.inputState.keys.x = true;
+                if (key === 'f') this.inputState.keys.f = true;
+                if (key === 'r') {
+                    if (!this.inputState.keys.r) this.handleReset();
+                    this.inputState.keys.r = true;
+                }
+                if (key === 'm') {
+                    if (!this.inputState.keys.m) this.toggleMute();
+                    this.inputState.keys.m = true;
+                }
+            });
+
+            window.addEventListener('keyup', (e) => {
+                const key = e.key.toLowerCase();
+                if (key === 'arrowleft' || key === 'a') this.inputState.keys.left = false;
+                if (key === 'arrowright' || key === 'd') this.inputState.keys.right = false;
+                if (key === 'arrowup') this.inputState.keys.up = false;
+                if (key === 'w') this.inputState.keys.w = false;
+                if (key === ' ') this.inputState.keys.space = false;
+                if (key === 'x') this.inputState.keys.x = false;
+                if (key === 'f') this.inputState.keys.f = false;
+                if (key === 'r') this.inputState.keys.r = false;
+                if (key === 'm') this.inputState.keys.m = false;
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                const rect = this.canvas.getBoundingClientRect();
+                this.mouseX = e.clientX - rect.left;
+                this.mouseY = e.clientY - rect.top;
+                
+                // Don't manipulate DOM classes from here - this was breaking the flying
+            });
+
+            window.addEventListener('mousedown', (e) => {
+                if (e.button === 0) { // Left mouse button
+                    if (this.currentScene instanceof GameplayScene) {
+                        this.currentScene.spawnFireball();
+                    }
+                }
+            });
+
+            if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+                this.touchControls = new TouchControls(this);
+            }
+            
+            // Apply the magic cursor directly to canvas once without event handlers
+            if (this.canvas) {
+                this.canvas.classList.add('magic-cursor');
+            }
+        }
+
+        handleReset() { if (this.currentScene instanceof GameplayScene) { this.currentScene.goToNextLevelOrGameOver(this.currentScene.gameWon); } }
+        initAudio() { if (this.isAudioInitialized) return; try { this.audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (!this.audioCtx) { console.error("Web Audio API not supported!"); return; } this.masterGain = this.audioCtx.createGain(); this.distortion = this.audioCtx.createWaveShaper(); this.padOsc = this.audioCtx.createOscillator(); this.padGain = this.audioCtx.createGain(); this.padLfo = this.audioCtx.createOscillator(); const lfoGain = this.audioCtx.createGain(); this.masterGain.gain.setValueAtTime(this.isMuted ? 0.001 : MASTER_VOLUME, this.audioCtx.currentTime); this.distortion.curve = makeDistortionCurve(DISTORTION_AMOUNT); this.distortion.oversample = '4x'; this.padOsc.type = 'sawtooth'; this.padOsc.frequency.setValueAtTime(30, this.audioCtx.currentTime); this.padGain.gain.setValueAtTime(PAD_VOLUME, this.audioCtx.currentTime); this.padLfo.frequency.setValueAtTime(PAD_LFO_RATE, this.audioCtx.currentTime); lfoGain.gain.setValueAtTime(PAD_LFO_DEPTH, this.audioCtx.currentTime); this.padLfo.connect(lfoGain); lfoGain.connect(this.padOsc.frequency); this.padOsc.connect(this.padGain); this.padGain.connect(this.masterGain); this.distortion.connect(this.masterGain); this.masterGain.connect(this.audioCtx.destination); this.padOsc.start(); this.padLfo.start(); this.isAudioInitialized = true; console.log("Audio Initialized. BPM:", BPM); } catch (e) { console.error("Error initializing Web Audio:", e); alert("Could not initialize Web Audio API."); this.isAudioInitialized = false; } }
+        startMusic() { if (!this.isAudioInitialized || this.musicIntervalId !== null || this.isMuted || !this.isRunning) { return; } console.log("StartMusic: Starting music interval."); this.stepCounter = 0; const intervalMilliseconds = SIXTEENTH_NOTE_DURATION * 1000; if (this.musicIntervalId) clearInterval(this.musicIntervalId); musicSequencer.call(this); this.musicIntervalId = setInterval(() => musicSequencer.call(this), intervalMilliseconds); }
+        stopMusic() { if (this.musicIntervalId !== null) { clearInterval(this.musicIntervalId); this.musicIntervalId = null; console.log("Music stopped."); } }
+        toggleMute() { if (!this.isAudioInitialized || !this.masterGain) return; this.isMuted = !this.isMuted; const targetVolume = this.isMuted ? 0.001 : MASTER_VOLUME; const now = this.audioCtx.currentTime; this.masterGain.gain.cancelScheduledValues(now); this.masterGain.gain.linearRampToValueAtTime(targetVolume, now + 0.1); console.log("Muted:", this.isMuted); if(this.isMuted) { this.stopMusic(); } else { if (this.isRunning && this.currentScene instanceof GameplayScene && !this.currentScene.gameWon) { this.startMusic(); } } }
+        addScene(name, scene) { this.scenes[name] = scene; scene.game = this; }
+        setScene(name) { console.log(`Attempting to set scene to: ${name}`); if (this.currentScene && typeof this.currentScene.onExit === 'function') { this.currentScene.onExit(); } this.currentScene = this.scenes[name]; if (this.currentScene && typeof this.currentScene.onEnter === 'function') { this.currentScene.onEnter(); } else if (!this.currentScene) { console.error(`Failed to set scene: Scene "${name}" not found!`); } else { console.warn(`Scene "${name}" loaded but has no onEnter method.`); } }
+        gameLoop(timestamp) { if (!this.isRunning) { return; } try { if (!this.lastTime) this.lastTime = timestamp; this.deltaTime = Math.min(0.05, (timestamp - this.lastTime) / 1000); this.lastTime = timestamp; this.currentTime = timestamp / 1000.0; if (!this.isPaused && this.currentScene) { this.currentScene.update(this.deltaTime); } if (this.currentScene) { this.currentScene.render(this.ctx); } requestAnimationFrame(this.gameLoop.bind(this)); } catch (error) { console.error("CRITICAL ERROR in game loop:", error); this.stop(); alert("A critical error occurred during the game loop. Check console for details."); } }
+        start() { 
+            if (this.isRunning) { return; } 
+            console.log("Game.start: Initializing game loop..."); 
+            this.isRunning = true; 
+            this.lastTime = 0; 
+            this.currentTime = 0; 
+            
+            // Remove the magic cursor application from here
+            
+            console.log("Game.start: Requesting first animation frame."); 
+            requestAnimationFrame(this.gameLoop.bind(this)); 
+            if (this.isAudioInitialized && !this.isMuted && this.currentScene instanceof GameplayScene && !this.currentScene.gameWon) { 
+                this.startMusic(); 
+            } 
+        }
+        stop() { if (!this.isRunning) return; console.log("Game.stop: Stopping game loop and music..."); this.isRunning = false; this.stopMusic(); }
+    }
+
+    // --- Startup Self-Test ---
+    function runStartupTests() {
+        console.log("--- Running Startup Tests ---"); let allPassed = true; const test = (name, condition) => { if (condition) { console.log(`[PASS] ${name}`); } else { console.error(`[FAIL] ${name}`); allPassed = false; } };
+        test("Canvas element exists", !!canvas); test("Canvas 2D context exists", !!ctx); test("Message div exists", !!messageDiv); test("Audio Overlay exists", !!audioOverlay); test("Timer div exists", !!timerDiv); test("Lives display div exists", !!livesDisplayDiv); test("Orb Shield display div exists", !!orbShieldDisplayDiv); test("Game class defined", typeof Game === 'function'); test("GameplayScene class defined", typeof GameplayScene === 'function'); test("LevelGenerator class defined", typeof LevelGenerator === 'function'); test("PowerUpSystem class defined", typeof PowerUpSystem === 'function'); test("SaveSystem class defined", typeof SaveSystem === 'function'); test("ParticlePool class defined", typeof ParticlePool === 'function'); test("EffectsSystem factory defined", typeof createEffectsSystem === 'function'); test("TouchControls class defined", typeof TouchControls === 'function');
+        if (allPassed) { console.log("--- All Startup Tests Passed ---"); } else { console.error("--- Some Startup Tests Failed! ---"); } return allPassed;
+     }
+
+    // --- Main Execution ---
+    let game;
+    if (runStartupTests()) {
+        console.log("Initializing Game...");
+        game = new Game(canvas);
+        console.log("Adding scenes...");
+        game.addScene('gameplay', new GameplayScene());
+        console.log("Scenes added.");
+        console.log("Setting up audio overlay listener...");
+        audioOverlay.addEventListener('click', () => {
+            console.log("--- Overlay clicked ---");
+            try {
+                if (!game.isAudioInitialized) {
+                    console.log("Overlay: Initializing audio..."); game.initAudio();
+                    if (game.audioCtx && game.audioCtx.state === 'suspended') { console.log("Overlay: Attempting resume after init..."); game.audioCtx.resume().then(() => { console.log("AudioContext resumed successfully after init."); if (!game.isMuted && game.isRunning) game.startMusic(); }).catch(err => console.error("Overlay: Resume after init failed:", err)); }
+                } else if (game.audioCtx && game.audioCtx.state === 'suspended') {
+                    console.log("Overlay: AudioContext suspended, attempting resume..."); game.audioCtx.resume().then(() => { console.log("AudioContext resumed successfully."); if (!game.isMuted && game.isRunning) game.startMusic(); }).catch(err => console.error("Overlay: AudioContext resume failed:", err));
+                }
+                audioOverlay.style.display = 'none';
+                if (!game.currentScene) { console.log("Overlay: Setting initial scene to gameplay..."); game.setScene('gameplay'); if(!game.currentScene) { throw new Error("Failed to set the initial scene 'gameplay'."); } }
+                if (!game.isRunning) { console.log("Overlay: Calling game.start()..."); game.start(); }
+                else { if(game.isAudioInitialized && !game.isMuted && game.musicIntervalId === null){ console.log("Overlay: Game running, attempting to restart music..."); game.startMusic(); } }
+                console.log("--- Overlay handler finished ---");
+            } catch (error) { console.error("CRITICAL ERROR during overlay click handler:", error); alert("An error occurred starting the game. Check the console for details."); if(game && game.stop) game.stop(); }
+        }, { once: true });
+        console.log("Initial setup complete. Waiting for user interaction.");
+    } else { alert("Core game components failed to load. Check the developer console (F12) for errors."); }
+
+</script>
+
+</body>
+</html>
