@@ -117,23 +117,6 @@
     const FIREBALL_COLOR = '#ff8800';
     const FIREBALL_EXPLOSION_COLOR = '#ffcc66';
 
-    // --- Giant Bat Boss Constants ---
-    const GIANT_BAT_BOSS_WIDTH = 80;
-    const GIANT_BAT_BOSS_HEIGHT = 50;
-    const GIANT_BAT_BOSS_COLOR_1 = '#4b0082';
-    const GIANT_BAT_BOSS_COLOR_2 = '#8a2be2';
-    const GIANT_BAT_BOSS_EYE_COLOR = '#ff1493';
-    const GIANT_BAT_BOSS_HEALTH = 20;
-    const GIANT_BAT_BOSS_CHASE_SPEED = 95.0;
-    const GIANT_BAT_BOSS_PATROL_SPEED = 55.0;
-    const GIANT_BAT_BOSS_DETECTION_RADIUS = 550;
-    const GIANT_BAT_BOSS_LEASH_RADIUS = GIANT_BAT_BOSS_DETECTION_RADIUS * 1.8;
-    const GIANT_BAT_BOSS_SPAWN_INTERVAL = 15.0;
-    const GIANT_BAT_BOSS_SPAWN_COUNT = 2;
-    const GIANT_BAT_BOSS_SPAWN_RADIUS = 200;
-    const GIANT_BAT_BOSS_FLAP_SPEED_MULT = 0.7;
-    const GIANT_BAT_BOSS_KNOCKBACK_RESISTANCE = 0.4;
-
     // --- Snake Enemy Constants ---
     const NUM_SNAKES_TO_SPAWN = 10;
     const SNAKE_WIDTH = 40;
@@ -174,16 +157,6 @@
         detectionRadius: SNAKE_DETECTION_RADIUS, leashRadius: SNAKE_LEASH_RADIUS, 
         chaseSpeed: SNAKE_CHASE_SPEED, patrolSpeed: SNAKE_PATROL_SPEED, 
         undulationTimer: 0, health: SNAKE_HEALTH, randomMoveTimer: 0, facingDirection: 1 
-    };
-    const giantBatBossProto = {
-        x: 0, y: 0, width: GIANT_BAT_BOSS_WIDTH, height: GIANT_BAT_BOSS_HEIGHT,
-        velocityX: 0, velocityY: 0, type: 'giantBatBoss',
-        state: 'idle', stateTimer: 0, originX: 0, originY: 0,
-        patrolTargetX: 0, patrolTargetY: 0, patrolRange: BAT_PATROL_RANGE * 1.5,
-        detectionRadius: GIANT_BAT_BOSS_DETECTION_RADIUS, leashRadius: GIANT_BAT_BOSS_LEASH_RADIUS,
-        chaseSpeed: GIANT_BAT_BOSS_CHASE_SPEED, patrolSpeed: GIANT_BAT_BOSS_PATROL_SPEED,
-        flapTimer: 0, health: GIANT_BAT_BOSS_HEALTH, randomMoveTimer: 0,
-        batSpawnTimer: GIANT_BAT_BOSS_SPAWN_INTERVAL, isDefeated: false
     };
 
     // --- Utility Functions ---
@@ -319,37 +292,7 @@
             let placedRewards = 0; let rewardAttempts = 0; while (placedRewards < NUM_REWARDS && rewardAttempts < MAX_REWARD_PLACEMENT_ATTEMPTS) { rewardAttempts++; const platformIndex = getRandomInt(1, platforms.length - 2); const targetPlatform = platforms[platformIndex]; if (!targetPlatform || targetPlatform.hasCactus) continue; const rewardX = targetPlatform.x + targetPlatform.width / 2 - REWARD_COLLISION_SIZE / 2; const rewardY = targetPlatform.y - REWARD_COLLISION_SIZE - getRandom(5, 25); const rewardRect = { x: rewardX, y: rewardY, width: REWARD_COLLISION_SIZE, height: REWARD_COLLISION_SIZE }; const distToSpawn = Math.sqrt(Math.pow(rewardX - startPlatform.x, 2) + Math.pow(rewardY - startPlatform.y, 2)); const distToGoal = Math.sqrt(Math.pow(rewardX - goal.x, 2) + Math.pow(rewardY - goal.y, 2)); if (distToSpawn > REWARD_CLEAR_RADIUS && distToGoal > REWARD_CLEAR_RADIUS && !checkRewardArrayOverlap(rewardRect, collectibles) && !checkPlatformArrayOverlap(rewardRect, platforms.filter(p => p !== targetPlatform), -REWARD_COLLISION_SIZE * 0.8)) { collectibles.push({ x: rewardX, y: rewardY, width: REWARD_COLLISION_SIZE, height: REWARD_COLLISION_SIZE, color: COLLECTIBLE_COLOR, collected: false }); placedRewards++; } } if (placedRewards < NUM_REWARDS) console.warn(`Only placed ${placedRewards}/${NUM_REWARDS} rewards.`);
             let placedBats = 0; let batAttempts = 0; while (placedBats < NUM_BATS_TO_SPAWN && batAttempts < MAX_PLACEMENT_ATTEMPTS * 2) { batAttempts++; const targetPlatform = platforms[getRandomInt(1, platforms.length - 1)]; if (!targetPlatform) continue; const originX = targetPlatform.x + targetPlatform.width / 2 + getRandom(-CHUNK_WIDTH/3, CHUNK_WIDTH/3); const originY = targetPlatform.y - getRandom(batProto.height * 2, batProto.height * 6); const clampedY = Math.max(batProto.height + 10, Math.min(this.height - LAVA_BASE_HEIGHT - batProto.height - 10, originY)); const batRect = { x: originX - batProto.width / 2, y: clampedY - batProto.height / 2, width: batProto.width, height: batProto.height }; const distToSpawn = Math.sqrt(Math.pow(originX - startPlatform.x, 2) + Math.pow(clampedY - startPlatform.y, 2)); const distToGoal = Math.sqrt(Math.pow(originX - goal.x, 2) + Math.pow(clampedY - goal.y, 2)); if (distToSpawn > SPAWN_CLEAR_RADIUS * 1.2 && distToGoal > EXIT_CLEAR_RADIUS * 0.8 && !checkPlatformArrayOverlap(batRect, platforms, 20) && !checkBatArrayOverlap(batRect, bats, 50)) { const bat = { ...batProto }; bat.originX = originX; bat.originY = clampedY; bat.x = bat.originX - bat.width / 2; bat.y = bat.originY - bat.height / 2; bat.state = (Math.random() < 0.5) ? 'idle' : 'patrolling'; [bat.patrolTargetX, bat.patrolTargetY] = getRandomPatrolPoint(bat.originX, bat.originY, bat.patrolRange); bat.stateTimer = getRandom(1, 3); bat.health = 1; bat.randomMoveTimer = getRandom(0, 1); bats.push(bat); placedBats++; } } if (placedBats < NUM_BATS_TO_SPAWN) console.warn(`Only placed ${placedBats}/${NUM_BATS_TO_SPAWN} bats.`);
             let placedSnakes = 0; let snakeAttempts = 0; while (placedSnakes < NUM_SNAKES_TO_SPAWN && snakeAttempts < MAX_PLACEMENT_ATTEMPTS * 2) { snakeAttempts++; const targetPlatform = platforms[getRandomInt(1, platforms.length - 1)]; if (!targetPlatform) continue; const originX = targetPlatform.x + targetPlatform.width / 2 + getRandom(-CHUNK_WIDTH/3, CHUNK_WIDTH/3); const originY = targetPlatform.y - getRandom(snakeProto.height * 2, snakeProto.height * 4); const clampedY = Math.max(snakeProto.height + 10, Math.min(this.height - LAVA_BASE_HEIGHT - snakeProto.height - 10, originY)); const snakeRect = { x: originX - snakeProto.width / 2, y: clampedY - snakeProto.height / 2, width: snakeProto.width, height: snakeProto.height }; const distToSpawn = Math.sqrt(Math.pow(originX - startPlatform.x, 2) + Math.pow(clampedY - startPlatform.y, 2)); const distToGoal = Math.sqrt(Math.pow(originX - goal.x, 2) + Math.pow(clampedY - goal.y, 2)); if (distToSpawn > SPAWN_CLEAR_RADIUS * 1.2 && distToGoal > EXIT_CLEAR_RADIUS * 0.8 && !checkPlatformArrayOverlap(snakeRect, platforms, 20)) { const snake = { ...snakeProto }; snake.originX = originX; snake.originY = clampedY; snake.x = snake.originX - snake.width / 2; snake.y = snake.originY - snake.height / 2; snake.state = (Math.random() < 0.5) ? 'idle' : 'patrolling'; [snake.patrolTargetX, snake.patrolTargetY] = getRandomPatrolPoint(snake.originX, snake.originY, snake.patrolRange); snake.stateTimer = getRandom(1, 3); snake.health = 1; snake.randomMoveTimer = getRandom(0, 1); snakes.push(snake); placedSnakes++; } } if (placedSnakes < NUM_SNAKES_TO_SPAWN) console.warn(`Only placed ${placedSnakes}/${NUM_SNAKES_TO_SPAWN} snakes.`);
-            let giantBatBoss = null;
-            let bossSpawnAttempts = 0;
-            const MAX_BOSS_SPAWN_ATTEMPTS = 10;
-            let bossPlaced = false;
-
-            while (!bossPlaced && bossSpawnAttempts < MAX_BOSS_SPAWN_ATTEMPTS) {
-                bossSpawnAttempts++;
-                const bossOriginX = goal.x + goal.width / 2 - getRandom(50, 150);
-                const bossOriginY = goal.y - GIANT_BAT_BOSS_HEIGHT - getRandom(80, 150);
-                const clampedBossY = Math.max(GIANT_BAT_BOSS_HEIGHT + 20, Math.min(this.height - LAVA_BASE_HEIGHT - GIANT_BAT_BOSS_HEIGHT - 20, bossOriginY));
-
-                const bossRect = {
-                    x: bossOriginX - GIANT_BAT_BOSS_WIDTH / 2,
-                    y: clampedBossY - GIANT_BAT_BOSS_HEIGHT / 2,
-                    width: GIANT_BAT_BOSS_WIDTH,
-                    height: GIANT_BAT_BOSS_HEIGHT
-                };
-
-                if (!checkPlatformArrayOverlap(bossRect, platforms, 40)) {
-                    giantBatBoss = { ...giantBatBossProto };
-                    giantBatBoss.originX = bossOriginX;
-                    giantBatBoss.originY = clampedBossY;
-                    giantBatBoss.x = bossRect.x;
-                    giantBatBoss.y = bossRect.y;
-                    [giantBatBoss.patrolTargetX, giantBatBoss.patrolTargetY] = getRandomPatrolPoint(giantBatBoss.originX, giantBatBoss.originY, giantBatBoss.patrolRange);
-                    giantBatBoss.stateTimer = getRandom(2, 4);
-                    bossPlaced = true;
-                }
-            }
-            console.log(`Level Generated: ${platforms.length} platforms, ${collectibles.length} rewards, ${bats.length} bats, ${groundPatrollers.length} patrollers, ${snakes.length} snakes. EndX: ${levelEndX.toFixed(0)}`);
-            return { platforms, collectibles, bats, groundPatrollers, snakes, goal, startPlatform, levelEndX, giantBatBoss };
+            console.log(`Level Generated: ${platforms.length} platforms, ${collectibles.length} rewards, ${bats.length} bats, ${groundPatrollers.length} patrollers, ${snakes.length} snakes. EndX: ${levelEndX.toFixed(0)}`); return { platforms, collectibles, bats, groundPatrollers, snakes, goal, startPlatform, levelEndX };
         }
      }
 
@@ -368,7 +311,6 @@
             super();
             this.player = { ...player }; this.platforms = []; this.collectibles = []; this.bats = []; this.groundPatrollers = []; this.snakes = []; this.goal = { ...goal }; this.stars = []; this.fireballs = [];
             this.orbiterAngle = 0; this.levelEndX = 0; this.gameWon = false; this.gameStartTime = null; this.lastFrameTime = 0; this.levelNumber = 1; this.messageTimeoutId = null; this.startPlatform = null; this.levelGenerator = null; this.effectsSystem = null; this.powerUpSystem = null; this.screenFlashTimer = 0; this.screenFlashColor = null;
-            this.boss = null;
         }
 
         onEnter() {
@@ -421,7 +363,6 @@
                          snake.y = -1000; 
                      } 
                  });
-                 this.boss = levelData.giantBatBoss;
                  this.updateLivesDisplay(); this.updateOrbShieldDisplay();
                  console.log(`Level generated. Lives: ${this.player.lives}, Shield: ${this.player.orbShieldCount}`);
              } catch (error) { console.error("CRITICAL ERROR within GameplayScene.generateLevel:", error); alert("Failed to generate the level layout. Please try refreshing."); if(this.game) this.game.stop(); }
@@ -443,7 +384,6 @@
             this.updateGroundPatrollers(deltaTime);
             this.updateSnakes(deltaTime); // Added snake update
             this.updateFireballs(deltaTime); // Added fireball update
-            this.updateGiantBatBoss(deltaTime); // Added boss update
             if (this.player.isAttacking) { this.checkAttackCollisions(); }
             this.effectsSystem.update(deltaTime);
             this.powerUpSystem.update(deltaTime);
@@ -974,15 +914,6 @@
                         break; // Stop checking enemies for this fireball
                     }
                 }
-                if (!fb.active) continue;
-
-                // Check collision with Giant Bat Boss
-                if (this.boss && this.boss.health > 0 && checkRectOverlap({ x: fb.x - fb.radius, y: fb.y - fb.radius, width: fb.radius * 2, height: fb.radius * 2 }, this.boss)) {
-                    this.boss.health--;
-                    this.effectsSystem.emitRewardSparkles(this.boss.x + this.boss.width / 2, this.boss.y + this.boss.height / 2, 10, GIANT_BAT_BOSS_COLOR_2);
-                    fb.active = false;
-                    this.triggerFireballExplosion(fb.x, fb.y);
-                }
             }
             // Clean up inactive fireballs (optional, could pool them)
             this.fireballs = this.fireballs.filter(fb => fb.active);
@@ -1063,93 +994,9 @@
                      }
                  }
              }
-             if (this.boss && this.boss.health > 0) {
-                 const dx = (this.boss.x + this.boss.width / 2) - x;
-                 const dy = (this.boss.y + this.boss.height / 2) - y;
-                 if (dx * dx + dy * dy < explosionRadiusSq) {
-                     this.boss.health--;
-                     this.effectsSystem.emitRewardSparkles(this.boss.x + this.boss.width / 2, this.boss.y + this.boss.height / 2, 10, GIANT_BAT_BOSS_COLOR_2);
-                 }
-             }
          }
 
         updateOrbiter(dt) { this.orbiterAngle += ORBITER_SPEED * dt; }
-
-        updateGiantBatBoss(deltaTime) {
-            if (!this.boss || this.boss.isDefeated || this.boss.health <= 0) return;
-
-            const boss = this.boss;
-            boss.batSpawnTimer -= deltaTime;
-            if (boss.batSpawnTimer <= 0) {
-                this.spawnBatsNearBoss(GIANT_BAT_BOSS_SPAWN_COUNT);
-                boss.batSpawnTimer = GIANT_BAT_BOSS_SPAWN_INTERVAL;
-            }
-
-            boss.flapTimer += deltaTime * 15 * GIANT_BAT_BOSS_FLAP_SPEED_MULT;
-            boss.stateTimer -= deltaTime;
-
-            const playerCenterX = this.player.x + this.player.width / 2;
-            const playerCenterY = this.player.y + this.player.height / 2;
-            const bossCenterX = boss.x + boss.width / 2;
-            const bossCenterY = boss.y + boss.height / 2;
-
-            const dxPlayer = playerCenterX - bossCenterX;
-            const dyPlayer = playerCenterY - bossCenterY;
-            const distSqPlayer = dxPlayer * dxPlayer + dyPlayer * dyPlayer;
-
-            if (boss.state === 'chasing' && distSqPlayer > boss.leashRadius * boss.leashRadius) {
-                boss.state = 'returning';
-            } else if (boss.state === 'returning' && distSqPlayer < BAT_ORIGIN_THRESHOLD_SQ * 2) {
-                boss.state = 'patrolling';
-            } else if (boss.state === 'idle' && distSqPlayer < boss.detectionRadius * boss.detectionRadius) {
-                boss.state = 'chasing';
-            }
-
-            const targetX = boss.state === 'chasing' ? playerCenterX : boss.originX;
-            const targetY = boss.state === 'chasing' ? playerCenterY : boss.originY;
-
-            const dxTarget = targetX - bossCenterX;
-            const dyTarget = targetY - bossCenterY;
-            const distTarget = Math.sqrt(dxTarget * dxTarget + dyTarget * dyTarget);
-
-            if (distTarget > 5) {
-                const accelX = (dxTarget / distTarget) * 500;
-                const accelY = (dyTarget / distTarget) * 500;
-                boss.velocityX += accelX * deltaTime;
-                boss.velocityY += accelY * deltaTime;
-            }
-
-            boss.velocityX *= 0.9;
-            boss.velocityY *= 0.9;
-
-            boss.x += boss.velocityX * deltaTime;
-            boss.y += boss.velocityY * deltaTime;
-        }
-
-        spawnBatsNearBoss(count) {
-            if (!this.boss) return;
-
-            const bossCenterX = this.boss.x + this.boss.width / 2;
-            const bossCenterY = this.boss.y + this.boss.height / 2;
-
-            for (let i = 0; i < count; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                const distance = Math.random() * GIANT_BAT_BOSS_SPAWN_RADIUS;
-                const spawnX = bossCenterX + Math.cos(angle) * distance;
-                const spawnY = bossCenterY + Math.sin(angle) * distance;
-
-                const bat = { ...batProto };
-                bat.originX = spawnX;
-                bat.originY = spawnY;
-                bat.x = spawnX - bat.width / 2;
-                bat.y = spawnY - bat.height / 2;
-                bat.state = 'idle';
-                bat.stateTimer = getRandom(1, 3);
-                bat.health = 1;
-                bat.randomMoveTimer = getRandom(0, 1);
-                this.bats.push(bat);
-            }
-        }
 
         checkAttackCollisions() {
             if (!this.player.isAttacking || this.player.attackTimer <= ATTACK_DURATION * 0.2) return;
@@ -1160,11 +1007,6 @@
             for (const bat of this.bats) { if (bat.health > 0 && checkRectOverlap(attackHitbox, bat)) { bat.health = 0; this.effectsSystem.emitBatExplosion(bat.x + bat.width / 2, bat.y + bat.height / 2); bat.velocityX = knockbackDir * SWORD_KNOCKBACK_STRENGTH; bat.velocityY = SWORD_VERTICAL_KNOCKBACK; hitSomething = true; } }
             for (const patroller of this.groundPatrollers) { if (patroller.health > 0 && checkRectOverlap(attackHitbox, patroller)) { patroller.health--; this.effectsSystem.emitRewardSparkles(patroller.x + patroller.width/2, patroller.y + patroller.height/2, 5, '#ffccaa'); patroller.velocityX = knockbackDir * SWORD_KNOCKBACK_STRENGTH; hitSomething = true; if (patroller.health > 0) { if (game && game.audioCtx) triggerPatrollerHit(game.audioCtx.currentTime); } } }
             for (const snake of this.snakes) { if (snake.health > 0 && checkRectOverlap(attackHitbox, snake)) { snake.health = 0; this.effectsSystem.emitBatExplosion(snake.x + snake.width / 2, snake.y + snake.height / 2, 10, SNAKE_COLOR); hitSomething = true; } }
-            if (this.boss && this.boss.health > 0 && checkRectOverlap(attackHitbox, this.boss)) {
-                this.boss.health--;
-                this.effectsSystem.emitRewardSparkles(this.boss.x + this.boss.width / 2, this.boss.y + this.boss.height / 2, 10, GIANT_BAT_BOSS_COLOR_2);
-                hitSomething = true;
-            }
             if (hitSomething && game && game.audioCtx) { triggerSwordHit(game.audioCtx.currentTime); }
         }
 
@@ -1176,10 +1018,6 @@
                 for (const patroller of this.groundPatrollers) { if (patroller.health > 0 && checkRectOverlap(this.player, patroller)) { this.handlePlayerDamage("patroller"); return; } }
                 for (const snake of this.snakes) { if (snake.health > 0 && checkRectOverlap(this.player, snake)) { this.handlePlayerDamage("snake"); return; } }
                 for (const platform of this.platforms) { if (platform.hasCactus) { const cactusRect = { x: platform.x + (platform.width / 2) - (CACTUS_WIDTH / 2), y: platform.y - CACTUS_HEIGHT, width: CACTUS_WIDTH, height: CACTUS_HEIGHT }; if (checkRectOverlap(this.player, cactusRect)) { this.handlePlayerDamage("cactus"); return; } } }
-                if (this.boss && this.boss.health > 0 && checkRectOverlap(this.player, this.boss)) {
-                    this.handlePlayerDamage("giantBatBoss");
-                    return;
-                }
              }
         }
 
@@ -1202,17 +1040,6 @@
             for (let i = this.bats.length - 1; i >= 0; i--) { const bat = this.bats[i]; if (bat.health > 0) { const batCenterX = bat.x + bat.width / 2; const batCenterY = bat.y + bat.height / 2; const dx = playerCenterX - batCenterX; const dy = playerCenterY - batCenterY; const distSq = dx * dx + dy * dy; if (distSq < destroyRadiusSq) { bat.health = 0; batsDestroyed++; this.effectsSystem.emitBatExplosion(batCenterX, batCenterY); } } }
             let snakesDestroyed = 0;
             for (let i = this.snakes.length - 1; i >= 0; i--) { const snake = this.snakes[i]; if (snake.health > 0) { const snakeCenterX = snake.x + snake.width / 2; const snakeCenterY = snake.y + snake.height / 2; const dx = playerCenterX - snakeCenterX; const dy = playerCenterY - snakeCenterY; const distSq = dx * dx + dy * dy; if (distSq < destroyRadiusSq) { snake.health = 0; snakesDestroyed++; this.effectsSystem.emitBatExplosion(snakeCenterX, snakeCenterY, 10, SNAKE_COLOR); } } }
-            if (this.boss && this.boss.health > 0) {
-                const bossCenterX = this.boss.x + this.boss.width / 2;
-                const bossCenterY = this.boss.y + this.boss.height / 2;
-                const dx = playerCenterX - bossCenterX;
-                const dy = playerCenterY - bossCenterY;
-                const distSq = dx * dx + dy * dy;
-                if (distSq < destroyRadiusSq) {
-                    this.boss.health--;
-                    this.effectsSystem.emitRewardSparkles(this.boss.x + this.boss.width / 2, this.boss.y + this.boss.height / 2, 10, GIANT_BAT_BOSS_COLOR_2);
-                }
-            }
             this.effectsSystem.emitPlayerBombExplosion(playerCenterX, playerCenterY); console.log(`Bomb destroyed ${batsDestroyed} bats and ${snakesDestroyed} snakes.`);
          }
 
@@ -1245,22 +1072,12 @@
                     snake.y = -1000; 
                 } 
             });
-            if (this.boss) {
-                this.boss.x = this.boss.originX - this.boss.width / 2;
-                this.boss.y = this.boss.originY - this.boss.height / 2;
-                this.boss.velocityX = 0;
-                this.boss.velocityY = 0;
-                this.boss.state = 'idle';
-                this.boss.stateTimer = getRandom(2, 4);
-                this.boss.health = GIANT_BAT_BOSS_HEALTH;
-                this.boss.batSpawnTimer = GIANT_BAT_BOSS_SPAWN_INTERVAL;
-            }
         }
 
         updateLivesDisplay() { if (livesDisplayDiv) { livesDisplayDiv.textContent = `Lives: ${this.player.lives}`; if (!this.gameWon && this.player.lives === 1 && this.player.orbShieldCount === 0) { const pulse = (Math.sin(this.game.currentTime * LOW_STATUS_PULSE_SPEED) + 1) / 2; livesDisplayDiv.style.color = `rgb(255, ${150 * (1-pulse)}, ${150 * (1-pulse)})`; livesDisplayDiv.style.textShadow = `1px 1px ${2 + pulse * 3}px #000`; } else { livesDisplayDiv.style.color = '#f99'; livesDisplayDiv.style.textShadow = '1px 1px 2px #000'; } } }
         updateOrbShieldDisplay() { if (orbShieldDisplayDiv) { orbShieldDisplayDiv.textContent = `Shield: ${this.player.orbShieldCount}`; if (!this.gameWon && this.player.orbShieldCount === 1) { const pulse = (Math.sin(this.game.currentTime * LOW_STATUS_PULSE_SPEED + Math.PI / 2) + 1) / 2; orbShieldDisplayDiv.style.color = `rgb(${150 * (1-pulse)}, ${200}, 255)`; orbShieldDisplayDiv.style.textShadow = `1px 1px ${2 + pulse * 3}px #000`; } else { orbShieldDisplayDiv.style.color = '#9cf'; orbShieldDisplayDiv.style.textShadow = '1px 1px 2px #000'; } } }
         winGame() { if (this.gameWon) return; this.gameWon = true; const finalTime = (performance.now() - this.gameStartTime) / 1000; messageDiv.textContent = `You Win! ${finalTime.toFixed(2)}s (R for Next)`; messageDiv.style.display = 'block'; this.game.stopMusic(); this.game.saveSystem.levelCompleted(this.levelNumber, finalTime); }
-        goToNextLevelOrGameOver(advanceLevel = false) { console.log(`goToNextLevelOrGameOver called. Advance: ${advanceLevel}`); if (advanceLevel) { this.levelNumber = this.game.saveSystem.data.currentLevel; console.log(`Advancing to level ${this.levelNumber}`); } else { console.log(`Game Over on level ${this.levelNumber} or Manual Reset. Regenerating.`); } this.gameWon = false; messageDiv.style.display = 'none'; if (this.messageTimeoutId) clearTimeout(this.messageTimeoutId); this.orbiterAngle = 0; this.generateLevel(); this.gameStartTime = performance.now(); if (this.game.isAudioInitialized && !this.isMuted) { this.game.startMusic(); } }
+        goToNextLevelOrGameOver(advanceLevel = false) { console.log(`goToNextLevelOrGameOver called. Advance: ${advanceLevel}`); if (advanceLevel) { this.levelNumber = this.game.saveSystem.data.currentLevel; console.log(`Advancing to level ${this.levelNumber}`); } else { console.log(`Game Over on level ${this.levelNumber} or Manual Reset. Regenerating.`); } this.gameWon = false; messageDiv.style.display = 'none'; if (this.messageTimeoutId) clearTimeout(this.messageTimeoutId); this.orbiterAngle = 0; this.generateLevel(); this.gameStartTime = performance.now(); if (this.game.isAudioInitialized && !this.game.isMuted) { this.game.startMusic(); } }
         showTemporaryMessage(text) { if (this.gameWon) return; messageDiv.textContent = text; messageDiv.style.display = 'block'; if (this.messageTimeoutId) clearTimeout(this.messageTimeoutId); this.messageTimeoutId = setTimeout(() => { if (!this.gameWon) messageDiv.style.display = 'none'; this.messageTimeoutId = null; }, 2000); }
 
         render(ctx) {
@@ -1279,7 +1096,6 @@
             this.groundPatrollers.forEach(p => { if (p.health > 0) this.drawGroundPatroller(p, ctx); }); // Calls the updated draw function
             this.snakes.forEach(s => { if (s.health > 0) this.drawSnake(s, ctx); }); // Draw snakes
             this.fireballs.forEach(fb => this.drawFireball(fb, ctx)); // Draw fireballs
-            if (this.boss) this.drawGiantBatBoss(this.boss, ctx); // Draw boss
             if (!this.player.onGround) { this.drawMagicCarpet(this.player, time, ctx); }
             this.drawPlayer(ctx); this.drawOrbiters(time, ctx);
             this.effectsSystem.render(ctx);
@@ -1691,14 +1507,9 @@
         drawMagicCarpet(player, time, ctx) {
             const anchorX = player.x + player.width / 2;
             const anchorY = player.y + player.height + CARPET_OFFSET_Y;
-            
-            // Enhanced wave calculation with multiple sine waves
-            const waveBase = Math.sin(time * CARPET_WAVE_SPEED);
-            const waveDetail = Math.sin(time * CARPET_WAVE_SPEED * 1.7 + 1.3) * 0.3;
-            const waveCombined = waveBase + waveDetail;
-            
-            const currentWidth = CARPET_WIDTH * (1 + waveCombined * CARPET_WAVE_AMP_X);
-            const currentHeight = CARPET_HEIGHT * (1 - waveCombined * CARPET_WAVE_AMP_Y * 0.5);
+            const wave = Math.sin(time * CARPET_WAVE_SPEED);
+            const currentWidth = CARPET_WIDTH * (1 + wave * CARPET_WAVE_AMP_X);
+            const currentHeight = CARPET_HEIGHT * (1 - wave * CARPET_WAVE_AMP_Y * 0.5);
             const carpetX = anchorX - currentWidth / 2;
             const carpetY = anchorY - currentHeight / 2;
 
@@ -1706,117 +1517,14 @@
             this.drawCarpetTrail(carpetX, carpetY, player.velocityX, player.velocityY, time, ctx);
 
             ctx.save();
-            
-            // Create carpet base with gradient
-            const carpetGradient = ctx.createLinearGradient(carpetX, carpetY, carpetX, carpetY + currentHeight);
-            carpetGradient.addColorStop(0, CARPET_COLOR_1);
-            carpetGradient.addColorStop(1, CARPET_COLOR_2);
-            
-            // Draw the carpet with curved edges for more natural wave appearance
-            ctx.fillStyle = carpetGradient;
-            ctx.beginPath();
-            
-            // Custom shape with curved edges
-            const cornerRadius = currentHeight * 0.4;
-            
-            // Top edge with wave
-            ctx.moveTo(carpetX + cornerRadius, carpetY);
-            for (let i = 0; i <= 10; i++) {
-                const xPos = carpetX + cornerRadius + (currentWidth - cornerRadius * 2) * (i / 10);
-                const wavePhase = time * CARPET_WAVE_SPEED * 2 + i * 0.5;
-                const yOffset = Math.sin(wavePhase) * (currentHeight * 0.1);
-                ctx.lineTo(xPos, carpetY + yOffset);
-            }
-            
-            // Right curve
-            ctx.quadraticCurveTo(carpetX + currentWidth, carpetY, carpetX + currentWidth, carpetY + cornerRadius);
-            
-            // Bottom edge with opposite wave pattern
-            for (let i = 10; i >= 0; i--) {
-                const xPos = carpetX + cornerRadius + (currentWidth - cornerRadius * 2) * (i / 10);
-                const wavePhase = time * CARPET_WAVE_SPEED * 1.5 + i * 0.6 + Math.PI;
-                const yOffset = Math.sin(wavePhase) * (currentHeight * 0.15);
-                ctx.lineTo(xPos, carpetY + currentHeight + yOffset);
-            }
-            
-            // Left curve
-            ctx.quadraticCurveTo(carpetX, carpetY + currentHeight, carpetX, carpetY + cornerRadius);
-            ctx.closePath();
-            ctx.fill();
-            
-            // Add carpet pattern/decoration
+            ctx.fillStyle = CARPET_COLOR_1;
+            ctx.fillRect(carpetX, carpetY, currentWidth, currentHeight);
             ctx.fillStyle = CARPET_COLOR_2;
-            
-            // Central pattern
-            const patternWidth = currentWidth * 0.7;
-            const patternHeight = currentHeight * 0.7;
-            const patternX = carpetX + (currentWidth - patternWidth) / 2;
-            const patternY = carpetY + (currentHeight - patternHeight) / 2;
-            
-            // Draw diamond pattern
-            ctx.beginPath();
-            ctx.moveTo(patternX + patternWidth/2, patternY);
-            ctx.lineTo(patternX + patternWidth, patternY + patternHeight/2);
-            ctx.lineTo(patternX + patternWidth/2, patternY + patternHeight);
-            ctx.lineTo(patternX, patternY + patternHeight/2);
-            ctx.closePath();
-            ctx.fill();
-            
-            // Add smaller decorative patterns
-            ctx.fillStyle = '#8040cc'; // Darker accent color
-            for (let i = 0; i < 3; i++) {
-                const ornX = patternX + patternWidth * (0.3 + i * 0.2);
-                const ornY = patternY + patternHeight * 0.5;
-                const ornSize = patternHeight * 0.15;
-                ctx.beginPath();
-                ctx.arc(ornX, ornY, ornSize, 0, Math.PI * 2);
-                ctx.fill();
-            }
-            
-            // Draw tassels with wave motion
-            const tasselCount = 7;
-            const tasselSpacing = currentWidth / (tasselCount + 1);
-            const tasselLength = currentHeight * 0.8;
-            
-            ctx.strokeStyle = '#d0a0ff'; // Tassel color
-            ctx.lineWidth = 2;
-            
-            for (let i = 1; i <= tasselCount; i++) {
-                const tasselX = carpetX + tasselSpacing * i;
-                const phaseOffset = i * 0.7;
-                const tasselWave = Math.sin(time * CARPET_WAVE_SPEED * 1.2 + phaseOffset) * 5;
-                
-                // Create wavy tassels
-                ctx.beginPath();
-                ctx.moveTo(tasselX, carpetY + currentHeight);
-                
-                // Multiple control points for more natural wave
-                const cp1x = tasselX + tasselWave * 0.5;
-                const cp1y = carpetY + currentHeight + tasselLength * 0.3;
-                const cp2x = tasselX - tasselWave;
-                const cp2y = carpetY + currentHeight + tasselLength * 0.6;
-                const endX = tasselX + tasselWave * 1.5;
-                const endY = carpetY + currentHeight + tasselLength;
-                
-                ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, endX, endY);
-                ctx.stroke();
-                
-                // Add small decorative bead at the end of each tassel
-                ctx.fillStyle = '#e0c0ff';
-                ctx.beginPath();
-                ctx.arc(endX, endY, 2, 0, Math.PI * 2);
-                ctx.fill();
-            }
-            
-            // Add a subtle glow effect
-            ctx.shadowColor = CARPET_COLOR_1;
-            ctx.shadowBlur = 10;
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.fillRect(carpetX + currentWidth * 0.2, carpetY + currentHeight * 0.2, currentWidth * 0.6, currentHeight * 0.6);
+            ctx.strokeStyle = CARPET_COLOR_2;
             ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.rect(carpetX, carpetY, currentWidth, currentHeight);
-            ctx.stroke();
-            
+            const tasselLength = currentHeight * 0.6;
+            for (let i = 0; i < 5; i++) { const tasselX = carpetX + (currentWidth / 4) * i; ctx.beginPath(); ctx.moveTo(tasselX, carpetY + currentHeight); ctx.lineTo(tasselX + wave * 2, carpetY + currentHeight + tasselLength + wave * 2); ctx.stroke(); }
             ctx.restore();
         }
 
@@ -1828,73 +1536,75 @@
             ctx.save();
 
             // Number of trail particles depends on speed
-            const particleCount = Math.min(15, Math.floor(speed / 7) + 6);
+            const particleCount = Math.min(12, Math.floor(speed / 8) + 5);
 
             // Direction of movement affects trail position
             const dirX = velocityX !== 0 ? -Math.sign(velocityX) : 0;
             const dirY = velocityY !== 0 ? -Math.sign(velocityY) : 0;
             
             // Calculate trail starting point at the back of the carpet
+            // First determine which edge is the "back" based on movement direction
             const trailStartX = carpetX + (dirX < 0 ? CARPET_WIDTH * 0.4 : dirX > 0 ? -CARPET_WIDTH * 0.4 : 0);
             const trailStartY = carpetY + (dirY < 0 ? CARPET_HEIGHT * 0.4 : dirY > 0 ? -CARPET_HEIGHT * 0.4 : 0);
 
-            // Create glowing particle effect
-            ctx.globalCompositeOperation = 'lighter';
-
             for (let i = 0; i < particleCount; i++) {
-                // Calculate particle position with more varied distribution
-                const offset = i * 6 + Math.sin(time * 5 + i) * 3;
-                const phaseShift = i * 0.4;
-                
-                // Position particles with more interesting patterns
-                const waveX = Math.sin(time * 3 + phaseShift) * 4;
-                const waveY = Math.cos(time * 2.5 + phaseShift) * 3;
-                
-                const x = trailStartX + dirX * (offset + CARPET_WIDTH * 0.3) + waveX;
-                const y = trailStartY + dirY * (offset * 0.5 + CARPET_HEIGHT * 0.2) + waveY;
+                // Calculate particle position based on index and velocity
+                const offset = i * 6 + Math.sin(time * 5 + i) * 2;
+                // Position particles further behind the carpet
+                const x = trailStartX + dirX * (offset + CARPET_WIDTH * 0.3) + Math.sin(time * 3 + i * 0.7) * 3;
+                const y = trailStartY + dirY * (offset * 0.5 + CARPET_HEIGHT * 0.2) + Math.cos(time * 2 + i * 0.5) * 2;
 
-                // Particle size decreases with distance but varies with time
-                const sizeVar = Math.sin(time * 4 + i * 0.3) * 0.3 + 1;
-                const size = (5 - (i / particleCount) * 3) * sizeVar;
+                // Particle size decreases with distance
+                const size = 5 - (i / particleCount) * 3;
 
-                // Particle opacity decreases with distance but pulses
-                const alphaVar = Math.sin(time * 3 + i * 0.5) * 0.15 + 1;
-                const alpha = (0.7 - (i / particleCount) * 0.6) * alphaVar;
+                // Particle opacity decreases with distance
+                const alpha = 0.7 - (i / particleCount) * 0.6;
 
-                // Create colors that shift with time
-                const hue = 270 + Math.sin(time + i * 0.2) * 20;
-                const saturation = 80 + Math.cos(time * 1.5 + i * 0.3) * 10;
-                const lightness = 75 + Math.sin(time * 2 + i * 0.25) * 10;
-                
-                ctx.fillStyle = `hsla(${hue}, ${saturation}%, ${lightness}%, ${alpha})`;
+                // Alternate between carpet colors with subtle transitions
+                const hue = (i % 2 === 0) ? 270 : 290; // Purple hues
+                ctx.fillStyle = `hsla(${hue}, 80%, 75%, ${alpha})`;
 
                 // Draw particle
                 ctx.beginPath();
                 ctx.arc(x, y, size, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Add occasional star-shaped sparkle effect
+                // Add occasional "sparkle" effect
                 if (Math.random() < 0.3 && i < particleCount / 2) {
-                    ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.9})`;
-                    
-                    // Draw star-like shape
-                    const starX = x + Math.random() * 4 - 2;
-                    const starY = y + Math.random() * 4 - 2;
-                    const starSize = size * 0.7;
-                    
+                    ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.8})`;
                     ctx.beginPath();
-                    for (let j = 0; j < 5; j++) {
-                        const angle = j * Math.PI * 2 / 5 - Math.PI / 2;
-                        const length = j % 2 === 0 ? starSize : starSize * 0.5;
-                        const pointX = starX + Math.cos(angle) * length;
-                        const pointY = starY + Math.sin(angle) * length;
-                        
-                        if (j === 0) ctx.moveTo(pointX, pointY);
-                        else ctx.lineTo(pointX, pointY);
-                    }
-                    ctx.closePath();
+                    ctx.arc(x + Math.random() * 4 - 2, y + Math.random() * 4 - 2, size * 0.6, 0, Math.PI * 2);
                     ctx.fill();
                 }
+            }
+
+            ctx.restore();
+        }
+
+        drawFireball(fb, ctx) {
+            if (!fb.active) return;
+
+            const angle = Math.atan2(fb.vy, fb.vx);
+
+            ctx.save();
+            ctx.translate(fb.x, fb.y);
+            ctx.rotate(angle);
+
+            ctx.fillStyle = FIREBALL_COLOR;
+            ctx.shadowColor = '#ffcc00';
+            ctx.shadowBlur = 8;
+
+            ctx.beginPath();
+            ctx.ellipse(0, 0, fb.radius * 1.5, fb.radius, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            const trailLength = 3;
+            const alphaStep = 0.6 / trailLength;
+            for (let i = 1; i <= trailLength; i++) {
+                ctx.globalAlpha = 0.6 - i * alphaStep;
+                ctx.beginPath();
+                ctx.ellipse(-i * 3, 0, fb.radius * (1 - i * 0.15), fb.radius * (1 - i * 0.15), 0, 0, Math.PI * 2);
+                ctx.fill();
             }
 
             ctx.restore();
