@@ -119,8 +119,8 @@
 
     // --- Snake Enemy Constants ---
     const NUM_SNAKES_TO_SPAWN = 10;
-    const SNAKE_WIDTH = 60;
-    const SNAKE_HEIGHT = 60;
+    const SNAKE_WIDTH = 40;
+    const SNAKE_HEIGHT = 20;
     const SNAKE_COLOR = '#d4af37';
     const SNAKE_ACCENT_COLOR = '#8b4513';
     const SNAKE_PATROL_RANGE = 250;
@@ -128,10 +128,10 @@
     const SNAKE_LEASH_RADIUS = SNAKE_DETECTION_RADIUS * 1.4;
     const SNAKE_PATROL_SPEED = 120.0;
     const SNAKE_CHASE_SPEED = 120.0;
-    const SNAKE_HEALTH = 2;
-    const SNAKE_BODY_SEGMENTS = 8;
-    const SNAKE_UNDULATION_SPEED = 3.0;
-    const SNAKE_UNDULATION_AMPLITUDE = 5.0;
+    const SNAKE_HEALTH = 3;
+    const SNAKE_BODY_SEGMENTS = 64;
+    const SNAKE_UNDULATION_SPEED = 8.0;
+    const SNAKE_UNDULATION_AMPLITUDE = 20.0;
 
     // --- Initial Game Object States ---
     const player = { x: 100, y: canvas.height - 100, width: 20, height: 45, velocityX: 0, velocityY: 0, onGround: false, groundPlatform: null, facingDirection: 'right', animationState: 'idle', animationTimer: 0, animationFrameIndex: 0, isAttacking: false, attackTimer: 0, attackCooldownTimer: 0, landingTimer: 0, coyoteTimer: 0, lives: STARTING_LIVES, orbShieldCount: 0, fireballCooldownTimer: 0 };
@@ -291,7 +291,7 @@
             let endPlatform = platforms[platforms.length - 1]; if (platforms.length > 2) { endPlatform = platforms[getRandomInt(Math.floor(platforms.length * 0.8), platforms.length - 1)]; } levelEndX = Math.max(levelEndX, endPlatform.x + endPlatform.width + 100); const goal = { x: endPlatform.x + (endPlatform.width / 2) - (GOAL_DOOR_WIDTH / 2), y: endPlatform.y - GOAL_DOOR_HEIGHT, width: GOAL_DOOR_WIDTH, height: GOAL_DOOR_HEIGHT, color: GOAL_FRAME_COLOR }; const goalRect = { x: goal.x, y: goal.y, width: goal.width, height: goal.height }; if (checkPlatformArrayOverlap(goalRect, platforms.filter(p => p !== endPlatform), -10)) { goal.x = endPlatform.x + endPlatform.width - goal.width - 5; goal.y = endPlatform.y - goal.height; console.warn("Goal position adjusted due to overlap."); }
             let placedRewards = 0; let rewardAttempts = 0; while (placedRewards < NUM_REWARDS && rewardAttempts < MAX_REWARD_PLACEMENT_ATTEMPTS) { rewardAttempts++; const platformIndex = getRandomInt(1, platforms.length - 2); const targetPlatform = platforms[platformIndex]; if (!targetPlatform || targetPlatform.hasCactus) continue; const rewardX = targetPlatform.x + targetPlatform.width / 2 - REWARD_COLLISION_SIZE / 2; const rewardY = targetPlatform.y - REWARD_COLLISION_SIZE - getRandom(5, 25); const rewardRect = { x: rewardX, y: rewardY, width: REWARD_COLLISION_SIZE, height: REWARD_COLLISION_SIZE }; const distToSpawn = Math.sqrt(Math.pow(rewardX - startPlatform.x, 2) + Math.pow(rewardY - startPlatform.y, 2)); const distToGoal = Math.sqrt(Math.pow(rewardX - goal.x, 2) + Math.pow(rewardY - goal.y, 2)); if (distToSpawn > REWARD_CLEAR_RADIUS && distToGoal > REWARD_CLEAR_RADIUS && !checkRewardArrayOverlap(rewardRect, collectibles) && !checkPlatformArrayOverlap(rewardRect, platforms.filter(p => p !== targetPlatform), -REWARD_COLLISION_SIZE * 0.8)) { collectibles.push({ x: rewardX, y: rewardY, width: REWARD_COLLISION_SIZE, height: REWARD_COLLISION_SIZE, color: COLLECTIBLE_COLOR, collected: false }); placedRewards++; } } if (placedRewards < NUM_REWARDS) console.warn(`Only placed ${placedRewards}/${NUM_REWARDS} rewards.`);
             let placedBats = 0; let batAttempts = 0; while (placedBats < NUM_BATS_TO_SPAWN && batAttempts < MAX_PLACEMENT_ATTEMPTS * 2) { batAttempts++; const targetPlatform = platforms[getRandomInt(1, platforms.length - 1)]; if (!targetPlatform) continue; const originX = targetPlatform.x + targetPlatform.width / 2 + getRandom(-CHUNK_WIDTH/3, CHUNK_WIDTH/3); const originY = targetPlatform.y - getRandom(batProto.height * 2, batProto.height * 6); const clampedY = Math.max(batProto.height + 10, Math.min(this.height - LAVA_BASE_HEIGHT - batProto.height - 10, originY)); const batRect = { x: originX - batProto.width / 2, y: clampedY - batProto.height / 2, width: batProto.width, height: batProto.height }; const distToSpawn = Math.sqrt(Math.pow(originX - startPlatform.x, 2) + Math.pow(clampedY - startPlatform.y, 2)); const distToGoal = Math.sqrt(Math.pow(originX - goal.x, 2) + Math.pow(clampedY - goal.y, 2)); if (distToSpawn > SPAWN_CLEAR_RADIUS * 1.2 && distToGoal > EXIT_CLEAR_RADIUS * 0.8 && !checkPlatformArrayOverlap(batRect, platforms, 20) && !checkBatArrayOverlap(batRect, bats, 50)) { const bat = { ...batProto }; bat.originX = originX; bat.originY = clampedY; bat.x = bat.originX - bat.width / 2; bat.y = bat.originY - bat.height / 2; bat.state = (Math.random() < 0.5) ? 'idle' : 'patrolling'; [bat.patrolTargetX, bat.patrolTargetY] = getRandomPatrolPoint(bat.originX, bat.originY, bat.patrolRange); bat.stateTimer = getRandom(1, 3); bat.health = 1; bat.randomMoveTimer = getRandom(0, 1); bats.push(bat); placedBats++; } } if (placedBats < NUM_BATS_TO_SPAWN) console.warn(`Only placed ${placedBats}/${NUM_BATS_TO_SPAWN} bats.`);
-            let placedSnakes = 0; let snakeAttempts = 0; while (placedSnakes < NUM_SNAKES_TO_SPAWN && snakeAttempts < MAX_PLACEMENT_ATTEMPTS * 2) { snakeAttempts++; const targetPlatform = platforms[getRandomInt(1, platforms.length - 1)]; if (!targetPlatform) continue; const originX = targetPlatform.x + targetPlatform.width / 2 + getRandom(-CHUNK_WIDTH/3, CHUNK_WIDTH/3); const originY = targetPlatform.y - getRandom(snakeProto.height * 2, snakeProto.height * 6); const clampedY = Math.max(snakeProto.height + 10, Math.min(this.height - LAVA_BASE_HEIGHT - snakeProto.height - 10, originY)); const snakeRect = { x: originX - snakeProto.width / 2, y: clampedY - snakeProto.height / 2, width: snakeProto.width, height: snakeProto.height }; const distToSpawn = Math.sqrt(Math.pow(originX - startPlatform.x, 2) + Math.pow(clampedY - startPlatform.y, 2)); const distToGoal = Math.sqrt(Math.pow(originX - goal.x, 2) + Math.pow(clampedY - goal.y, 2)); if (distToSpawn > SPAWN_CLEAR_RADIUS * 1.2 && distToGoal > EXIT_CLEAR_RADIUS * 0.8 && !checkPlatformArrayOverlap(snakeRect, platforms, 20)) { const snake = { ...snakeProto }; snake.originX = originX; snake.originY = clampedY; snake.x = snake.originX - snake.width / 2; snake.y = snake.originY - snake.height / 2; snake.state = (Math.random() < 0.5) ? 'idle' : 'patrolling'; [snake.patrolTargetX, snake.patrolTargetY] = getRandomPatrolPoint(snake.originX, snake.originY, snake.patrolRange); snake.stateTimer = getRandom(1, 3); snake.health = 1; snake.randomMoveTimer = getRandom(0, 1); snakes.push(snake); placedSnakes++; } } if (placedSnakes < NUM_SNAKES_TO_SPAWN) console.warn(`Only placed ${placedSnakes}/${NUM_SNAKES_TO_SPAWN} snakes.`);
+            let placedSnakes = 0; let snakeAttempts = 0; while (placedSnakes < NUM_SNAKES_TO_SPAWN && snakeAttempts < MAX_PLACEMENT_ATTEMPTS * 2) { snakeAttempts++; const targetPlatform = platforms[getRandomInt(1, platforms.length - 1)]; if (!targetPlatform) continue; const originX = targetPlatform.x + targetPlatform.width / 2 + getRandom(-CHUNK_WIDTH/3, CHUNK_WIDTH/3); const originY = targetPlatform.y - getRandom(snakeProto.height * 2, snakeProto.height * 4); const clampedY = Math.max(snakeProto.height + 10, Math.min(this.height - LAVA_BASE_HEIGHT - snakeProto.height - 10, originY)); const snakeRect = { x: originX - snakeProto.width / 2, y: clampedY - snakeProto.height / 2, width: snakeProto.width, height: snakeProto.height }; const distToSpawn = Math.sqrt(Math.pow(originX - startPlatform.x, 2) + Math.pow(clampedY - startPlatform.y, 2)); const distToGoal = Math.sqrt(Math.pow(originX - goal.x, 2) + Math.pow(clampedY - goal.y, 2)); if (distToSpawn > SPAWN_CLEAR_RADIUS * 1.2 && distToGoal > EXIT_CLEAR_RADIUS * 0.8 && !checkPlatformArrayOverlap(snakeRect, platforms, 20)) { const snake = { ...snakeProto }; snake.originX = originX; snake.originY = clampedY; snake.x = snake.originX - snake.width / 2; snake.y = snake.originY - snake.height / 2; snake.state = (Math.random() < 0.5) ? 'idle' : 'patrolling'; [snake.patrolTargetX, snake.patrolTargetY] = getRandomPatrolPoint(snake.originX, snake.originY, snake.patrolRange); snake.stateTimer = getRandom(1, 3); snake.health = 1; snake.randomMoveTimer = getRandom(0, 1); snakes.push(snake); placedSnakes++; } } if (placedSnakes < NUM_SNAKES_TO_SPAWN) console.warn(`Only placed ${placedSnakes}/${NUM_SNAKES_TO_SPAWN} snakes.`);
             console.log(`Level Generated: ${platforms.length} platforms, ${collectibles.length} rewards, ${bats.length} bats, ${groundPatrollers.length} patrollers, ${snakes.length} snakes. EndX: ${levelEndX.toFixed(0)}`); return { platforms, collectibles, bats, groundPatrollers, snakes, goal, startPlatform, levelEndX };
         }
      }
@@ -1394,107 +1394,96 @@
             ctx.save();
             const centerX = snake.x + snake.width / 2;
             const centerY = snake.y + snake.height / 2;
-            
-            // Use more dynamic motion parameters for the snake
-            const undulationSpeed = SNAKE_UNDULATION_SPEED * (snake.state === 'chasing' ? 1.5 : 1.0);
+
             const segmentCount = SNAKE_BODY_SEGMENTS;
-            
-            // Draw the snake body from tail to head
+
             for (let i = segmentCount - 1; i >= 0; i--) {
-                // Phase is shifted based on segment position and based on current timer
-                const segmentPhase = snake.undulationTimer - i * 0.5;
+                // Reduced phase difference between segments for smoother wave
+                const segmentPhase = snake.undulationTimer - i * 0.3;
+
+                // Adjust size factors - reduce head size from 1.5 to 1.2
+                let segmentSizeFactor;
+                if (i === 0) segmentSizeFactor = 1.0; // Smaller head (was 1.5)
+                else if (i === 1) segmentSizeFactor = 1.0; // Neck size (was 1.2)
+                else segmentSizeFactor = 0.99 - (i / segmentCount) * 0.6; // Gentler taper (was 0.4)
+
+                // Improved undulation calculation for more natural movement
+                const undulationFactor = Math.sin((i / segmentCount) * Math.PI * 0.8);
                 
-                // Scale segment size - head is larger than tail segments
-                const segmentSizeFactor = i === 0 ? 1.0 : 0.8 - (i / segmentCount) * 0.3;
+                // Increase segment spacing by changing multiplier from 1.0 to 1.8
+                const segmentSpacing = (snake.width / segmentCount) * 5;
+                const segmentX = centerX - (i * segmentSpacing) * snake.facingDirection;
                 
-                // Position segments with proper spacing and undulation
-                // Apply undulation amplitude based on segment position (stronger in middle segments)
-                const undulationFactor = Math.sin((i / segmentCount) * Math.PI);
-                const segmentX = centerX - (i * (snake.width / segmentCount) * 0.7) * snake.facingDirection;
-                const offsetY = Math.sin(segmentPhase) * SNAKE_UNDULATION_AMPLITUDE * undulationFactor;
+                // Adjust amplitude based on segment position
+                const undulationAmplitude = SNAKE_UNDULATION_AMPLITUDE * (1 - (i / segmentCount) * 0.3);
+                const offsetY = Math.sin(segmentPhase) * undulationAmplitude * undulationFactor;
                 const segmentY = centerY + offsetY;
-                
-                // Calculate segment dimensions
-                const segmentWidth = snake.width * 0.4 * segmentSizeFactor;
-                const segmentHeight = snake.height * 0.7 * segmentSizeFactor;
-                
-                // Alternate colors between segments for scale-like appearance
+
+                const segmentWidth = snake.width * (i === 0 ? 0.5 : 0.4) * segmentSizeFactor;
+                const segmentHeight = snake.height * (i === 0 ? 0.7 : 0.6) * segmentSizeFactor;
+
                 const isEvenSegment = i % 2 === 0;
                 ctx.fillStyle = isEvenSegment ? SNAKE_COLOR : SNAKE_ACCENT_COLOR;
-                
-                // Draw segment as ellipse
+
                 ctx.beginPath();
-                ctx.ellipse(
-                    segmentX, 
-                    segmentY, 
-                    segmentWidth, 
-                    segmentHeight, 
-                    0, 0, Math.PI * 2
-                );
+                ctx.ellipse(segmentX, segmentY, segmentWidth, segmentHeight, 0, 0, Math.PI * 2);
                 ctx.fill();
-                
-                // Add highlights to create scale illusion on larger segments
+
+                // Highlight pattern on segments
                 if (i < segmentCount - 2 && isEvenSegment) {
                     ctx.fillStyle = `rgba(255, 255, 200, 0.2)`;
                     ctx.beginPath();
                     ctx.ellipse(
-                        segmentX + segmentWidth * 0.3 * snake.facingDirection, 
-                        segmentY - segmentHeight * 0.2, 
-                        segmentWidth * 0.4, 
-                        segmentHeight * 0.3, 
+                        segmentX + segmentWidth * 0.3 * snake.facingDirection,
+                        segmentY - segmentHeight * 0.2,
+                        segmentWidth * 0.4,
+                        segmentHeight * 0.3,
                         0, 0, Math.PI * 2
                     );
                     ctx.fill();
                 }
-                
-                // Draw head details (eyes, tongue)
+
+                // Head details
                 if (i === 0) {
-                    // Eyes
-                    const eyeX = segmentX + (segmentWidth * 0.5) * snake.facingDirection;
+                    const eyeX = segmentX + (segmentWidth * 0.6) * snake.facingDirection;
                     const eyeY = segmentY - segmentHeight * 0.1;
-                    
+
                     // Draw eye
                     ctx.fillStyle = '#FF2200';
                     ctx.beginPath();
-                    ctx.ellipse(
-                        eyeX, 
-                        eyeY, 
-                        segmentWidth * 0.3, 
-                        segmentHeight * 0.25, 
-                        0, 0, Math.PI * 2
-                    );
+                    ctx.ellipse(eyeX, eyeY, segmentWidth * 0.3, segmentHeight * 0.25, 0, 0, Math.PI * 2);
                     ctx.fill();
-                    
-                    // Draw pupil
+
+                    // Pupil
                     ctx.fillStyle = '#000';
                     ctx.beginPath();
                     ctx.ellipse(
-                        eyeX + (segmentWidth * 0.15) * snake.facingDirection, 
-                        eyeY, 
-                        segmentWidth * 0.15, 
-                        segmentHeight * 0.15, 
+                        eyeX + (segmentWidth * 0.15) * snake.facingDirection,
+                        eyeY,
+                        segmentWidth * 0.15,
+                        segmentHeight * 0.04,
                         0, 0, Math.PI * 2
                     );
                     ctx.fill();
-                    
-                    // Occasionally flick tongue for chasing snakes
+
+                    // Tongue animation - only when chasing
                     if (snake.state === 'chasing' && Math.sin(snake.undulationTimer * 5) > 0.7) {
                         ctx.strokeStyle = '#FF0066';
                         ctx.lineWidth = 2;
                         ctx.beginPath();
                         const tongueStartX = segmentX + segmentWidth * 1.1 * snake.facingDirection;
                         const tongueStartY = segmentY + segmentHeight * 0.1;
-                        const tongueForkLength = segmentWidth * 0.8;
-                        
+                        const tongueForkLength = segmentWidth * 1.2;
+
                         ctx.moveTo(tongueStartX, tongueStartY);
                         ctx.lineTo(
-                            tongueStartX + tongueForkLength * snake.facingDirection, 
-                            tongueStartY - tongueForkLength * 0.3
+                            tongueStartX + tongueForkLength * snake.facingDirection,
+                            tongueStartY - tongueForkLength * 0.4
                         );
                         ctx.moveTo(tongueStartX + tongueForkLength * 0.7 * snake.facingDirection, tongueStartY);
                         ctx.lineTo(
-                            tongueStartX + tongueForkLength * snake.facingDirection, 
-                            tongueStartY + tongueForkLength * 0.3
+                            tongueStartX + tongueForkLength * snake.facingDirection,
+                            tongueStartY + tongueForkLength * 0.4
                         );
                         ctx.stroke();
                     }
