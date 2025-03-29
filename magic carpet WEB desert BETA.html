@@ -11,6 +11,11 @@
     #timer { position: absolute; top: 10px; right: 15px; color: #eee; font-size: 20px; font-family: monospace; text-shadow: 1px 1px 2px #000; z-index: 5; }
     #livesDisplay { position: absolute; top: 35px; right: 15px; color: #f99; font-size: 18px; font-family: monospace; text-shadow: 1px 1px 2px #000; z-index: 5; transition: color 0.1s ease-out, text-shadow 0.1s ease-out; }
     #orbShieldDisplay { position: absolute; top: 55px; right: 15px; color: #9cf; font-size: 16px; font-family: monospace; text-shadow: 1px 1px 2px #000; z-index: 5; transition: color 0.1s ease-out, text-shadow 0.1s ease-out; }
+
+    /* Custom cursor for magic wand */
+    .magic-cursor {
+        cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><defs><radialGradient id="glow" cx="50%" cy="50%" r="50%" fx="50%" fy="50%"><stop offset="0%" stop-color="rgba(255, 220, 120, 0.9)" /><stop offset="100%" stop-color="rgba(255, 220, 120, 0)" /></radialGradient></defs><g><circle cx="16" cy="16" r="7" fill="url(%23glow)" /><path stroke="white" stroke-width="2" fill="none" d="M16,3 L16,1 M16,31 L16,29 M3,16 L1,16 M31,16 L29,16 M8,8 L6.5,6.5 M24,24 L22.5,22.5 M8,24 L6.5,25.5 M24,8 L22.5,9.5" /><rect x="11" y="11" width="10" height="1.5" fill="white" transform="rotate(45, 16, 16)" /><rect x="11" y="19.5" width="10" height="1.5" fill="white" transform="rotate(-45, 16, 16)" /><circle cx="16" cy="16" r="3" fill="rgba(255, 150, 50, 0.8)" /><circle cx="16" cy="16" r="1" fill="white" /></g></svg>') 16 16, auto;
+    }
 </style>
 </head>
 <body>
@@ -77,7 +82,9 @@
     const NUM_REWARDS = 3;
     const STARTING_LIVES = 3;
     const SCREEN_FLASH_DURATION = 0.3; const SCREEN_FLASH_COLOR_DAMAGE = 'rgba(255, 50, 50, 0.5)'; const SCREEN_FLASH_COLOR_POWER = 'rgba(255, 255, 150, 0.6)';
-    const BAT_DESTROY_RADIUS = 180; const BACKGROUND_COLOR = '#0a0a1a'; const PLATFORM_BASE_COLOR = '#202530'; const PLATFORM_EDGE_COLOR = '#a0c0ff'; const PLATFORM_EDGE_GLOW_BLUR = 6;
+    const BAT_DESTROY_RADIUS = 180; const BACKGROUND_COLOR = '#0a0a1a'; const PLATFORM_BASE_COLOR = '#d2b48c'; // Changed from '#202530' to sandy tan
+    const PLATFORM_EDGE_COLOR = '#f7d78f'; // Changed from '#a0c0ff' to light gold
+    const PLATFORM_EDGE_GLOW_BLUR = 6;
     const PLAYER_COLOR = '#ffffff'; const GOAL_FRAME_COLOR = '#a0a0ff'; const GOAL_INNER_COLOR = '#100510'; const COLLECTIBLE_COLOR = '#ffccff';
     const SWORD_COLOR = '#e0e0ff'; const SWORD_LINE_WIDTH = 2; const REWARD_BASE_RADIUS = 15; const REWARD_COLLISION_SIZE = REWARD_BASE_RADIUS * 2;
     const GOAL_DOOR_WIDTH = 80; const GOAL_DOOR_HEIGHT = 120; const PULSE_SPEED = 4.0; const PULSE_MAGNITUDE_ORB = 0.3;
@@ -1073,6 +1080,10 @@
             const currentHeight = CARPET_HEIGHT * (1 - wave * CARPET_WAVE_AMP_Y * 0.5);
             const carpetX = anchorX - currentWidth / 2;
             const carpetY = anchorY - currentHeight / 2;
+
+            // Draw carpet trail particles
+            this.drawCarpetTrail(carpetX, carpetY, player.velocityX, player.velocityY, time, ctx);
+
             ctx.save();
             ctx.fillStyle = CARPET_COLOR_1;
             ctx.fillRect(carpetX, carpetY, currentWidth, currentHeight);
@@ -1084,6 +1095,60 @@
             for (let i = 0; i < 5; i++) { const tasselX = carpetX + (currentWidth / 4) * i; ctx.beginPath(); ctx.moveTo(tasselX, carpetY + currentHeight); ctx.lineTo(tasselX + wave * 2, carpetY + currentHeight + tasselLength + wave * 2); ctx.stroke(); }
             ctx.restore();
         }
+
+        drawCarpetTrail(carpetX, carpetY, velocityX, velocityY, time, ctx) {
+            // Only draw trail when moving at a certain speed
+            const speed = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
+            if (speed < 5) return;
+
+            ctx.save();
+
+            // Number of trail particles depends on speed
+            const particleCount = Math.min(12, Math.floor(speed / 8) + 5);
+
+            // Direction of movement affects trail position
+            const dirX = velocityX !== 0 ? -Math.sign(velocityX) : 0;
+            const dirY = velocityY !== 0 ? -Math.sign(velocityY) : 0;
+            
+            // Calculate trail starting point at the back of the carpet
+            // First determine which edge is the "back" based on movement direction
+            const trailStartX = carpetX + (dirX < 0 ? CARPET_WIDTH * 0.4 : dirX > 0 ? -CARPET_WIDTH * 0.4 : 0);
+            const trailStartY = carpetY + (dirY < 0 ? CARPET_HEIGHT * 0.4 : dirY > 0 ? -CARPET_HEIGHT * 0.4 : 0);
+
+            for (let i = 0; i < particleCount; i++) {
+                // Calculate particle position based on index and velocity
+                const offset = i * 6 + Math.sin(time * 5 + i) * 2;
+                // Position particles further behind the carpet
+                const x = trailStartX + dirX * (offset + CARPET_WIDTH * 0.3) + Math.sin(time * 3 + i * 0.7) * 3;
+                const y = trailStartY + dirY * (offset * 0.5 + CARPET_HEIGHT * 0.2) + Math.cos(time * 2 + i * 0.5) * 2;
+
+                // Particle size decreases with distance
+                const size = 5 - (i / particleCount) * 3;
+
+                // Particle opacity decreases with distance
+                const alpha = 0.7 - (i / particleCount) * 0.6;
+
+                // Alternate between carpet colors with subtle transitions
+                const hue = (i % 2 === 0) ? 270 : 290; // Purple hues
+                ctx.fillStyle = `hsla(${hue}, 80%, 75%, ${alpha})`;
+
+                // Draw particle
+                ctx.beginPath();
+                ctx.arc(x, y, size, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Add occasional "sparkle" effect
+                if (Math.random() < 0.3 && i < particleCount / 2) {
+                    ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.8})`;
+                    ctx.beginPath();
+                    ctx.arc(x + Math.random() * 4 - 2, y + Math.random() * 4 - 2, size * 0.6, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            ctx.restore();
+        }
+
         drawFireball(fb, ctx) {
             if (!fb.active) return;
 
@@ -1184,6 +1249,8 @@
                 const rect = this.canvas.getBoundingClientRect();
                 this.mouseX = e.clientX - rect.left;
                 this.mouseY = e.clientY - rect.top;
+                
+                // Don't manipulate DOM classes from here - this was breaking the flying
             });
 
             window.addEventListener('mousedown', (e) => {
@@ -1197,7 +1264,13 @@
             if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
                 this.touchControls = new TouchControls(this);
             }
+            
+            // Apply the magic cursor directly to canvas once without event handlers
+            if (this.canvas) {
+                this.canvas.classList.add('magic-cursor');
+            }
         }
+
         handleReset() { if (this.currentScene instanceof GameplayScene) { this.currentScene.goToNextLevelOrGameOver(this.currentScene.gameWon); } }
         initAudio() { if (this.isAudioInitialized) return; try { this.audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (!this.audioCtx) { console.error("Web Audio API not supported!"); return; } this.masterGain = this.audioCtx.createGain(); this.distortion = this.audioCtx.createWaveShaper(); this.padOsc = this.audioCtx.createOscillator(); this.padGain = this.audioCtx.createGain(); this.padLfo = this.audioCtx.createOscillator(); const lfoGain = this.audioCtx.createGain(); this.masterGain.gain.setValueAtTime(this.isMuted ? 0.001 : MASTER_VOLUME, this.audioCtx.currentTime); this.distortion.curve = makeDistortionCurve(DISTORTION_AMOUNT); this.distortion.oversample = '4x'; this.padOsc.type = 'sawtooth'; this.padOsc.frequency.setValueAtTime(30, this.audioCtx.currentTime); this.padGain.gain.setValueAtTime(PAD_VOLUME, this.audioCtx.currentTime); this.padLfo.frequency.setValueAtTime(PAD_LFO_RATE, this.audioCtx.currentTime); lfoGain.gain.setValueAtTime(PAD_LFO_DEPTH, this.audioCtx.currentTime); this.padLfo.connect(lfoGain); lfoGain.connect(this.padOsc.frequency); this.padOsc.connect(this.padGain); this.padGain.connect(this.masterGain); this.distortion.connect(this.masterGain); this.masterGain.connect(this.audioCtx.destination); this.padOsc.start(); this.padLfo.start(); this.isAudioInitialized = true; console.log("Audio Initialized. BPM:", BPM); } catch (e) { console.error("Error initializing Web Audio:", e); alert("Could not initialize Web Audio API."); this.isAudioInitialized = false; } }
         startMusic() { if (!this.isAudioInitialized || this.musicIntervalId !== null || this.isMuted || !this.isRunning) { return; } console.log("StartMusic: Starting music interval."); this.stepCounter = 0; const intervalMilliseconds = SIXTEENTH_NOTE_DURATION * 1000; if (this.musicIntervalId) clearInterval(this.musicIntervalId); musicSequencer.call(this); this.musicIntervalId = setInterval(() => musicSequencer.call(this), intervalMilliseconds); }
@@ -1206,7 +1279,21 @@
         addScene(name, scene) { this.scenes[name] = scene; scene.game = this; }
         setScene(name) { console.log(`Attempting to set scene to: ${name}`); if (this.currentScene && typeof this.currentScene.onExit === 'function') { this.currentScene.onExit(); } this.currentScene = this.scenes[name]; if (this.currentScene && typeof this.currentScene.onEnter === 'function') { this.currentScene.onEnter(); } else if (!this.currentScene) { console.error(`Failed to set scene: Scene "${name}" not found!`); } else { console.warn(`Scene "${name}" loaded but has no onEnter method.`); } }
         gameLoop(timestamp) { if (!this.isRunning) { return; } try { if (!this.lastTime) this.lastTime = timestamp; this.deltaTime = Math.min(0.05, (timestamp - this.lastTime) / 1000); this.lastTime = timestamp; this.currentTime = timestamp / 1000.0; if (!this.isPaused && this.currentScene) { this.currentScene.update(this.deltaTime); } if (this.currentScene) { this.currentScene.render(this.ctx); } requestAnimationFrame(this.gameLoop.bind(this)); } catch (error) { console.error("CRITICAL ERROR in game loop:", error); this.stop(); alert("A critical error occurred during the game loop. Check console for details."); } }
-        start() { if (this.isRunning) { return; } console.log("Game.start: Initializing game loop..."); this.isRunning = true; this.lastTime = 0; this.currentTime = 0; console.log("Game.start: Requesting first animation frame."); requestAnimationFrame(this.gameLoop.bind(this)); if (this.isAudioInitialized && !this.isMuted && this.currentScene instanceof GameplayScene && !this.currentScene.gameWon) { this.startMusic(); } }
+        start() { 
+            if (this.isRunning) { return; } 
+            console.log("Game.start: Initializing game loop..."); 
+            this.isRunning = true; 
+            this.lastTime = 0; 
+            this.currentTime = 0; 
+            
+            // Remove the magic cursor application from here
+            
+            console.log("Game.start: Requesting first animation frame."); 
+            requestAnimationFrame(this.gameLoop.bind(this)); 
+            if (this.isAudioInitialized && !this.isMuted && this.currentScene instanceof GameplayScene && !this.currentScene.gameWon) { 
+                this.startMusic(); 
+            } 
+        }
         stop() { if (!this.isRunning) return; console.log("Game.stop: Stopping game loop and music..."); this.isRunning = false; this.stopMusic(); }
     }
 
