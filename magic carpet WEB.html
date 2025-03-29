@@ -92,7 +92,7 @@
     const MIN_PLAT_WIDTH_CHUNK = 100; const MAX_PLAT_WIDTH_CHUNK = 250; const STEP_HEIGHT_MIN = 40; const STEP_HEIGHT_MAX = 80; const STEP_WIDTH_MIN = 100; const STEP_WIDTH_MAX = 180;
     const FLOAT_PLAT_MIN_SEP_X = 80; const FLOAT_PLAT_MAX_SEP_X = 200; const FLOAT_PLAT_MIN_SEP_Y = 50; const FLOAT_PLAT_MAX_SEP_Y = 120;
     const SPAWN_CLEAR_RADIUS = 120; const REWARD_CLEAR_RADIUS = 100; const EXIT_CLEAR_RADIUS = 150; const START_PLATFORM_WIDTH = 200; const MAX_REWARD_PLACEMENT_ATTEMPTS = 25; const MAX_PLACEMENT_ATTEMPTS = 25;
-    const NUM_BATS_TO_SPAWN = 5; const BAT_PATROL_RANGE = 150; const BAT_DETECTION_RADIUS = 250; const BAT_LEASH_RADIUS = BAT_DETECTION_RADIUS * 1.6; const BAT_RETURN_SPEED_MULTIPLIER = 1.2; const BAT_ORIGIN_THRESHOLD_SQ = 30 * 30;
+    const NUM_BATS_TO_SPAWN = 10; const BAT_PATROL_RANGE = 200; const BAT_DETECTION_RADIUS = 400; const BAT_LEASH_RADIUS = BAT_DETECTION_RADIUS * 1.6; const BAT_RETURN_SPEED_MULTIPLIER = 1.2; const BAT_ORIGIN_THRESHOLD_SQ = 30 * 30;
     const BPM = 145; const SIXTEENTH_NOTE_DURATION = 60 / BPM / 4; const KICK_FREQ = 55; const KICK_DECAY = 0.18; const KICK_PITCH_ENV_AMOUNT = 30; const SNARE_DECAY = 0.1; const SNARE_FREQ = 1600; const HAT_DECAY = 0.03; const HAT_DECAY_OPEN = 0.15; const HAT_FREQ = 9000; const BASS_FREQ = 41; const BASS_FILTER_FREQ = 350; const BASS_DECAY = SIXTEENTH_NOTE_DURATION * 1.8; const LEAD_FREQ_BASE = 220; const LEAD_FILTER_FREQ_START = 5000; const LEAD_FILTER_FREQ_END = 500; const LEAD_FILTER_Q = 8; const LEAD_DECAY = SIXTEENTH_NOTE_DURATION * 0.9; const ZAP_FREQ_START = 4000; const ZAP_FREQ_END = 100; const ZAP_DECAY = 0.05; const NOISE_BURST_DECAY = 0.04; const SWEEP_DURATION = SIXTEENTH_NOTE_DURATION * 16; const MASTER_VOLUME = 0.3; const DISTORTION_AMOUNT = 40; const PAD_VOLUME = 0.08; const PAD_LFO_RATE = 0.1; const PAD_LFO_DEPTH = 5;
     const ATTACK_DURATION = 0.25; const ATTACK_COOLDOWN = 0.1;
     const SWORD_HITBOX_WIDTH = 45; const SWORD_HITBOX_HEIGHT = 30; const SWORD_HITBOX_OFFSET_X = 15;
@@ -113,7 +113,7 @@
     // --- Initial Game Object States ---
     const player = { x: 100, y: canvas.height - 100, width: 20, height: 45, velocityX: 0, velocityY: 0, onGround: false, groundPlatform: null, facingDirection: 'right', animationState: 'idle', animationTimer: 0, animationFrameIndex: 0, isAttacking: false, attackTimer: 0, attackCooldownTimer: 0, landingTimer: 0, coyoteTimer: 0, lives: STARTING_LIVES, orbShieldCount: 0, fireballCooldownTimer: 0 };
     const goal = { x: 0, y: 0, width: GOAL_DOOR_WIDTH, height: GOAL_DOOR_HEIGHT, color: GOAL_FRAME_COLOR };
-    const batProto = { x: 0, y: 0, width: 25, height: 15, velocityX: 0, velocityY: 0, type: 'bat', state: 'idle', stateTimer: 0, originX: 0, originY: 0, patrolTargetX: 0, patrolTargetY: 0, patrolRange: BAT_PATROL_RANGE, detectionRadius: BAT_DETECTION_RADIUS, leashRadius: BAT_LEASH_RADIUS, chaseSpeed: 2.5, patrolSpeed: 1.5, flapTimer: 0, health: 1, randomMoveTimer: 0 }; // Added randomMoveTimer
+    const batProto = { x: 0, y: 0, width: 25, height: 15, velocityX: 0, velocityY: 0, type: 'bat', state: 'idle', stateTimer: 0, originX: 0, originY: 0, patrolTargetX: 0, patrolTargetY: 0, patrolRange: BAT_PATROL_RANGE, detectionRadius: BAT_DETECTION_RADIUS, leashRadius: BAT_LEASH_RADIUS, chaseSpeed: 80.0, patrolSpeed: 48.0, flapTimer: 0, health: 1, randomMoveTimer: 0 }; // Increased speeds again (ludicrous speed)
     const groundPatrollerProto = { x: 0, y: 0, width: PATROLLER_WIDTH, height: PATROLLER_HEIGHT, velocityX: 0, type: 'patroller', health: PATROLLER_HEALTH, onPlatform: null, direction: 1 };
     const fireballProto = { x: 0, y: 0, vx: 0, vy: 0, radius: FIREBALL_RADIUS, life: FIREBALL_LIFESPAN, active: false };
 
@@ -411,32 +411,112 @@
             // --- Player Stardust Trail Emission ---
             const emitStardust = (holdingFlyInAir && Math.random() < STARDUST_EMIT_RATE * 1.5) || (!this.player.onGround && Math.abs(this.player.velocityY) > gravity * 5 && Math.random() < STARDUST_EMIT_RATE) || (this.player.onGround && Math.abs(this.player.velocityX) > GROUND_MAX_SPEED * 0.8 && Math.random() < STARDUST_EMIT_RATE);
             if (emitStardust) { const trailX = this.player.x + this.player.width / 2; const trailY = this.player.y + this.player.height; this.effectsSystem.emitPlayerTrail(trailX, trailY, this.player.velocityX, this.player.velocityY); }
-        } // End updatePlayer
+         } // End updatePlayer
 
+         updateBats(deltaTime) {
+             const BAT_ACCELERATION = 50; // How quickly the bat changes direction
+             const BAT_FRICTION = 0.95; // Slows down the bat gradually
 
-        updateBats(deltaTime) {
              this.bats.forEach(bat => {
                  if (bat.health <= 0) { bat.x = -1000; return; } // Keep dead bats off-screen
-                 bat.velocityX *= 0.90; // Slightly less friction for more drift
-                 bat.velocityY *= 0.90;
-                 bat.flapTimer += deltaTime * 15;
-                 bat.randomMoveTimer -= deltaTime;
 
-                 // Simplified Random Movement Logic
-                 if (bat.randomMoveTimer <= 0) {
-                     const angle = Math.random() * Math.PI * 2;
-                     const thrust = getRandom(bat.patrolSpeed * 0.5, bat.patrolSpeed * 1.5);
-                     bat.velocityX += Math.cos(angle) * thrust;
-                     bat.velocityY += Math.sin(angle) * thrust;
-                     // Clamp velocity to prevent excessive speed
-                     const speedSq = bat.velocityX * bat.velocityX + bat.velocityY * bat.velocityY;
-                     const maxSpeedSq = (bat.chaseSpeed * 0.8) * (bat.chaseSpeed * 0.8); // Limit speed
-                     if (speedSq > maxSpeedSq) {
-                         const scale = Math.sqrt(maxSpeedSq / speedSq);
-                         bat.velocityX *= scale;
-                         bat.velocityY *= scale;
+                 bat.flapTimer += deltaTime * 15; // Keep flapping animation
+                 bat.stateTimer -= deltaTime;
+
+                 const playerCenterX = this.player.x + this.player.width / 2;
+                 const playerCenterY = this.player.y + this.player.height / 2;
+                 const batCenterX = bat.x + bat.width / 2;
+                 const batCenterY = bat.y + bat.height / 2;
+
+                 const dxPlayer = playerCenterX - batCenterX;
+                 const dyPlayer = playerCenterY - batCenterY;
+                 const distSqPlayer = dxPlayer * dxPlayer + dyPlayer * dyPlayer;
+
+                 const dxOrigin = bat.originX - batCenterX;
+                 const dyOrigin = bat.originY - batCenterY;
+                 const distSqOrigin = dxOrigin * dxOrigin + dyOrigin * dyOrigin;
+
+                 // --- State Transitions ---
+                 if (bat.state === 'chasing') {
+                     // If player gets too far away, return to origin
+                     if (distSqPlayer > bat.leashRadius * bat.leashRadius) {
+                         bat.state = 'returning';
+                         bat.stateTimer = 10; // Time limit to return
+                         // console.log(`Bat ${this.bats.indexOf(bat)}: Returning (Leash broken)`);
                      }
-                     bat.randomMoveTimer = getRandom(0.5, 1.5); // Change direction every 0.5-1.5 seconds
+                 } else if (bat.state === 'returning') {
+                     // If returned close to origin, go back to patrolling
+                     if (distSqOrigin < BAT_ORIGIN_THRESHOLD_SQ || bat.stateTimer <= 0) {
+                         bat.state = 'patrolling';
+                         [bat.patrolTargetX, bat.patrolTargetY] = getRandomPatrolPoint(bat.originX, bat.originY, bat.patrolRange);
+                         bat.stateTimer = getRandom(3, 6); // Time for next patrol point
+                         // console.log(`Bat ${this.bats.indexOf(bat)}: Patrolling (Returned)`);
+                     }
+                 } else { // Idle or Patrolling
+                     // If player gets close, start chasing
+                     if (distSqPlayer < bat.detectionRadius * bat.detectionRadius) {
+                         bat.state = 'chasing';
+                         bat.stateTimer = 0; // No timer for chasing
+                         // console.log(`Bat ${this.bats.indexOf(bat)}: Chasing (Player detected)`);
+                     }
+                     // If patrol timer runs out or reached target, get new patrol point
+                     else if (bat.state === 'patrolling' && bat.stateTimer <= 0) {
+                         [bat.patrolTargetX, bat.patrolTargetY] = getRandomPatrolPoint(bat.originX, bat.originY, bat.patrolRange);
+                         bat.stateTimer = getRandom(3, 6);
+                         // console.log(`Bat ${this.bats.indexOf(bat)}: Patrolling (New target)`);
+                     } else if (bat.state === 'idle' && bat.stateTimer <= 0) {
+                         // Start patrolling after idle time
+                         bat.state = 'patrolling';
+                         [bat.patrolTargetX, bat.patrolTargetY] = getRandomPatrolPoint(bat.originX, bat.originY, bat.patrolRange);
+                         bat.stateTimer = getRandom(3, 6);
+                         // console.log(`Bat ${this.bats.indexOf(bat)}: Patrolling (From Idle)`);
+                     }
+                 }
+
+                 // --- Movement Logic ---
+                 let targetX, targetY, maxSpeed, acceleration;
+
+                 if (bat.state === 'chasing') {
+                     targetX = playerCenterX;
+                     targetY = playerCenterY;
+                     maxSpeed = bat.chaseSpeed * 500; // Convert speed to pixels/sec
+                     acceleration = BAT_ACCELERATION * 1.2;
+                 } else if (bat.state === 'returning') {
+                     targetX = bat.originX;
+                     targetY = bat.originY;
+                     maxSpeed = bat.patrolSpeed * BAT_RETURN_SPEED_MULTIPLIER * 100;
+                     acceleration = BAT_ACCELERATION * 100.1;
+                 } else { // Patrolling or Idle (moves towards patrol target)
+                     targetX = bat.patrolTargetX;
+                     targetY = bat.patrolTargetY;
+                     maxSpeed = bat.patrolSpeed * 60;
+                     acceleration = BAT_ACCELERATION;
+                 }
+
+                 // Calculate direction towards target
+                 const dxTarget = targetX - batCenterX;
+                 const dyTarget = targetY - batCenterY;
+                 const distTarget = Math.sqrt(dxTarget * dxTarget + dyTarget * dyTarget);
+
+                 // Apply acceleration towards target
+                 if (distTarget > 1) { // Avoid division by zero and jittering at target
+                     const accelX = (dxTarget / distTarget) * acceleration;
+                     const accelY = (dyTarget / distTarget) * acceleration;
+                     bat.velocityX += accelX * deltaTime;
+                     bat.velocityY += accelY * deltaTime;
+                 }
+
+                 // Apply friction
+                 bat.velocityX *= BAT_FRICTION;
+                 bat.velocityY *= BAT_FRICTION;
+
+                 // Clamp speed
+                 const currentSpeedSq = bat.velocityX * bat.velocityX + bat.velocityY * bat.velocityY;
+                 const maxSpeedSq = maxSpeed * maxSpeed;
+                 if (currentSpeedSq > maxSpeedSq) {
+                     const scale = Math.sqrt(maxSpeedSq / currentSpeedSq);
+                     bat.velocityX *= scale;
+                     bat.velocityY *= scale;
                  }
 
                  // Apply Velocity
@@ -451,15 +531,22 @@
                  for (const platform of this.platforms) {
                      const batRect = { x: bat.x, y: bat.y, width: bat.width, height: bat.height };
                      if (checkRectOverlap(batRect, platform)) {
-                         const overlapX = (bat.x + bat.width / 2) - (platform.x + platform.width / 2);
-                         const overlapY = (bat.y + bat.height / 2) - (platform.y + platform.height / 2);
-                         const pushForce = 0.5;
-                         if (Math.abs(overlapX) > Math.abs(overlapY)) { // Horizontal push
-                             bat.velocityX += Math.sign(overlapX) * pushForce;
-                             bat.x += Math.sign(overlapX) * 1; // Nudge
-                         } else { // Vertical push
-                             bat.velocityY += Math.sign(overlapY) * pushForce;
-                             bat.y += Math.sign(overlapY) * 1; // Nudge
+                         const overlapX = (batCenterX) - (platform.x + platform.width / 2);
+                         const overlapY = (batCenterY) - (platform.y + platform.height / 2);
+                         const pushForce = 1.5; // Increased push force
+                         const combinedHalfWidth = (bat.width + platform.width) / 2;
+                         const combinedHalfHeight = (bat.height + platform.height) / 2;
+                         const overlapAmountX = combinedHalfWidth - Math.abs(overlapX);
+                         const overlapAmountY = combinedHalfHeight - Math.abs(overlapY);
+
+                         if (overlapAmountX > 0 && overlapAmountY > 0) {
+                             if (overlapAmountX < overlapAmountY) { // Horizontal collision is shallower
+                                 bat.velocityX += Math.sign(overlapX) * pushForce;
+                                 bat.x += Math.sign(overlapX) * overlapAmountX * 0.5; // Nudge out
+                             } else { // Vertical collision is shallower
+                                 bat.velocityY += Math.sign(overlapY) * pushForce;
+                                 bat.y += Math.sign(overlapY) * overlapAmountY * 0.5; // Nudge out
+                             }
                          }
                      }
                  }
