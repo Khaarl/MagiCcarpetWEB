@@ -1,5 +1,5 @@
 import { largeBatProto } from '../entities/largeBat.js';
-import { LARGE_BAT_COLOR, LARGE_BAT_HEALTH } from '../constants.js';
+import { LARGE_BAT_COLOR, LARGE_BAT_HEALTH } from '../constants.js'; // Corrected path
 // ...existing code...
 
 class GameplayScene {

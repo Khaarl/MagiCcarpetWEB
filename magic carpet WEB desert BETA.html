@@ -816,6 +816,7 @@
                     let accelX = (dxTarget / distTarget) * acceleration;
                     let accelY = (dyTarget / distTarget) * acceleration;
 
+                    // Add vertical undulation for more natural snake movement
                     if (snake.state !== 'chasing') {
                         accelY += Math.sin(snake.undulationTimer * 1.5) * SNAKE_ACCELERATION * 0.3;
                     }
@@ -824,9 +825,11 @@
                     snake.velocityY += accelY * deltaTime;
                 }
 
+                // Apply friction for smoother movement
                 snake.velocityX *= SNAKE_FRICTION;
                 snake.velocityY *= SNAKE_FRICTION;
 
+                // Cap the maximum speed
                 const currentSpeedSq = snake.velocityX * snake.velocityX + snake.velocityY * snake.velocityY;
                 const maxSpeedSq = maxSpeed * maxSpeed;
                 if (currentSpeedSq > maxSpeedSq) {
@@ -835,11 +838,18 @@
                     snake.velocityY *= scale;
                 }
 
+                // Update position
                 snake.x += snake.velocityX * deltaTime;
                 snake.y += snake.velocityY * deltaTime;
 
+                // Boundary checks
                 snake.x = Math.max(0, Math.min(this.levelEndX - snake.width, snake.x));
                 snake.y = Math.max(0, Math.min(canvas.height - LAVA_BASE_HEIGHT - snake.height, snake.y));
+
+                // Update facing direction based on velocity
+                if (Math.abs(snake.velocityX) > 1) {
+                    snake.facingDirection = snake.velocityX > 0 ? 1 : -1;
+                }
             });
         }
 
@@ -1384,55 +1394,110 @@
             ctx.save();
             const centerX = snake.x + snake.width / 2;
             const centerY = snake.y + snake.height / 2;
-
-            snake.facingDirection = snake.velocityX === 0 ? snake.facingDirection : 
-                                   (snake.velocityX > 0 ? 1 : -1);
-
-            snake.undulationTimer += this.game.deltaTime * SNAKE_UNDULATION_SPEED;
-
-            for (let i = 0; i < SNAKE_BODY_SEGMENTS; i++) {
+            
+            // Use more dynamic motion parameters for the snake
+            const undulationSpeed = SNAKE_UNDULATION_SPEED * (snake.state === 'chasing' ? 1.5 : 1.0);
+            const segmentCount = SNAKE_BODY_SEGMENTS;
+            
+            // Draw the snake body from tail to head
+            for (let i = segmentCount - 1; i >= 0; i--) {
+                // Phase is shifted based on segment position and based on current timer
                 const segmentPhase = snake.undulationTimer - i * 0.5;
-                const segmentX = centerX - (snake.width * 0.5) * snake.facingDirection + 
-                                 (i * (snake.width / SNAKE_BODY_SEGMENTS)) * snake.facingDirection;
-
-                const undulationFactor = Math.sin(i / SNAKE_BODY_SEGMENTS * Math.PI);
+                
+                // Scale segment size - head is larger than tail segments
+                const segmentSizeFactor = i === 0 ? 1.0 : 0.8 - (i / segmentCount) * 0.3;
+                
+                // Position segments with proper spacing and undulation
+                // Apply undulation amplitude based on segment position (stronger in middle segments)
+                const undulationFactor = Math.sin((i / segmentCount) * Math.PI);
+                const segmentX = centerX - (i * (snake.width / segmentCount) * 0.7) * snake.facingDirection;
                 const offsetY = Math.sin(segmentPhase) * SNAKE_UNDULATION_AMPLITUDE * undulationFactor;
-
                 const segmentY = centerY + offsetY;
-
-                const segmentWidth = snake.width / SNAKE_BODY_SEGMENTS * 0.8;
-                const segmentHeight = i === 0 ? snake.height * 1.2 : snake.height;
-
-                ctx.fillStyle = i % 2 === 0 ? SNAKE_COLOR : SNAKE_ACCENT_COLOR;
-
+                
+                // Calculate segment dimensions
+                const segmentWidth = snake.width * 0.4 * segmentSizeFactor;
+                const segmentHeight = snake.height * 0.7 * segmentSizeFactor;
+                
+                // Alternate colors between segments for scale-like appearance
+                const isEvenSegment = i % 2 === 0;
+                ctx.fillStyle = isEvenSegment ? SNAKE_COLOR : SNAKE_ACCENT_COLOR;
+                
+                // Draw segment as ellipse
                 ctx.beginPath();
                 ctx.ellipse(
                     segmentX, 
                     segmentY, 
-                    segmentWidth / 2, 
-                    segmentHeight / 2, 
+                    segmentWidth, 
+                    segmentHeight, 
                     0, 0, Math.PI * 2
                 );
                 ctx.fill();
-
-                if (i === 0) {
-                    const eyeX = segmentX + (segmentWidth * 0.3) * snake.facingDirection;
-                    const eyeY = segmentY - segmentHeight * 0.2;
-
-                    ctx.fillStyle = '#FF0000';
+                
+                // Add highlights to create scale illusion on larger segments
+                if (i < segmentCount - 2 && isEvenSegment) {
+                    ctx.fillStyle = `rgba(255, 255, 200, 0.2)`;
                     ctx.beginPath();
-                    ctx.arc(eyeX, eyeY, segmentHeight * 0.25, 0, Math.PI * 2);
-                    ctx.fill();
-
-                    ctx.fillStyle = '#000';
-                    ctx.beginPath();
-                    ctx.arc(
-                        eyeX + (segmentHeight * 0.08) * snake.facingDirection, 
-                        eyeY, 
-                        segmentHeight * 0.12, 
-                        0, Math.PI * 2
+                    ctx.ellipse(
+                        segmentX + segmentWidth * 0.3 * snake.facingDirection, 
+                        segmentY - segmentHeight * 0.2, 
+                        segmentWidth * 0.4, 
+                        segmentHeight * 0.3, 
+                        0, 0, Math.PI * 2
                     );
                     ctx.fill();
+                }
+                
+                // Draw head details (eyes, tongue)
+                if (i === 0) {
+                    // Eyes
+                    const eyeX = segmentX + (segmentWidth * 0.5) * snake.facingDirection;
+                    const eyeY = segmentY - segmentHeight * 0.1;
+                    
+                    // Draw eye
+                    ctx.fillStyle = '#FF2200';
+                    ctx.beginPath();
+                    ctx.ellipse(
+                        eyeX, 
+                        eyeY, 
+                        segmentWidth * 0.3, 
+                        segmentHeight * 0.25, 
+                        0, 0, Math.PI * 2
+                    );
+                    ctx.fill();
+                    
+                    // Draw pupil
+                    ctx.fillStyle = '#000';
+                    ctx.beginPath();
+                    ctx.ellipse(
+                        eyeX + (segmentWidth * 0.15) * snake.facingDirection, 
+                        eyeY, 
+                        segmentWidth * 0.15, 
+                        segmentHeight * 0.15, 
+                        0, 0, Math.PI * 2
+                    );
+                    ctx.fill();
+                    
+                    // Occasionally flick tongue for chasing snakes
+                    if (snake.state === 'chasing' && Math.sin(snake.undulationTimer * 5) > 0.7) {
+                        ctx.strokeStyle = '#FF0066';
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        const tongueStartX = segmentX + segmentWidth * 1.1 * snake.facingDirection;
+                        const tongueStartY = segmentY + segmentHeight * 0.1;
+                        const tongueForkLength = segmentWidth * 0.8;
+                        
+                        ctx.moveTo(tongueStartX, tongueStartY);
+                        ctx.lineTo(
+                            tongueStartX + tongueForkLength * snake.facingDirection, 
+                            tongueStartY - tongueForkLength * 0.3
+                        );
+                        ctx.moveTo(tongueStartX + tongueForkLength * 0.7 * snake.facingDirection, tongueStartY);
+                        ctx.lineTo(
+                            tongueStartX + tongueForkLength * snake.facingDirection, 
+                            tongueStartY + tongueForkLength * 0.3
+                        );
+                        ctx.stroke();
+                    }
                 }
             }
             ctx.restore();
