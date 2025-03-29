@@ -1,0 +1,683 @@
+Okay, agent! Here are the instructions to add a Giant Bat Boss to the game.
+
+Goal: Introduce a large boss enemy ("Giant Bat Boss") that appears near the level exit. It will have more health than regular bats and periodically spawn smaller bats. Defeating the boss will be required to finish the level.
+
+Instructions:
+
+Define New Constants:
+
+Add these constants near the other enemy constants (like BAT_PATROL_RANGE). Choose values that seem appropriate for a boss.
+
+// --- Giant Bat Boss Constants ---
+const GIANT_BAT_BOSS_WIDTH = 80; // Larger than normal bat
+const GIANT_BAT_BOSS_HEIGHT = 50;
+const GIANT_BAT_BOSS_COLOR_1 = '#4b0082'; // Indigo
+const GIANT_BAT_BOSS_COLOR_2 = '#8a2be2'; // BlueViolet accents
+const GIANT_BAT_BOSS_EYE_COLOR = '#ff1493'; // Deep Pink eyes
+const GIANT_BAT_BOSS_HEALTH = 20; // Much more health
+const GIANT_BAT_BOSS_CHASE_SPEED = 95.0; // Slightly faster/slower chase? Adjust as needed.
+const GIANT_BAT_BOSS_PATROL_SPEED = 55.0; // Patrol speed
+const GIANT_BAT_BOSS_DETECTION_RADIUS = 550; // Sees further
+const GIANT_BAT_BOSS_LEASH_RADIUS = GIANT_BAT_BOSS_DETECTION_RADIUS * 1.8; // Roams further before returning
+const GIANT_BAT_BOSS_SPAWN_INTERVAL = 15.0; // Seconds between spawning bats
+const GIANT_BAT_BOSS_SPAWN_COUNT = 2; // Number of bats to spawn each time
+const GIANT_BAT_BOSS_SPAWN_RADIUS = 200; // How far from the boss bats can spawn
+const GIANT_BAT_BOSS_FLAP_SPEED_MULT = 0.7; // Slower, heavier wing flaps
+const GIANT_BAT_BOSS_KNOCKBACK_RESISTANCE = 0.4; // Takes less knockback than normal enemies
+
+
+Create Boss Prototype:
+
+Add a giantBatBossProto similar to batProto.
+
+// --- Initial Game Object States ---
+// ... (keep existing player, goal, batProto, etc.) ...
+
+const giantBatBossProto = {
+    x: 0, y: 0, width: GIANT_BAT_BOSS_WIDTH, height: GIANT_BAT_BOSS_HEIGHT,
+    velocityX: 0, velocityY: 0, type: 'giantBatBoss',
+    state: 'idle', stateTimer: 0, originX: 0, originY: 0,
+    patrolTargetX: 0, patrolTargetY: 0, patrolRange: BAT_PATROL_RANGE * 1.5, // Larger patrol range
+    detectionRadius: GIANT_BAT_BOSS_DETECTION_RADIUS, leashRadius: GIANT_BAT_BOSS_LEASH_RADIUS,
+    chaseSpeed: GIANT_BAT_BOSS_CHASE_SPEED, patrolSpeed: GIANT_BAT_BOSS_PATROL_SPEED,
+    flapTimer: 0, health: GIANT_BAT_BOSS_HEALTH, randomMoveTimer: 0,
+    batSpawnTimer: GIANT_BAT_BOSS_SPAWN_INTERVAL, // Timer for spawning bats
+    isDefeated: false // Flag to track defeat state
+};
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+JavaScript
+IGNORE_WHEN_COPYING_END
+
+Modify Level Generator (LevelGenerator.generateLevel):
+
+After placing the goal, add logic to spawn the boss nearby.
+
+Make the function return the giantBatBoss object as well.
+
+Find the end of the generateLevel function. Before the final return { ... }; line, add this logic:
+
+// --- Spawn Giant Bat Boss near Goal ---
+        let giantBatBoss = null;
+        let bossSpawnAttempts = 0;
+        const MAX_BOSS_SPAWN_ATTEMPTS = 10;
+        let bossPlaced = false;
+
+        while (!bossPlaced && bossSpawnAttempts < MAX_BOSS_SPAWN_ATTEMPTS) {
+            bossSpawnAttempts++;
+            // Try placing slightly above and before the goal platform center
+            const bossOriginX = goal.x + goal.width / 2 - getRandom(50, 150);
+            const bossOriginY = goal.y - GIANT_BAT_BOSS_HEIGHT - getRandom(80, 150);
+            const clampedBossY = Math.max(GIANT_BAT_BOSS_HEIGHT + 20, Math.min(this.height - LAVA_BASE_HEIGHT - GIANT_BAT_BOSS_HEIGHT - 20, bossOriginY));
+
+            const bossRect = {
+                x: bossOriginX - GIANT_BAT_BOSS_WIDTH / 2,
+                y: clampedBossY - GIANT_BAT_BOSS_HEIGHT / 2,
+                width: GIANT_BAT_BOSS_WIDTH,
+                height: GIANT_BAT_BOSS_HEIGHT
+            };
+
+            // Check for overlap with platforms (give some buffer)
+            if (!checkPlatformArrayOverlap(bossRect, platforms, 40)) {
+                giantBatBoss = { ...giantBatBossProto };
+                giantBatBoss.originX = bossOriginX;
+                giantBatBoss.originY = clampedBossY;
+                giantBatBoss.x = bossRect.x;
+                giantBatBoss.y = bossRect.y;
+                giantBatBoss.state = 'idle'; // Start idle
+                [giantBatBoss.patrolTargetX, giantBatBoss.patrolTargetY] = getRandomPatrolPoint(giantBatBoss.originX, giantBatBoss.originY, giantBatBoss.patrolRange);
+                giantBatBoss.stateTimer = getRandom(2, 4);
+                giantBatBoss.isDefeated = false; // Ensure it starts undefeated
+                giantBatBoss.batSpawnTimer = getRandom(5, GIANT_BAT_BOSS_SPAWN_INTERVAL); // Random initial spawn time
+                bossPlaced = true;
+                console.log(`Giant Bat Boss placed at (${giantBatBoss.x.toFixed(0)}, ${giantBatBoss.y.toFixed(0)})`);
+            } else {
+                console.warn(`Boss spawn attempt ${bossSpawnAttempts} failed due to platform overlap near goal.`);
+            }
+        }
+        if (!bossPlaced) {
+            console.error("Could not place Giant Bat Boss near goal after multiple attempts!");
+            // Handle failure? Maybe place it somewhere default or don't spawn it? For now, log error.
+        }
+
+
+        console.log(`Level Generated: ${platforms.length} platforms, ${collectibles.length} rewards, ${bats.length} bats, ${groundPatrollers.length} patrollers, ${snakes.length} snakes. ${giantBatBoss ? 'Boss spawned.' : 'Boss FAILED to spawn.'} EndX: ${levelEndX.toFixed(0)}`);
+        // Modify the return statement to include the boss
+        return { platforms, collectibles, bats, groundPatrollers, snakes, goal, startPlatform, levelEndX, giantBatBoss }; // Added giantBatBoss
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+JavaScript
+IGNORE_WHEN_COPYING_END
+
+Update GameplayScene State:
+
+Add a property to store the boss object.
+
+Initialize and reset it correctly.
+
+In the GameplayScene constructor:
+
+// ... other properties ...
+    this.goal = { ...goal };
+    this.stars = [];
+    this.fireballs = [];
+    this.boss = null; // Add this line
+    this.orbiterAngle = 0;
+    // ... rest of constructor ...
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+JavaScript
+IGNORE_WHEN_COPYING_END
+
+At the beginning of GameplayScene.generateLevel:
+
+generateLevel() {
+     console.log("GameplayScene.generateLevel called (Full Reset).");
+     this.boss = null; // Reset boss reference
+     try {
+         // ... rest of the try block ...
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+JavaScript
+IGNORE_WHEN_COPYING_END
+
+Inside the try block of GameplayScene.generateLevel, assign the boss from levelData:
+
+// ... assign platforms, goal, collectibles, bats, etc. ...
+         this.snakes = levelData.snakes;
+         this.levelEndX = levelData.levelEndX;
+         this.startPlatform = levelData.startPlatform;
+         this.boss = levelData.giantBatBoss; // Assign the boss object
+
+         // Reset player position (keep existing code)
+         this.player.x = this.startPlatform.x + this.startPlatform.width / 2 - this.player.width / 2;
+         // ... rest of player reset ...
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+JavaScript
+IGNORE_WHEN_COPYING_END
+
+In GameplayScene.restartCurrentLevelOnDeath: Reset the boss's state if it exists. Add this block before resetting bats/patrollers/snakes:
+
+// Reset Boss state if it exists
+    if (this.boss && !this.boss.isDefeated) {
+        this.boss.x = this.boss.originX - this.boss.width / 2;
+        this.boss.y = this.boss.originY - this.boss.height / 2;
+        this.boss.velocityX = 0;
+        this.boss.velocityY = 0;
+        this.boss.state = 'idle';
+        [this.boss.patrolTargetX, this.boss.patrolTargetY] = getRandomPatrolPoint(this.boss.originX, this.boss.originY, this.boss.patrolRange);
+        this.boss.stateTimer = getRandom(2, 4);
+        this.boss.health = GIANT_BAT_BOSS_HEALTH; // Restore health on restart
+        this.boss.batSpawnTimer = getRandom(5, GIANT_BAT_BOSS_SPAWN_INTERVAL); // Reset spawn timer
+    } else if (this.boss && this.boss.isDefeated) {
+        // If already defeated, make sure it stays off-screen effectively
+         this.boss.x = -2000;
+         this.boss.y = -2000;
+    }
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+JavaScript
+IGNORE_WHEN_COPYING_END
+
+Create Boss Update Logic:
+
+Add a new method updateGiantBatBoss to GameplayScene.
+
+Add a helper method spawnBatsNearBoss.
+
+Call updateGiantBatBoss from the main update method.
+
+// Add this new method inside the GameplayScene class
+    updateGiantBatBoss(deltaTime) {
+        if (!this.boss || this.boss.isDefeated || this.boss.health <= 0) {
+            if (this.boss && this.boss.health <= 0 && !this.boss.isDefeated) {
+                 // This handles the case where health drops but defeat logic hasn't run yet
+                 this.handleBossDefeat();
+            }
+            return;
+        }
+
+        const boss = this.boss;
+
+        // --- Bat Spawning ---
+        boss.batSpawnTimer -= deltaTime;
+        if (boss.batSpawnTimer <= 0) {
+            this.spawnBatsNearBoss(GIANT_BAT_BOSS_SPAWN_COUNT);
+            boss.batSpawnTimer = GIANT_BAT_BOSS_SPAWN_INTERVAL;
+            // Optionally add a sound effect for spawning
+        }
+
+        // --- Movement & State Logic (Similar to regular bats, but using boss constants) ---
+        boss.flapTimer += deltaTime * 15 * GIANT_BAT_BOSS_FLAP_SPEED_MULT;
+        boss.stateTimer -= deltaTime;
+
+        const playerCenterX = this.player.x + this.player.width / 2;
+        const playerCenterY = this.player.y + this.player.height / 2;
+        const bossCenterX = boss.x + boss.width / 2;
+        const bossCenterY = boss.y + boss.height / 2;
+
+        const dxPlayer = playerCenterX - bossCenterX;
+        const dyPlayer = playerCenterY - bossCenterY;
+        const distSqPlayer = dxPlayer * dxPlayer + dyPlayer * dyPlayer;
+
+        const dxOrigin = boss.originX - bossCenterX;
+        const dyOrigin = boss.originY - bossCenterY;
+        const distSqOrigin = dxOrigin * dxOrigin + dyOrigin * dyOrigin;
+
+        // State Transitions
+        if (boss.state === 'chasing') {
+            if (distSqPlayer > boss.leashRadius * boss.leashRadius) {
+                boss.state = 'returning';
+                boss.stateTimer = 15; // Longer return time?
+            }
+        } else if (boss.state === 'returning') {
+            if (distSqOrigin < BAT_ORIGIN_THRESHOLD_SQ * 2 || boss.stateTimer <= 0) { // Slightly larger threshold
+                boss.state = 'patrolling';
+                [boss.patrolTargetX, boss.patrolTargetY] = getRandomPatrolPoint(boss.originX, boss.originY, boss.patrolRange);
+                boss.stateTimer = getRandom(4, 7);
+            }
+        } else { // Idle or Patrolling
+            if (distSqPlayer < boss.detectionRadius * boss.detectionRadius) {
+                boss.state = 'chasing';
+                boss.stateTimer = 0;
+            } else if (boss.state === 'patrolling' && boss.stateTimer <= 0) {
+                [boss.patrolTargetX, boss.patrolTargetY] = getRandomPatrolPoint(boss.originX, boss.originY, boss.patrolRange);
+                boss.stateTimer = getRandom(4, 7);
+            } else if (boss.state === 'idle' && boss.stateTimer <= 0) {
+                boss.state = 'patrolling';
+                [boss.patrolTargetX, boss.patrolTargetY] = getRandomPatrolPoint(boss.originX, boss.originY, boss.patrolRange);
+                boss.stateTimer = getRandom(4, 7);
+            }
+        }
+
+        // Movement Logic
+        let targetX, targetY, maxSpeed, acceleration;
+        const BAT_ACCELERATION = 500; // Re-declare or access globally if needed
+        const BAT_FRICTION = 0.9;     // Re-declare or access globally if needed
+
+        if (boss.state === 'chasing') {
+            targetX = playerCenterX; targetY = playerCenterY;
+            maxSpeed = boss.chaseSpeed; acceleration = BAT_ACCELERATION * 1.1; // Slightly more acceleration when chasing
+        } else if (boss.state === 'returning') {
+            targetX = boss.originX; targetY = boss.originY;
+            maxSpeed = boss.patrolSpeed * BAT_RETURN_SPEED_MULTIPLIER; acceleration = BAT_ACCELERATION;
+        } else { // Patrolling or Idle
+            targetX = boss.patrolTargetX; targetY = boss.patrolTargetY;
+            maxSpeed = boss.patrolSpeed; acceleration = BAT_ACCELERATION * 0.8; // Slower acceleration when patrolling
+        }
+         // Adjust speeds from per-frame to per-second
+         maxSpeed *= 10; // Example scaling, adjust as needed based on constants
+         acceleration *= 10;
+
+        const dxTarget = targetX - bossCenterX;
+        const dyTarget = targetY - bossCenterY;
+        const distTarget = Math.sqrt(dxTarget * dxTarget + dyTarget * dyTarget);
+
+        if (distTarget > 5) { // Increased deadzone to prevent jitter
+            const accelX = (dxTarget / distTarget) * acceleration;
+            const accelY = (dyTarget / distTarget) * acceleration;
+            boss.velocityX += accelX * deltaTime;
+            boss.velocityY += accelY * deltaTime;
+        }
+
+        boss.velocityX *= BAT_FRICTION;
+        boss.velocityY *= BAT_FRICTION;
+
+        const currentSpeedSq = boss.velocityX * boss.velocityX + boss.velocityY * boss.velocityY;
+        const maxSpeedSq = maxSpeed * maxSpeed;
+        if (currentSpeedSq > maxSpeedSq) {
+            const scale = Math.sqrt(maxSpeedSq / currentSpeedSq);
+            boss.velocityX *= scale;
+            boss.velocityY *= scale;
+        }
+
+        boss.x += boss.velocityX * deltaTime;
+        boss.y += boss.velocityY * deltaTime;
+
+        // Boundary checks
+        boss.x = Math.max(0, Math.min(this.levelEndX - boss.width, boss.x));
+        boss.y = Math.max(0, Math.min(canvas.height - LAVA_BASE_HEIGHT - boss.height, boss.y));
+
+        // Platform collision avoidance (reuse logic from updateBats, but apply to boss)
+         for (const platform of this.platforms) {
+             const bossRect = { x: boss.x, y: boss.y, width: boss.width, height: boss.height };
+             if (checkRectOverlap(bossRect, platform)) {
+                 const overlapX = (bossCenterX) - (platform.x + platform.width / 2);
+                 const overlapY = (bossCenterY) - (platform.y + platform.height / 2);
+                 const pushForce = 2.0; // Boss pushes a bit harder?
+                 const combinedHalfWidth = (boss.width + platform.width) / 2;
+                 const combinedHalfHeight = (boss.height + platform.height) / 2;
+                 const overlapAmountX = combinedHalfWidth - Math.abs(overlapX);
+                 const overlapAmountY = combinedHalfHeight - Math.abs(overlapY);
+
+                 if (overlapAmountX > 0 && overlapAmountY > 0) {
+                     if (overlapAmountX < overlapAmountY) {
+                         boss.velocityX += Math.sign(overlapX) * pushForce;
+                         boss.x += Math.sign(overlapX) * overlapAmountX * 0.6; // Nudge out slightly more
+                     } else {
+                         boss.velocityY += Math.sign(overlapY) * pushForce;
+                         boss.y += Math.sign(overlapY) * overlapAmountY * 0.6;
+                     }
+                 }
+             }
+         }
+    }
+
+    // Add this helper method inside the GameplayScene class
+    spawnBatsNearBoss(count) {
+        if (!this.boss || this.boss.isDefeated) return;
+        console.log(`Boss spawning ${count} bats.`);
+
+        const bossCenterX = this.boss.x + this.boss.width / 2;
+        const bossCenterY = this.boss.y + this.boss.height / 2;
+
+        for (let i = 0; i < count; i++) {
+            let spawnOk = false;
+            let attempts = 0;
+            while (!spawnOk && attempts < 10) {
+                attempts++;
+                const angle = Math.random() * Math.PI * 2;
+                const distance = getRandom(50, GIANT_BAT_BOSS_SPAWN_RADIUS); // Spawn within radius
+                const spawnX = bossCenterX + Math.cos(angle) * distance;
+                const spawnY = bossCenterY + Math.sin(angle) * distance;
+
+                // Clamp Y to be above lava and within reasonable bounds
+                const clampedSpawnY = Math.max(batProto.height + 10, Math.min(canvas.height - LAVA_BASE_HEIGHT - batProto.height - 10, spawnY));
+
+                const batRect = { x: spawnX - batProto.width / 2, y: clampedSpawnY - batProto.height / 2, width: batProto.width, height: batProto.height };
+
+                // Check if spawn spot is clear of platforms and other bats
+                if (!checkPlatformArrayOverlap(batRect, this.platforms, 10) && !checkBatArrayOverlap(batRect, this.bats, 30)) {
+                    const newBat = { ...batProto };
+                    newBat.originX = spawnX;
+                    newBat.originY = clampedSpawnY;
+                    newBat.x = batRect.x;
+                    newBat.y = batRect.y;
+                    newBat.state = 'chasing'; // Spawned bats start aggressive
+                    newBat.patrolTargetX = player.x; // Initial target
+                    newBat.patrolTargetY = player.y;
+                    newBat.stateTimer = 5; // Give them some time before potentially returning
+                    newBat.health = 1; // Standard health
+                    this.bats.push(newBat);
+                    spawnOk = true;
+                }
+            }
+             if (!spawnOk) {
+                console.warn("Failed to find clear spawn location for bat near boss after several attempts.");
+             }
+        }
+    }
+
+// In GameplayScene.update, add the call to update the boss:
+    update(deltaTime) {
+        // ... (keep existing update start) ...
+
+        this.updatePlayer(deltaTime, combinedInput);
+        this.updateBats(deltaTime);
+        this.updateGroundPatrollers(deltaTime);
+        this.updateSnakes(deltaTime);
+        this.updateGiantBatBoss(deltaTime); // <<< ADD THIS LINE
+        this.updateFireballs(deltaTime);
+        // ... (keep rest of update) ...
+    }
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+JavaScript
+IGNORE_WHEN_COPYING_END
+
+Integrate Boss into Collision Checks:
+
+Modify checkCollisions, checkAttackCollisions, and updateFireballs.
+
+Add a new method handleBossHit.
+
+Add a new method handleBossDefeat.
+
+In GameplayScene.checkCollisions:
+
+// Inside the if (this.screenFlashTimer <= 0) block, AFTER checking bats/patrollers/snakes/cactus:
+        // Check collision with Giant Bat Boss
+        if (this.boss && !this.boss.isDefeated && this.boss.health > 0 && checkRectOverlap(this.player, this.boss)) {
+            this.handlePlayerDamage("giantBatBoss");
+            return; // Player hit, stop further checks this frame
+        }
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+JavaScript
+IGNORE_WHEN_COPYING_END
+
+In GameplayScene.checkAttackCollisions:
+
+// Inside the function, after checking bats/patrollers/snakes:
+    // Check attack collision with Giant Bat Boss
+    if (!hitSomething && this.boss && !this.boss.isDefeated && this.boss.health > 0 && checkRectOverlap(attackHitbox, this.boss)) {
+        this.handleBossHit(knockbackDir); // Call the new handler
+        hitSomething = true;
+    }
+
+    // Keep the existing sound trigger:
+    if (hitSomething && game && game.audioCtx) {
+        // Decide if boss hit sound should override others or play alongside
+        // For now, let sword hit play regardless
+        triggerSwordHit(game.audioCtx.currentTime);
+    }
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+JavaScript
+IGNORE_WHEN_COPYING_END
+
+In GameplayScene.updateFireballs:
+
+// Inside the loop, after checking snakes:
+        // Check collision with Giant Bat Boss
+        if (!fb.active && this.boss && !this.boss.isDefeated && this.boss.health > 0 && checkRectOverlap({ x: fb.x - fb.radius, y: fb.y - fb.radius, width: fb.radius * 2, height: fb.radius * 2 }, this.boss)) {
+            this.handleBossHit(0); // No knockback from fireball
+            fb.active = false;
+            this.triggerFireballExplosion(fb.x, fb.y);
+            // No break here, fireball explodes and might hit other things in explosion radius
+        }
+    } // End of fireball loop
+    // Keep the cleanup filter
+    this.fireballs = this.fireballs.filter(fb => fb.active);
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+JavaScript
+IGNORE_WHEN_COPYING_END
+
+Add the new handleBossHit method to GameplayScene:
+
+// Add this new method inside the GameplayScene class
+handleBossHit(knockbackDir) {
+    if (!this.boss || this.boss.isDefeated || this.boss.health <= 0) return;
+
+    this.boss.health--;
+    console.log(`Boss Hit! Health: ${this.boss.health}/${GIANT_BAT_BOSS_HEALTH}`);
+
+    // Emit particles
+    this.effectsSystem.emitRewardSparkles(this.boss.x + this.boss.width / 2, this.boss.y + this.boss.height / 2, 15, '#FF1493'); // Use eye color for hit spark
+
+    // Play hit sound (maybe a lower pitch?)
+    // Example: Reuse patroller hit sound for now
+    if (game && game.audioCtx) triggerPatrollerHit(game.audioCtx.currentTime);
+
+    // Apply knockback (reduced)
+    if (knockbackDir !== 0) {
+        this.boss.velocityX += knockbackDir * SWORD_KNOCKBACK_STRENGTH * GIANT_BAT_BOSS_KNOCKBACK_RESISTANCE;
+         this.boss.velocityY += SWORD_VERTICAL_KNOCKBACK * GIANT_BAT_BOSS_KNOCKBACK_RESISTANCE * 0.5; // Less vertical knockback too
+    }
+
+    // Flash the boss briefly? (Optional visual feedback)
+    // boss.flashTimer = 0.1;
+
+    if (this.boss.health <= 0) {
+        this.handleBossDefeat();
+    }
+}
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+JavaScript
+IGNORE_WHEN_COPYING_END
+
+Add the new handleBossDefeat method to GameplayScene:
+
+// Add this new method inside the GameplayScene class
+handleBossDefeat() {
+    if (!this.boss || this.boss.isDefeated) return; // Prevent double execution
+
+    console.log("Giant Bat Boss Defeated!");
+    this.boss.isDefeated = true;
+    this.boss.health = 0; // Ensure health is 0
+
+    // Make it visually disappear quickly or play death animation
+     this.boss.x = -2000; // Move off screen
+     this.boss.y = -2000;
+     this.boss.velocityX = 0;
+     this.boss.velocityY = 0;
+
+
+    // Big explosion effect
+    this.effectsSystem.emitBatExplosion(this.boss.originX, this.boss.originY, 100, GIANT_BAT_BOSS_COLOR_2); // Large particle burst at its origin
+    this.effectsSystem.emitBatExplosion(this.boss.originX, this.boss.originY, 50, GIANT_BAT_BOSS_EYE_COLOR); // Add eye color sparks
+
+    // Play explosion sound (maybe louder/lower?)
+    // Example: Reuse fireball explode for now, maybe make a dedicated boss death sound later
+     if (game && game.audioCtx) {
+         // Play multiple sounds for bigger impact
+         triggerFireballExplode(game.audioCtx.currentTime);
+         setTimeout(() => triggerKick(game.audioCtx.currentTime + 0.05), 50); // Add a delayed kick for oomph
+         setTimeout(() => triggerPatrollerDestroy(game.audioCtx.currentTime + 0.1), 100); // Add delayed rumble
+     }
+
+
+    // Optional: Clear remaining spawned bats?
+    // this.clearSpawnedBats(); // You would need to implement this helper
+
+    // Show message
+    this.showTemporaryMessage("BOSS DEFEATED!");
+
+     // Maybe drop a final reward orb?
+    this.collectibles.push({
+        x: this.boss.originX - REWARD_COLLISION_SIZE / 2,
+        y: this.boss.originY - REWARD_COLLISION_SIZE / 2,
+        width: REWARD_COLLISION_SIZE,
+        height: REWARD_COLLISION_SIZE,
+        color: '#FFFF00', // Special gold orb
+        collected: false
+    });
+}
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+JavaScript
+IGNORE_WHEN_COPYING_END
+
+Create Boss Drawing Logic:
+
+Add a new method drawGiantBatBoss to GameplayScene.
+
+Call it from the main render method.
+
+// Add this new method inside the GameplayScene class
+    drawGiantBatBoss(boss, ctx) {
+        if (!boss || boss.isDefeated || boss.health <= 0) return;
+
+        ctx.save();
+        const centerX = boss.x + boss.width / 2;
+        const centerY = boss.y + boss.height / 2;
+
+        // Body
+        ctx.fillStyle = GIANT_BAT_BOSS_COLOR_1;
+        ctx.beginPath();
+        // More complex body shape? Ellipse for now.
+        ctx.ellipse(centerX, centerY, boss.width / 2 * 0.8, boss.height / 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Wings (similar to normal bat but larger and different color)
+        ctx.fillStyle = GIANT_BAT_BOSS_COLOR_2;
+        const wingSpan = boss.width * 0.9; // Wider wings relative to body
+        const wingHeight = boss.height * 0.7;
+        const flapAmount = Math.sin(boss.flapTimer) * wingHeight * 0.4; // Less pronounced flap relative to size?
+
+        // Wing Left
+        ctx.beginPath();
+        ctx.moveTo(centerX - boss.width * 0.2, centerY); // Connect closer to center
+        ctx.quadraticCurveTo(centerX - wingSpan * 0.6, centerY - wingHeight * 0.8 + flapAmount, centerX - wingSpan, centerY + flapAmount * 1.5); // Upper curve
+        ctx.quadraticCurveTo(centerX - wingSpan * 0.5, centerY + wingHeight * 0.6 + flapAmount, centerX - boss.width * 0.2, centerY + boss.height * 0.3); // Lower curve
+        ctx.closePath();
+        ctx.fill();
+
+        // Wing Right
+        ctx.beginPath();
+        ctx.moveTo(centerX + boss.width * 0.2, centerY);
+        ctx.quadraticCurveTo(centerX + wingSpan * 0.6, centerY - wingHeight * 0.8 + flapAmount, centerX + wingSpan, centerY + flapAmount * 1.5);
+        ctx.quadraticCurveTo(centerX + wingSpan * 0.5, centerY + wingHeight * 0.6 + flapAmount, centerX + boss.width * 0.2, centerY + boss.height * 0.3);
+        ctx.closePath();
+        ctx.fill();
+
+
+        // Eyes (Glowing)
+        ctx.fillStyle = GIANT_BAT_BOSS_EYE_COLOR;
+        ctx.shadowColor = GIANT_BAT_BOSS_EYE_COLOR;
+        ctx.shadowBlur = 8;
+        const eyeSize = boss.width * 0.08;
+        ctx.beginPath();
+        ctx.arc(centerX - boss.width * 0.15, centerY - boss.height * 0.1, eyeSize, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(centerX + boss.width * 0.15, centerY - boss.height * 0.1, eyeSize, 0, Math.PI * 2);
+        ctx.fill();
+
+
+         // Health Bar
+         const healthPercent = boss.health / GIANT_BAT_BOSS_HEALTH;
+         if (healthPercent < 1.0) {
+            const barWidth = boss.width * 0.9;
+            const barHeight = 8;
+            const barX = boss.x + (boss.width - barWidth) / 2;
+            const barY = boss.y - barHeight - 8; // Position above the boss
+
+            ctx.fillStyle = '#444'; // Background
+             ctx.shadowColor = 'transparent'; // Turn off shadow for health bar
+             ctx.shadowBlur = 0;
+            ctx.fillRect(barX, barY, barWidth, barHeight);
+
+            const hpColor = healthPercent > 0.5 ? '#44ff44' : healthPercent > 0.2 ? '#ffff44' : '#ff4444'; // Green -> Yellow -> Red
+            ctx.fillStyle = hpColor;
+            ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
+
+            // Optional border
+            ctx.strokeStyle = '#FFF';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(barX, barY, barWidth, barHeight);
+        }
+
+        ctx.restore();
+    }
+
+// In GameplayScene.render, add the call to draw the boss:
+    render(ctx) {
+        // ... (keep existing render start - background, lava) ...
+        ctx.save(); ctx.translate(-cameraX, -cameraY);
+        // ... (draw platforms, collectibles, goal, bats, patrollers, snakes) ...
+        this.snakes.forEach(s => { if (s.health > 0) this.drawSnake(s, ctx); });
+        if (this.boss) this.drawGiantBatBoss(this.boss, ctx); // <<< ADD THIS LINE
+        this.fireballs.forEach(fb => this.drawFireball(fb, ctx));
+        // ... (draw carpet, player, orbiters, effects) ...
+        ctx.restore();
+        // ... (keep screen flash, UI updates, touch controls, win text) ...
+    }
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+JavaScript
+IGNORE_WHEN_COPYING_END
+
+Modify Win Condition:
+
+Update the goal check in GameplayScene.checkCollisions to require the boss to be defeated.
+
+checkCollisions() {
+         // ... (loop through collectibles - keep existing code) ...
+
+         // Check Goal Collision - MODIFIED
+         if (checkRectOverlap(this.player, this.goal)) {
+             // Check if boss exists and is NOT defeated
+             if (this.boss && !this.boss.isDefeated) {
+                  // Only show message if not already showing or recently shown
+                  if (messageDiv.style.display === 'none' || !messageDiv.textContent.includes("Boss")) {
+                       this.showTemporaryMessage("Defeat the Giant Bat first!");
+                  }
+             }
+             // If boss doesn't exist OR boss is defeated, AND game not already won...
+             else if (!this.gameWon) {
+                 this.winGame(); // Allow winning
+             }
+         }
+
+         // ... (rest of collision checks: bats, patrollers, snakes, cactus, boss itself) ...
+    }
