@@ -102,4 +102,60 @@ drawDesertDunesBackground(time, camX, ctx) {
 
     ctx.restore();
 }
-// ...existing code...
+
+class GameplayScene {
+    spawnFireball() {
+        const fireball = { ...fireballProto };
+        const playerCenterX = this.player.x + this.player.width / 2;
+        const playerCenterY = this.player.y + this.player.height / 2;
+
+        const cameraX = playerCenterX - canvas.width / 3;
+        const cameraX_clamped = Math.max(0, Math.min(this.levelEndX - canvas.width, cameraX));
+        const targetX = this.game.mouseX + cameraX_clamped;
+        const targetY = this.game.mouseY;
+
+        const dirX = targetX - playerCenterX;
+        const dirY = targetY - playerCenterY;
+        const distance = Math.sqrt(dirX * dirX + dirY * dirY);
+
+        if (distance > 0) {
+            const normalizedDirX = dirX / distance;
+            const normalizedDirY = dirY / distance;
+            const spawnDistance = this.player.width / 2 + FIREBALL_RADIUS + 5;
+
+            fireball.x = playerCenterX + normalizedDirX * spawnDistance;
+            fireball.y = playerCenterY + normalizedDirY * spawnDistance;
+            fireball.vx = normalizedDirX * FIREBALL_SPEED;
+            fireball.vy = normalizedDirY * FIREBALL_SPEED;
+
+            this.player.facingDirection = normalizedDirX >= 0 ? 'right' : 'left';
+
+            fireball.life = FIREBALL_LIFESPAN;
+            fireball.active = true;
+            this.fireballs.push(fireball);
+            if (game && game.audioCtx) triggerFireballShoot(game.audioCtx.currentTime);
+        }
+    }
+
+    render(ctx) {
+        // ...existing code...
+        if (this.player.fireballCooldownTimer <= 0) {
+            ctx.save();
+            ctx.globalAlpha = 0.4;
+            ctx.strokeStyle = FIREBALL_COLOR;
+            ctx.setLineDash([5, 5]);
+
+            const playerCenterX = this.player.x + this.player.width / 2;
+            const playerCenterY = this.player.y + this.player.height / 2;
+            const cameraX = playerCenterX - canvas.width / 3;
+            const cameraX_clamped = Math.max(0, Math.min(this.levelEndX - canvas.width, cameraX));
+
+            ctx.beginPath();
+            ctx.moveTo(playerCenterX, playerCenterY);
+            ctx.lineTo(this.game.mouseX + cameraX_clamped, this.game.mouseY);
+            ctx.stroke();
+            ctx.restore();
+        }
+        // ...existing code...
+    }
+}
