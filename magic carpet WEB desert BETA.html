@@ -1085,7 +1085,52 @@
     // --- Game Class ---
     class Game {
         constructor(canvas) { this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.currentScene = null; this.scenes = {}; this.lastTime = 0; this.deltaTime = 0; this.currentTime = 0; this.isPaused = false; this.isRunning = false; this.inputState = { keys: { left: false, right: false, up: false, w: false, space: false, r: false, m: false, x: false, f: false } }; this.touchControls = null; this.audioCtx = null; this.masterGain = null; this.distortion = null; this.padLfo = null; this.padOsc = null; this.padGain = null; this.musicIntervalId = null; this.isAudioInitialized = false; this.stepCounter = 0; this.isMuted = false; this.bassNotes = [0, 0, 3, 0, 5, 0, 3, 0]; this.leadNotes = [0, 3, 7, 10, 12, 10, 7, 3]; this.saveSystem = new SaveSystem(); this.initInput(); }
-        initInput() { window.addEventListener('keydown', (e) => { const key = e.key.toLowerCase(); if (key === 'arrowleft' || key === 'a') this.inputState.keys.left = true; if (key === 'arrowright' || key === 'd') this.inputState.keys.right = true; if (key === 'arrowup') this.inputState.keys.up = true; if (key === 'w') this.inputState.keys.w = true; if (key === ' ') this.inputState.keys.space = true; if (key === 'x') this.inputState.keys.x = true; if (key === 'f') this.inputState.keys.f = true; if (key === 'r') { if (!this.inputState.keys.r) this.handleReset(); this.inputState.keys.r = true; } if (key === 'm') { if (!this.inputState.keys.m) this.toggleMute(); this.inputState.keys.m = true; } }); window.addEventListener('keyup', (e) => { const key = e.key.toLowerCase(); if (key === 'arrowleft' || key === 'a') this.inputState.keys.left = false; if (key === 'arrowright' || key === 'd') this.inputState.keys.right = false; if (key === 'arrowup') this.inputState.keys.up = false; if (key === 'w') this.inputState.keys.w = false; if (key === ' ') this.inputState.keys.space = false; if (key === 'x') this.inputState.keys.x = false; if (key === 'f') this.inputState.keys.f = false; if (key === 'r') this.inputState.keys.r = false; if (key === 'm') this.inputState.keys.m = false; }); if ('ontouchstart' in window || navigator.maxTouchPoints > 0) { this.touchControls = new TouchControls(this); } }
+        initInput() {
+            window.addEventListener('keydown', (e) => {
+                const key = e.key.toLowerCase();
+                if (key === 'arrowleft' || key === 'a') this.inputState.keys.left = true;
+                if (key === 'arrowright' || key === 'd') this.inputState.keys.right = true;
+                if (key === 'arrowup') this.inputState.keys.up = true;
+                if (key === 'w') this.inputState.keys.w = true;
+                if (key === ' ') this.inputState.keys.space = true;
+                if (key === 'x') this.inputState.keys.x = true;
+                if (key === 'f') this.inputState.keys.f = true;
+                if (key === 'r') {
+                    if (!this.inputState.keys.r) this.handleReset();
+                    this.inputState.keys.r = true;
+                }
+                if (key === 'm') {
+                    if (!this.inputState.keys.m) this.toggleMute();
+                    this.inputState.keys.m = true;
+                }
+            });
+
+            window.addEventListener('keyup', (e) => {
+                const key = e.key.toLowerCase();
+                if (key === 'arrowleft' || key === 'a') this.inputState.keys.left = false;
+                if (key === 'arrowright' || key === 'd') this.inputState.keys.right = false;
+                if (key === 'arrowup') this.inputState.keys.up = false;
+                if (key === 'w') this.inputState.keys.w = false;
+                if (key === ' ') this.inputState.keys.space = false;
+                if (key === 'x') this.inputState.keys.x = false;
+                if (key === 'f') this.inputState.keys.f = false;
+                if (key === 'r') this.inputState.keys.r = false;
+                if (key === 'm') this.inputState.keys.m = false;
+            });
+
+            // Add mouse input for shooting fireballs
+            window.addEventListener('mousedown', (e) => {
+                if (e.button === 0) { // Left mouse button
+                    if (this.currentScene instanceof GameplayScene) {
+                        this.currentScene.spawnFireball();
+                    }
+                }
+            });
+
+            if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+                this.touchControls = new TouchControls(this);
+            }
+        }
         handleReset() { if (this.currentScene instanceof GameplayScene) { this.currentScene.goToNextLevelOrGameOver(this.currentScene.gameWon); } }
         initAudio() { if (this.isAudioInitialized) return; try { this.audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (!this.audioCtx) { console.error("Web Audio API not supported!"); return; } this.masterGain = this.audioCtx.createGain(); this.distortion = this.audioCtx.createWaveShaper(); this.padOsc = this.audioCtx.createOscillator(); this.padGain = this.audioCtx.createGain(); this.padLfo = this.audioCtx.createOscillator(); const lfoGain = this.audioCtx.createGain(); this.masterGain.gain.setValueAtTime(this.isMuted ? 0.001 : MASTER_VOLUME, this.audioCtx.currentTime); this.distortion.curve = makeDistortionCurve(DISTORTION_AMOUNT); this.distortion.oversample = '4x'; this.padOsc.type = 'sawtooth'; this.padOsc.frequency.setValueAtTime(30, this.audioCtx.currentTime); this.padGain.gain.setValueAtTime(PAD_VOLUME, this.audioCtx.currentTime); this.padLfo.frequency.setValueAtTime(PAD_LFO_RATE, this.audioCtx.currentTime); lfoGain.gain.setValueAtTime(PAD_LFO_DEPTH, this.audioCtx.currentTime); this.padLfo.connect(lfoGain); lfoGain.connect(this.padOsc.frequency); this.padOsc.connect(this.padGain); this.padGain.connect(this.masterGain); this.distortion.connect(this.masterGain); this.masterGain.connect(this.audioCtx.destination); this.padOsc.start(); this.padLfo.start(); this.isAudioInitialized = true; console.log("Audio Initialized. BPM:", BPM); } catch (e) { console.error("Error initializing Web Audio:", e); alert("Could not initialize Web Audio API."); this.isAudioInitialized = false; } }
         startMusic() { if (!this.isAudioInitialized || this.musicIntervalId !== null || this.isMuted || !this.isRunning) { return; } console.log("StartMusic: Starting music interval."); this.stepCounter = 0; const intervalMilliseconds = SIXTEENTH_NOTE_DURATION * 1000; if (this.musicIntervalId) clearInterval(this.musicIntervalId); musicSequencer.call(this); this.musicIntervalId = setInterval(() => musicSequencer.call(this), intervalMilliseconds); }
