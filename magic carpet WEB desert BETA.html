@@ -1352,7 +1352,7 @@
                     amp2: 25, freq2: 0.009,
                     hue: 45, sat: 55, lightBase: 65, lightRange: 12 // Standard sand
                 },
-                // Near layer
+                // Near layer - Added to the array
                 {
                     parallax: 0.30, // Fastest scroll
                     baseY: canvas.height * 0.85,
@@ -1993,6 +1993,52 @@
             ctx.lineTo(centerX + fangWidth, centerY + fangHeight * 0.3);
             ctx.fill();
             
+            ctx.restore();
+        }
+
+        drawFireball(fireball, ctx) {
+            if (!fireball.active) return;
+
+            ctx.save();
+
+            // Create gradient for fire effect
+            const gradient = ctx.createRadialGradient(
+                fireball.x, fireball.y, 0,
+                fireball.x, fireball.y, fireball.radius
+            );
+            gradient.addColorStop(0, 'rgba(255, 255, 200, 0.9)'); // Bright center
+            gradient.addColorStop(0.3, 'rgba(255, 150, 50, 0.8)'); // Orange middle
+            gradient.addColorStop(1, 'rgba(255, 50, 0, 0)');       // Transparent red edge
+
+            // Draw main fireball
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(fireball.x, fireball.y, fireball.radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Add glow effect
+            ctx.shadowColor = 'rgba(255, 100, 0, 0.8)';
+            ctx.shadowBlur = 15;
+            ctx.beginPath();
+            ctx.arc(fireball.x, fireball.y, fireball.radius * 0.7, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 200, 50, 0.6)';
+            ctx.fill();
+
+            // Optional: Add some particle effects for a more dynamic look
+            const particleCount = 3;
+            for (let i = 0; i < particleCount; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = Math.random() * fireball.radius * 0.5;
+                const particleX = fireball.x + Math.cos(angle) * distance;
+                const particleY = fireball.y + Math.sin(angle) * distance;
+                const particleSize = (Math.random() * 0.5 + 0.5) * fireball.radius * 0.3;
+
+                ctx.beginPath();
+                ctx.arc(particleX, particleY, particleSize, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 255, 200, 0.8)';
+                ctx.fill();
+            }
+
             ctx.restore();
         }
 
