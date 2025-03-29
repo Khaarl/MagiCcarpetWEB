@@ -1691,9 +1691,14 @@
         drawMagicCarpet(player, time, ctx) {
             const anchorX = player.x + player.width / 2;
             const anchorY = player.y + player.height + CARPET_OFFSET_Y;
-            const wave = Math.sin(time * CARPET_WAVE_SPEED);
-            const currentWidth = CARPET_WIDTH * (1 + wave * CARPET_WAVE_AMP_X);
-            const currentHeight = CARPET_HEIGHT * (1 - wave * CARPET_WAVE_AMP_Y * 0.5);
+            
+            // Enhanced wave calculation with multiple sine waves
+            const waveBase = Math.sin(time * CARPET_WAVE_SPEED);
+            const waveDetail = Math.sin(time * CARPET_WAVE_SPEED * 1.7 + 1.3) * 0.3;
+            const waveCombined = waveBase + waveDetail;
+            
+            const currentWidth = CARPET_WIDTH * (1 + waveCombined * CARPET_WAVE_AMP_X);
+            const currentHeight = CARPET_HEIGHT * (1 - waveCombined * CARPET_WAVE_AMP_Y * 0.5);
             const carpetX = anchorX - currentWidth / 2;
             const carpetY = anchorY - currentHeight / 2;
 
@@ -1701,14 +1706,117 @@
             this.drawCarpetTrail(carpetX, carpetY, player.velocityX, player.velocityY, time, ctx);
 
             ctx.save();
-            ctx.fillStyle = CARPET_COLOR_1;
-            ctx.fillRect(carpetX, carpetY, currentWidth, currentHeight);
+            
+            // Create carpet base with gradient
+            const carpetGradient = ctx.createLinearGradient(carpetX, carpetY, carpetX, carpetY + currentHeight);
+            carpetGradient.addColorStop(0, CARPET_COLOR_1);
+            carpetGradient.addColorStop(1, CARPET_COLOR_2);
+            
+            // Draw the carpet with curved edges for more natural wave appearance
+            ctx.fillStyle = carpetGradient;
+            ctx.beginPath();
+            
+            // Custom shape with curved edges
+            const cornerRadius = currentHeight * 0.4;
+            
+            // Top edge with wave
+            ctx.moveTo(carpetX + cornerRadius, carpetY);
+            for (let i = 0; i <= 10; i++) {
+                const xPos = carpetX + cornerRadius + (currentWidth - cornerRadius * 2) * (i / 10);
+                const wavePhase = time * CARPET_WAVE_SPEED * 2 + i * 0.5;
+                const yOffset = Math.sin(wavePhase) * (currentHeight * 0.1);
+                ctx.lineTo(xPos, carpetY + yOffset);
+            }
+            
+            // Right curve
+            ctx.quadraticCurveTo(carpetX + currentWidth, carpetY, carpetX + currentWidth, carpetY + cornerRadius);
+            
+            // Bottom edge with opposite wave pattern
+            for (let i = 10; i >= 0; i--) {
+                const xPos = carpetX + cornerRadius + (currentWidth - cornerRadius * 2) * (i / 10);
+                const wavePhase = time * CARPET_WAVE_SPEED * 1.5 + i * 0.6 + Math.PI;
+                const yOffset = Math.sin(wavePhase) * (currentHeight * 0.15);
+                ctx.lineTo(xPos, carpetY + currentHeight + yOffset);
+            }
+            
+            // Left curve
+            ctx.quadraticCurveTo(carpetX, carpetY + currentHeight, carpetX, carpetY + cornerRadius);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Add carpet pattern/decoration
             ctx.fillStyle = CARPET_COLOR_2;
-            ctx.fillRect(carpetX + currentWidth * 0.2, carpetY + currentHeight * 0.2, currentWidth * 0.6, currentHeight * 0.6);
-            ctx.strokeStyle = CARPET_COLOR_2;
+            
+            // Central pattern
+            const patternWidth = currentWidth * 0.7;
+            const patternHeight = currentHeight * 0.7;
+            const patternX = carpetX + (currentWidth - patternWidth) / 2;
+            const patternY = carpetY + (currentHeight - patternHeight) / 2;
+            
+            // Draw diamond pattern
+            ctx.beginPath();
+            ctx.moveTo(patternX + patternWidth/2, patternY);
+            ctx.lineTo(patternX + patternWidth, patternY + patternHeight/2);
+            ctx.lineTo(patternX + patternWidth/2, patternY + patternHeight);
+            ctx.lineTo(patternX, patternY + patternHeight/2);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Add smaller decorative patterns
+            ctx.fillStyle = '#8040cc'; // Darker accent color
+            for (let i = 0; i < 3; i++) {
+                const ornX = patternX + patternWidth * (0.3 + i * 0.2);
+                const ornY = patternY + patternHeight * 0.5;
+                const ornSize = patternHeight * 0.15;
+                ctx.beginPath();
+                ctx.arc(ornX, ornY, ornSize, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // Draw tassels with wave motion
+            const tasselCount = 7;
+            const tasselSpacing = currentWidth / (tasselCount + 1);
+            const tasselLength = currentHeight * 0.8;
+            
+            ctx.strokeStyle = '#d0a0ff'; // Tassel color
+            ctx.lineWidth = 2;
+            
+            for (let i = 1; i <= tasselCount; i++) {
+                const tasselX = carpetX + tasselSpacing * i;
+                const phaseOffset = i * 0.7;
+                const tasselWave = Math.sin(time * CARPET_WAVE_SPEED * 1.2 + phaseOffset) * 5;
+                
+                // Create wavy tassels
+                ctx.beginPath();
+                ctx.moveTo(tasselX, carpetY + currentHeight);
+                
+                // Multiple control points for more natural wave
+                const cp1x = tasselX + tasselWave * 0.5;
+                const cp1y = carpetY + currentHeight + tasselLength * 0.3;
+                const cp2x = tasselX - tasselWave;
+                const cp2y = carpetY + currentHeight + tasselLength * 0.6;
+                const endX = tasselX + tasselWave * 1.5;
+                const endY = carpetY + currentHeight + tasselLength;
+                
+                ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, endX, endY);
+                ctx.stroke();
+                
+                // Add small decorative bead at the end of each tassel
+                ctx.fillStyle = '#e0c0ff';
+                ctx.beginPath();
+                ctx.arc(endX, endY, 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // Add a subtle glow effect
+            ctx.shadowColor = CARPET_COLOR_1;
+            ctx.shadowBlur = 10;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
             ctx.lineWidth = 1;
-            const tasselLength = currentHeight * 0.6;
-            for (let i = 0; i < 5; i++) { const tasselX = carpetX + (currentWidth / 4) * i; ctx.beginPath(); ctx.moveTo(tasselX, carpetY + currentHeight); ctx.lineTo(tasselX + wave * 2, carpetY + currentHeight + tasselLength + wave * 2); ctx.stroke(); }
+            ctx.beginPath();
+            ctx.rect(carpetX, carpetY, currentWidth, currentHeight);
+            ctx.stroke();
+            
             ctx.restore();
         }
 
@@ -1720,121 +1828,74 @@
             ctx.save();
 
             // Number of trail particles depends on speed
-            const particleCount = Math.min(12, Math.floor(speed / 8) + 5);
+            const particleCount = Math.min(15, Math.floor(speed / 7) + 6);
 
             // Direction of movement affects trail position
             const dirX = velocityX !== 0 ? -Math.sign(velocityX) : 0;
             const dirY = velocityY !== 0 ? -Math.sign(velocityY) : 0;
             
             // Calculate trail starting point at the back of the carpet
-            // First determine which edge is the "back" based on movement direction
             const trailStartX = carpetX + (dirX < 0 ? CARPET_WIDTH * 0.4 : dirX > 0 ? -CARPET_WIDTH * 0.4 : 0);
             const trailStartY = carpetY + (dirY < 0 ? CARPET_HEIGHT * 0.4 : dirY > 0 ? -CARPET_HEIGHT * 0.4 : 0);
 
+            // Create glowing particle effect
+            ctx.globalCompositeOperation = 'lighter';
+
             for (let i = 0; i < particleCount; i++) {
-                // Calculate particle position based on index and velocity
-                const offset = i * 6 + Math.sin(time * 5 + i) * 2;
-                // Position particles further behind the carpet
-                const x = trailStartX + dirX * (offset + CARPET_WIDTH * 0.3) + Math.sin(time * 3 + i * 0.7) * 3;
-                const y = trailStartY + dirY * (offset * 0.5 + CARPET_HEIGHT * 0.2) + Math.cos(time * 2 + i * 0.5) * 2;
+                // Calculate particle position with more varied distribution
+                const offset = i * 6 + Math.sin(time * 5 + i) * 3;
+                const phaseShift = i * 0.4;
+                
+                // Position particles with more interesting patterns
+                const waveX = Math.sin(time * 3 + phaseShift) * 4;
+                const waveY = Math.cos(time * 2.5 + phaseShift) * 3;
+                
+                const x = trailStartX + dirX * (offset + CARPET_WIDTH * 0.3) + waveX;
+                const y = trailStartY + dirY * (offset * 0.5 + CARPET_HEIGHT * 0.2) + waveY;
 
-                // Particle size decreases with distance
-                const size = 5 - (i / particleCount) * 3;
+                // Particle size decreases with distance but varies with time
+                const sizeVar = Math.sin(time * 4 + i * 0.3) * 0.3 + 1;
+                const size = (5 - (i / particleCount) * 3) * sizeVar;
 
-                // Particle opacity decreases with distance
-                const alpha = 0.7 - (i / particleCount) * 0.6;
+                // Particle opacity decreases with distance but pulses
+                const alphaVar = Math.sin(time * 3 + i * 0.5) * 0.15 + 1;
+                const alpha = (0.7 - (i / particleCount) * 0.6) * alphaVar;
 
-                // Alternate between carpet colors with subtle transitions
-                const hue = (i % 2 === 0) ? 270 : 290; // Purple hues
-                ctx.fillStyle = `hsla(${hue}, 80%, 75%, ${alpha})`;
+                // Create colors that shift with time
+                const hue = 270 + Math.sin(time + i * 0.2) * 20;
+                const saturation = 80 + Math.cos(time * 1.5 + i * 0.3) * 10;
+                const lightness = 75 + Math.sin(time * 2 + i * 0.25) * 10;
+                
+                ctx.fillStyle = `hsla(${hue}, ${saturation}%, ${lightness}%, ${alpha})`;
 
                 // Draw particle
                 ctx.beginPath();
                 ctx.arc(x, y, size, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Add occasional "sparkle" effect
+                // Add occasional star-shaped sparkle effect
                 if (Math.random() < 0.3 && i < particleCount / 2) {
-                    ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.8})`;
+                    ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.9})`;
+                    
+                    // Draw star-like shape
+                    const starX = x + Math.random() * 4 - 2;
+                    const starY = y + Math.random() * 4 - 2;
+                    const starSize = size * 0.7;
+                    
                     ctx.beginPath();
-                    ctx.arc(x + Math.random() * 4 - 2, y + Math.random() * 4 - 2, size * 0.6, 0, Math.PI * 2);
+                    for (let j = 0; j < 5; j++) {
+                        const angle = j * Math.PI * 2 / 5 - Math.PI / 2;
+                        const length = j % 2 === 0 ? starSize : starSize * 0.5;
+                        const pointX = starX + Math.cos(angle) * length;
+                        const pointY = starY + Math.sin(angle) * length;
+                        
+                        if (j === 0) ctx.moveTo(pointX, pointY);
+                        else ctx.lineTo(pointX, pointY);
+                    }
+                    ctx.closePath();
                     ctx.fill();
                 }
             }
-
-            ctx.restore();
-        }
-
-        drawFireball(fb, ctx) {
-            if (!fb.active) return;
-
-            const angle = Math.atan2(fb.vy, fb.vx);
-
-            ctx.save();
-            ctx.translate(fb.x, fb.y);
-            ctx.rotate(angle);
-
-            ctx.fillStyle = FIREBALL_COLOR;
-            ctx.shadowColor = '#ffcc00';
-            ctx.shadowBlur = 8;
-
-            ctx.beginPath();
-            ctx.ellipse(0, 0, fb.radius * 1.5, fb.radius, 0, 0, Math.PI * 2);
-            ctx.fill();
-
-            const trailLength = 3;
-            const alphaStep = 0.6 / trailLength;
-            for (let i = 1; i <= trailLength; i++) {
-                ctx.globalAlpha = 0.6 - i * alphaStep;
-                ctx.beginPath();
-                ctx.ellipse(-i * 3, 0, fb.radius * (1 - i * 0.15), fb.radius * (1 - i * 0.15), 0, 0, Math.PI * 2);
-                ctx.fill();
-            }
-
-            ctx.restore();
-        }
-
-        drawGiantBatBoss(boss, ctx) {
-            if (!boss || boss.isDefeated || boss.health <= 0) return;
-
-            ctx.save();
-            const centerX = boss.x + boss.width / 2;
-            const centerY = boss.y + boss.height / 2;
-
-            ctx.fillStyle = GIANT_BAT_BOSS_COLOR_1;
-            ctx.beginPath();
-            ctx.ellipse(centerX, centerY, boss.width / 2 * 0.8, boss.height / 2, 0, 0, Math.PI * 2);
-            ctx.fill();
-
-            ctx.fillStyle = GIANT_BAT_BOSS_COLOR_2;
-            const wingSpan = boss.width * 0.9;
-            const wingHeight = boss.height * 0.7;
-            const flapAmount = Math.sin(boss.flapTimer) * wingHeight * 0.4;
-
-            ctx.beginPath();
-            ctx.moveTo(centerX - boss.width * 0.2, centerY);
-            ctx.quadraticCurveTo(centerX - wingSpan * 0.6, centerY - wingHeight * 0.8 + flapAmount, centerX - wingSpan, centerY + flapAmount * 1.5);
-            ctx.quadraticCurveTo(centerX - wingSpan * 0.5, centerY + wingHeight * 0.6 + flapAmount, centerX - boss.width * 0.2, centerY + boss.height * 0.3);
-            ctx.closePath();
-            ctx.fill();
-
-            ctx.beginPath();
-            ctx.moveTo(centerX + boss.width * 0.2, centerY);
-            ctx.quadraticCurveTo(centerX + wingSpan * 0.6, centerY - wingHeight * 0.8 + flapAmount, centerX + wingSpan, centerY + flapAmount * 1.5);
-            ctx.quadraticCurveTo(centerX + wingSpan * 0.5, centerY + wingHeight * 0.6 + flapAmount, centerX + boss.width * 0.2, centerY + boss.height * 0.3);
-            ctx.closePath();
-            ctx.fill();
-
-            ctx.fillStyle = GIANT_BAT_BOSS_EYE_COLOR;
-            ctx.shadowColor = GIANT_BAT_BOSS_EYE_COLOR;
-            ctx.shadowBlur = 8;
-            const eyeSize = boss.width * 0.08;
-            ctx.beginPath();
-            ctx.arc(centerX - boss.width * 0.15, centerY - boss.height * 0.1, eyeSize, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(centerX + boss.width * 0.15, centerY - boss.height * 0.1, eyeSize, 0, Math.PI * 2);
-            ctx.fill();
 
             ctx.restore();
         }
