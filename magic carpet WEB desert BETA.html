@@ -1279,7 +1279,7 @@
             this.groundPatrollers.forEach(p => { if (p.health > 0) this.drawGroundPatroller(p, ctx); }); // Calls the updated draw function
             this.snakes.forEach(s => { if (s.health > 0) this.drawSnake(s, ctx); }); // Draw snakes
             this.fireballs.forEach(fb => this.drawFireball(fb, ctx)); // Draw fireballs
-            if (this.boss) this.drawGiantBatBoss(this.boss, ctx); // Draw boss
+            if (this.boss) this.drawGiantBatBoss(this.boss, time, ctx); // Draw boss
             if (!this.player.onGround) { this.drawMagicCarpet(this.player, time, ctx); }
             this.drawPlayer(ctx); this.drawOrbiters(time, ctx);
             this.effectsSystem.render(ctx);
@@ -1897,6 +1897,102 @@
                 }
             }
 
+            ctx.restore();
+        }
+
+        drawGiantBatBoss(boss, time, ctx) {
+            ctx.save();
+            
+            // Base color for the giant bat boss
+            ctx.fillStyle = '#4A1942'; // Darker purple than regular bats
+            
+            const centerX = boss.x + boss.width / 2;
+            const centerY = boss.y + boss.height / 2;
+            
+            // Larger wingspan for boss
+            const wingSpan = boss.width * 1.2;
+            const wingHeight = boss.height * 0.8;
+            
+            // More dramatic wing flapping animation
+            const flapAmount = Math.sin(boss.flapTimer) * wingHeight * 0.6;
+            const flapDetail = Math.sin(boss.flapTimer * 1.5) * wingHeight * 0.2;
+            
+            // Draw wings with more complex shape
+            ctx.beginPath();
+            
+            // Left wing
+            ctx.moveTo(centerX, centerY);
+            ctx.quadraticCurveTo(
+                centerX - wingSpan * 0.5, 
+                centerY - flapAmount * 0.5, 
+                centerX - wingSpan, 
+                centerY + flapAmount
+            );
+            ctx.quadraticCurveTo(
+                centerX - wingSpan * 0.7, 
+                centerY + flapAmount + flapDetail, 
+                centerX - wingSpan * 0.3, 
+                centerY + wingHeight * 0.4
+            );
+            
+            // Body
+            ctx.lineTo(centerX, centerY + wingHeight * 0.6);
+            
+            // Right wing
+            ctx.lineTo(centerX + wingSpan * 0.3, centerY + wingHeight * 0.4);
+            ctx.quadraticCurveTo(
+                centerX + wingSpan * 0.7, 
+                centerY + flapAmount + flapDetail, 
+                centerX + wingSpan, 
+                centerY + flapAmount
+            );
+            ctx.quadraticCurveTo(
+                centerX + wingSpan * 0.5, 
+                centerY - flapAmount * 0.5, 
+                centerX, 
+                centerY
+            );
+            
+            ctx.closePath();
+            ctx.fill();
+            
+            // Apply a glow effect
+            ctx.shadowColor = '#FF0000';
+            ctx.shadowBlur = 15;
+            
+            // Add details - eyes
+            ctx.fillStyle = '#FF0000'; // Red eyes
+            const eyeSize = boss.width * 0.15;
+            ctx.beginPath();
+            ctx.arc(centerX - eyeSize * 1.5, centerY - eyeSize, eyeSize, 0, Math.PI * 2);
+            ctx.arc(centerX + eyeSize * 1.5, centerY - eyeSize, eyeSize, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Eye pupils
+            ctx.fillStyle = '#000000';
+            const pupilSize = eyeSize * 0.4;
+            ctx.beginPath();
+            ctx.arc(centerX - eyeSize * 1.5, centerY - eyeSize, pupilSize, 0, Math.PI * 2);
+            ctx.arc(centerX + eyeSize * 1.5, centerY - eyeSize, pupilSize, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Fangs
+            ctx.fillStyle = '#FFFFFF';
+            const fangWidth = boss.width * 0.08;
+            const fangHeight = boss.height * 0.2;
+            
+            ctx.beginPath();
+            ctx.moveTo(centerX - fangWidth * 1.5, centerY + fangHeight * 0.3);
+            ctx.lineTo(centerX - fangWidth * 2, centerY + fangHeight);
+            ctx.lineTo(centerX - fangWidth, centerY + fangHeight * 0.3);
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.moveTo(centerX + fangWidth * 1.5, centerY + fangHeight * 0.3);
+            ctx.lineTo(centerX + fangWidth * 2, centerY + fangHeight);
+            ctx.lineTo(centerX + fangWidth, centerY + fangHeight * 0.3);
+            ctx.fill();
+            
             ctx.restore();
         }
 
