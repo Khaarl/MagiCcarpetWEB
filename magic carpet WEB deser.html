@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html>
 <head>
 <title>Refactored Psy Flight N+-1 (v3.7: Wizard Fire)</title> <!-- Title updated -->
@@ -21,8 +22,6 @@
 <div id="livesDisplay">Lives: 3</div>
 <div id="orbShieldDisplay">Shield: 0</div>
 <canvas id="gameCanvas"></canvas>
-
-<script src="GameplayScene.js"></script>
 
 <script>
     // --- DOM Elements ---
@@ -732,7 +731,12 @@
 
         render(ctx) {
             const time = this.game.currentTime; let cameraX = this.player.x - canvas.width / 3; cameraX = Math.max(0, Math.min(this.levelEndX - canvas.width, cameraX)); let cameraY = 0;
-            this.drawAlienMarioBackground(time * 1000, cameraX, ctx); this.drawLava(time * 1000, cameraX, ctx);
+
+            // ** USE THE NEW BACKGROUND FUNCTION HERE **
+            this.drawDesertDunesBackground(time * 1000, cameraX, ctx);
+            // this.drawAlienMarioBackground(time * 1000, cameraX, ctx); // OLD ONE COMMENTED OUT
+
+            this.drawLava(time * 1000, cameraX, ctx);
             ctx.save(); ctx.translate(-cameraX, -cameraY);
             this.platforms.forEach(p => { this.drawPlatformSimple(p, ctx); if (p.hasCactus) this.drawCactus(p.x + p.width / 2, p.y, ctx); });
             this.collectibles.forEach(c => { if (!c.collected) { const pulse = (1 + Math.sin(time * PULSE_SPEED)) / 2; const r = REWARD_BASE_RADIUS * (1 + pulse * PULSE_MAGNITUDE_ORB); this.drawPulsatingOrb(c.x + c.width / 2, c.y + c.height / 2, r, c.color, time, ctx); } });
@@ -762,7 +766,108 @@
         updateTimerDisplay() { if (this.gameStartTime !== null && !this.gameWon) { const elapsedSeconds = (performance.now() - this.gameStartTime) / 1000; timerDiv.textContent = elapsedSeconds.toFixed(2); } else if (!this.gameStartTime) { timerDiv.textContent = "0.00"; } }
 
         // --- Drawing Helpers ---
-        drawAlienMarioBackground(time, camX, ctx) { ctx.fillStyle = '#000010'; ctx.fillRect(0, 0, canvas.width , canvas.height); this.drawStarfield(camX, ctx); ctx.globalAlpha = 0.3; const blobTimeFactor = time * 0.00005; for (let i = 0; i < BG_BLOB_COUNT; i++) { const blobScrollX = (camX * (BG_SCROLL_FACTOR_BLOBS + i * 0.005)); const baseX = (canvas.width / BG_BLOB_COUNT) * i * 1.5 - blobScrollX; const baseY = canvas.height * 0.5 + Math.sin(blobTimeFactor * (1.0 + i * 0.1) + i * 1.5) * canvas.height * 0.4; const radiusX = 150 + Math.cos(blobTimeFactor * (1.2 + i*0.05) + i * 2.0) * 100; const radiusY = 100 + Math.sin(blobTimeFactor * (0.9 + i*0.1) + i * 1.0) * 60; const rotation = Math.sin(blobTimeFactor * 0.5 + i) * Math.PI * 0.1; const hue = (260 + Math.sin(blobTimeFactor * 0.2 + i * 0.3) * 60 + time * 0.01) % 360; const lightness = 15 + Math.sin(blobTimeFactor*0.3 + i*0.8)*10; ctx.fillStyle = `hsla(${hue}, 70%, ${lightness}%, 0.6)`; ctx.beginPath(); ctx.ellipse((baseX % (canvas.width + radiusX*2)) - radiusX , baseY, radiusX, radiusY, rotation, 0, Math.PI * 2); ctx.fill(); } ctx.globalAlpha = 1.0; }
+        // drawAlienMarioBackground(time, camX, ctx) { ctx.fillStyle = '#000010'; ctx.fillRect(0, 0, canvas.width , canvas.height); this.drawStarfield(camX, ctx); ctx.globalAlpha = 0.3; const blobTimeFactor = time * 0.00005; for (let i = 0; i < BG_BLOB_COUNT; i++) { const blobScrollX = (camX * (BG_SCROLL_FACTOR_BLOBS + i * 0.005)); const baseX = (canvas.width / BG_BLOB_COUNT) * i * 1.5 - blobScrollX; const baseY = canvas.height * 0.5 + Math.sin(blobTimeFactor * (1.0 + i * 0.1) + i * 1.5) * canvas.height * 0.4; const radiusX = 150 + Math.cos(blobTimeFactor * (1.2 + i*0.05) + i * 2.0) * 100; const radiusY = 100 + Math.sin(blobTimeFactor * (0.9 + i*0.1) + i * 1.0) * 60; const rotation = Math.sin(blobTimeFactor * 0.5 + i) * Math.PI * 0.1; const hue = (260 + Math.sin(blobTimeFactor * 0.2 + i * 0.3) * 60 + time * 0.01) % 360; const lightness = 15 + Math.sin(blobTimeFactor*0.3 + i*0.8)*10; ctx.fillStyle = `hsla(${hue}, 70%, ${lightness}%, 0.6)`; ctx.beginPath(); ctx.ellipse((baseX % (canvas.width + radiusX*2)) - radiusX , baseY, radiusX, radiusY, rotation, 0, Math.PI * 2); ctx.fill(); } ctx.globalAlpha = 1.0; }
+
+        // NEW DESERT BACKGROUND FUNCTION
+        drawDesertDunesBackground(time, camX, ctx) {
+            ctx.save();
+
+            // 1. Sky Gradient
+            const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.75); // Gradient covers top 3/4
+            skyGradient.addColorStop(0, '#87CEEB'); // Light Sky Blue
+            skyGradient.addColorStop(0.7, '#FFDAB9'); // Peach Puff / Light Orange near horizon
+            skyGradient.addColorStop(1, '#FFA07A'); // Light Salmon / Orange deeper horizon
+            ctx.fillStyle = skyGradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 2. Optional Sun
+            const sunX = canvas.width * 0.8 - camX * 0.02; // Slow parallax for sun
+            const sunY = canvas.height * 0.15;
+            const sunRadius = 40;
+            ctx.fillStyle = 'rgba(255, 255, 224, 0.9)'; // Light Yellow, slightly transparent
+            ctx.beginPath();
+            ctx.arc(sunX, sunY, sunRadius, 0, Math.PI * 2);
+            ctx.fill();
+            // Sun Glow
+            ctx.shadowColor = 'rgba(255, 255, 0, 0.5)';
+            ctx.shadowBlur = 25;
+            ctx.fillStyle = 'rgba(255, 255, 200, 0.8)';
+            ctx.beginPath();
+            ctx.arc(sunX, sunY, sunRadius * 0.8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowColor = 'transparent'; // Reset shadow for dunes
+
+            // 3. Dunes (Draw from back to front)
+            const duneLayers = [
+                // Far layer
+                {
+                    parallax: 0.08, // Slowest scroll
+                    baseY: canvas.height * 0.65,
+                    amp1: 40, freq1: 0.003, // Main wave
+                    amp2: 15, freq2: 0.007, // Ripple wave
+                    hue: 40, sat: 45, lightBase: 55, lightRange: 10 // Browner tones
+                },
+                // Mid layer
+                {
+                    parallax: 0.15,
+                    baseY: canvas.height * 0.75,
+                    amp1: 60, freq1: 0.004,
+                    amp2: 25, freq2: 0.009,
+                    hue: 45, sat: 55, lightBase: 65, lightRange: 12 // Standard sand
+                },
+                // Near layer
+                {
+                    parallax: 0.30, // Fastest scroll
+                    baseY: canvas.height * 0.85,
+                    amp1: 80, freq1: 0.005,
+                    amp2: 30, freq2: 0.012,
+                    hue: 50, sat: 65, lightBase: 70, lightRange: 15 // Lighter, yellower sand
+                }
+            ];
+
+            const segmentWidth = 5; // Draw dunes in segments
+
+            duneLayers.forEach((layer, index) => {
+                const scrollOffset = camX * layer.parallax;
+                // Introduce a very slow time factor for subtle "wind" shift, different per layer
+                const timeFactor = time * 0.00002 * (index * 0.5 + 1);
+
+                // Create a vertical gradient for this dune layer for shading
+                const gradientYStart = layer.baseY - layer.amp1 - layer.amp2 - 20; // Extend gradient slightly above peaks
+                const gradientYEnd = canvas.height; // Gradient goes to bottom of canvas
+                const duneGradient = ctx.createLinearGradient(0, gradientYStart, 0, gradientYEnd);
+
+                const lightHighlight = Math.min(95, layer.lightBase + layer.lightRange);
+                const lightShadow = Math.max(10, layer.lightBase - layer.lightRange);
+
+                // Gradient stops: Highlight -> Mid -> Shadow -> Darker Shadow at bottom
+                duneGradient.addColorStop(0, `hsl(${layer.hue}, ${layer.sat}%, ${lightHighlight}%)`); // Highlight near top of wave range
+                duneGradient.addColorStop(0.4, `hsl(${layer.hue}, ${layer.sat}%, ${layer.lightBase}%)`); // Mid tone around base Y
+                duneGradient.addColorStop(0.8, `hsl(${layer.hue - 10}, ${layer.sat - 10}%, ${lightShadow}%)`); // Shadow below base Y (Slightly less saturated)
+                duneGradient.addColorStop(1, `hsl(${layer.hue - 15}, ${layer.sat - 15}%, ${lightShadow - 5}%)`); // Darkest at screen bottom (Even less saturated, slightly darker hue)
+
+                ctx.fillStyle = duneGradient;
+                ctx.beginPath();
+                ctx.moveTo(0, canvas.height); // Start bottom-left
+
+                for (let x = 0; x <= canvas.width; x += segmentWidth) {
+                    const worldX = x + scrollOffset;
+                    // Combine sine waves for more natural dune shapes
+                    // Add timeFactor to the sine calculation and a phase shift per layer
+                    const duneY = layer.baseY +
+                                  Math.sin(worldX * layer.freq1 + timeFactor + index * 1.5) * layer.amp1 +
+                                  Math.sin(worldX * layer.freq2 + timeFactor * 1.3 + index * 3.0) * layer.amp2;
+                    ctx.lineTo(x, Math.max(0, duneY)); // Don't let dunes go above screen top visually
+                }
+
+                ctx.lineTo(canvas.width, canvas.height); // End bottom-right
+                ctx.closePath();
+                ctx.fill();
+            });
+
+
+            ctx.restore();
+        }
         drawStarfield(camX, ctx) { ctx.save(); ctx.fillStyle = '#FFF'; this.stars.forEach(star => { const parallaxFactor = star.z / canvas.width; const starX = (star.x - camX * parallaxFactor) % canvas.width; const finalX = starX < 0 ? starX + canvas.width : starX; const size = (1 - parallaxFactor) * 2 + 0.5; ctx.globalAlpha = (1 - parallaxFactor) * 0.8 + 0.2; ctx.fillRect(finalX, star.y, size, size); }); ctx.restore(); }
         getLavaTopY(worldX, time) { const timeFactorH = time * LAVA_SPEED; const timeFactorV = time * LAVA_VERTICAL_SPEED; const baseLavaY = canvas.height - LAVA_BASE_HEIGHT; const wave1 = Math.sin(worldX * LAVA_SCALE_X1 + timeFactorH) * LAVA_WAVE_HEIGHT * 0.5; const wave2 = Math.sin(worldX * LAVA_SCALE_X2 + timeFactorH * 0.6 + 1.5) * LAVA_WAVE_HEIGHT * 0.3; const wave3 = Math.sin(timeFactorV + worldX * 0.005) * LAVA_WAVE_HEIGHT * 0.2; return baseLavaY + wave1 + wave2 + wave3; }
         drawLava(time, cameraX, ctx) { for (let screenX = 0; screenX < canvas.width; screenX += LAVA_SEGMENT_WIDTH) { const worldX = screenX + cameraX; const currentTopY = this.getLavaTopY(worldX, time); const waveHeightNormalized = Math.max(0, Math.min(1, (currentTopY - (canvas.height - LAVA_BASE_HEIGHT)) / LAVA_WAVE_HEIGHT * 0.5 + 0.5)); const hue = 10 + waveHeightNormalized * 40; const saturation = 95 + waveHeightNormalized * 5; const lightness = 45 + waveHeightNormalized * 25; ctx.fillStyle = `hsl(${hue}, ${saturation}%, ${lightness}%)`; ctx.fillRect(screenX, currentTopY, LAVA_SEGMENT_WIDTH, canvas.height - currentTopY); if (waveHeightNormalized > 0.75) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `hsla(${hue + 10}, 100%, 80%, ${0.4 + (waveHeightNormalized - 0.75)*1.2})`; ctx.fillRect(screenX, currentTopY - LAVA_STRIP_HEIGHT, LAVA_SEGMENT_WIDTH, LAVA_STRIP_HEIGHT * 2); ctx.restore(); } } }
