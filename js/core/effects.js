@@ -209,12 +209,7 @@ export function createEffectsSystem() {
     /** Gets the current number of active particles. */
     const getActiveCount = () => {
         return particlePool.getActiveCount();
-    }
-
-    /** Gets the current number of active particles. */
-    const getActiveParticleCount = () => {
-        return particlePool.getActiveCount();
-    }
+    };
 
     // Return the public interface of the effects system
     return {
@@ -226,7 +221,6 @@ export function createEffectsSystem() {
         emitFireballExplosion,
         update,
         render,
-        getActiveCount,                // Renamed to match how it's called in gameplayScene.js
-        getActiveParticleCount: getActiveCount  // Keep the old name as an alias for backward compatibility
+        getActiveCount // Simplified to a single method
     };
 }

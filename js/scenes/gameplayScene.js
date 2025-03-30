@@ -48,6 +48,7 @@ export class GameplayScene extends Scene {
 
     onEnter() {
         console.log("==== GameplayScene.onEnter: START ====");
+        console.log(`Current game mode: ${this.gameMode}`); // Add this log to verify mode
         
         try {
             console.log("Initializing level generator...");
@@ -816,15 +817,24 @@ export class GameplayScene extends Scene {
         const waveY2 = Math.cos(time * waveSpeed * 0.4 + 2) * waveAmpY * 0.6;
 
         const currentWidth = baseWidth * (1 + waveX1 + waveX2);
-        const currentHeight = baseHeight * (1 - (waveY1 + waveY2) * 0.5);
-        const carpetX = anchorX - currentWidth / 2;
-        const carpetY = anchorY - currentHeight / 2;
+        let currentHeight = baseHeight * (1 - (waveY1 + waveY2) * 0.5);
+        let carpetX = anchorX - currentWidth / 2;
+        let carpetY = anchorY - currentHeight / 2;
+
+        // Validate all values to ensure they're finite
+        carpetX = isFinite(carpetX) ? carpetX : 0;
+        carpetY = isFinite(carpetY) ? carpetY : 0;
+        currentHeight = isFinite(currentHeight) ? currentHeight : 10;
 
         this.drawCarpetTrail(carpetX + currentWidth / 2, carpetY + currentHeight / 2, player.velocityX, player.velocityY, time, ctx);
 
         ctx.save();
 
-        if (this.gameMode === 'test') {
+        // Add extra safety checks for gameMode
+        const isTestMode = this.gameMode === 'test';
+        console.log(`Drawing carpet in ${isTestMode ? 'test' : 'normal'} mode`);
+        
+        if (isTestMode) {
             baseWidth *= 1.2;
             baseHeight *= 1.2;
             ctx.shadowColor = C.CARPET_COLOR_1 || 'rgba(160, 96, 255, 0.8)';

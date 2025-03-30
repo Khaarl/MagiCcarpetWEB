@@ -2,6 +2,7 @@
 
 import { Game } from './core/game.js';
 import { GameplayScene } from './scenes/gameplayScene.js';
+import { TitleScene } from './scenes/titleScene.js';
 import * as C from './config.js'; // Import constants for canvas dimensions
 
 // --- DOM Elements ---
@@ -94,10 +95,12 @@ function initializeGame() {
     console.log("Game instance created.");
 
     // Add different game states/screens
+    game.addScene('title', new TitleScene());
     game.addScene('gameplay', new GameplayScene());
-    console.log("Gameplay scene added.");
-    // Add other scenes here if needed (e.g., 'title', 'gameOver')
-    // game.addScene('title', new TitleScene());
+    console.log("Scenes added: title, gameplay");
+    game.setScene('title');
+    console.log("Initial scene set to 'title'.");
+    // Add other scenes here if needed (e.g., 'gameOver')
 
     // Set up listeners for the specific buttons
     startGameBtn.addEventListener('click', () => handleStartGameClick(false), { once: true });
