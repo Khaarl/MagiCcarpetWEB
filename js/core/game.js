@@ -558,4 +558,40 @@ export class Game {
         // Optionally remove custom cursor when stopped?
         // if (this.canvas) { this.canvas.classList.remove('magic-cursor'); }
     }
+
+    /**
+     * Triggers a jump sound effect at the specified time.
+     * @param {number} time - The audio context time to schedule the sound.
+     */
+    triggerJumpSound(time) {
+        if (!this.isAudioInitialized || this.isMuted || !this.audioCtx || !this.masterGain) return;
+        
+        try {
+            // Import the function only when needed to avoid circular dependencies
+            import('../audio.js').then(audio => {
+                audio.triggerJumpSound(this.audioCtx, this.masterGain, time);
+            }).catch(err => {
+                console.error("Error importing audio module for jump sound:", err);
+            });
+        } catch (e) {
+            console.error("Error in Game.triggerJumpSound:", e);
+        }
+    }
+
+    /**
+     * Handles the jump action when the player is on the ground.
+     * @param {Object} player - The player object.
+     * @param {boolean} onGround - Whether the player is on the ground.
+     */
+    handleJump(player, onGround) {
+        if ((this.inputState.keys.up || this.inputState.keys.w) && onGround) {
+            player.velocityY = -C.JUMP_STRENGTH;
+            player.onGround = false;
+            onGround = false;
+            player.animationState = 'jumping';
+            if (this.audioCtx) {
+                this.triggerJumpSound(this.audioCtx.currentTime);
+            }
+        }
+    }
 }

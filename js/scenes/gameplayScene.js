@@ -26,6 +26,7 @@ export class GameplayScene extends Scene {
         this.levelTime = 0;
         this.currentLevel = 1;
         this.gameMode = 'normal'; // Default, will be set by init
+        this.debugMode = false; // Default to false
     }
 
     /**
@@ -57,9 +58,27 @@ export class GameplayScene extends Scene {
             this.effectsSystem = createEffectsSystem();
             console.log("Effects system created successfully");
 
-            // Bind event handlers
-            this.handleKeyDown = this.handleKeyDown.bind(this);
-            this.handleKeyUp = this.handleKeyUp.bind(this);
+            // Improved event handler binding
+            this.handleKeyDown = (e) => {
+                if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'w', 'a', 's', 'd'].includes(e.key)) {
+                    e.preventDefault();
+                }
+                this.keysPressed[e.key.toLowerCase()] = true;
+
+                if (e.key.toLowerCase() === 't' && !e.repeat) {
+                    this.toggleGameMode();
+                }
+
+                // Add debug mode toggle on 'F9' key
+                if (e.key === 'F9' && !e.repeat) {
+                    this.debugMode = !this.debugMode;
+                    console.log(`Debug mode: ${this.debugMode ? 'ON' : 'OFF'}`);
+                }
+            };
+
+            this.handleKeyUp = (e) => {
+                this.keysPressed[e.key.toLowerCase()] = false;
+            };
 
             // Add input listeners
             document.addEventListener('keydown', this.handleKeyDown);
@@ -123,10 +142,10 @@ export class GameplayScene extends Scene {
             const targetFriction = onGround ? C.GROUND_FRICTION : C.AIR_FRICTION;
 
             let moveInput = 0;
-            if (this.keysPressed['arrowleft']) {
+            if (this.keysPressed['arrowleft'] || this.keysPressed['a']) {
                 moveInput = -1;
                 player.facingDirection = 'left';
-            } else if (this.keysPressed['arrowright']) {
+            } else if (this.keysPressed['arrowright'] || this.keysPressed['d']) {
                 moveInput = 1;
                 player.facingDirection = 'right';
             }
@@ -151,23 +170,47 @@ export class GameplayScene extends Scene {
             let currentGravity = C.GRAVITY;
             if (!onGround && this.keysPressed[' ']) { // Flying reduces gravity
                 currentGravity *= C.FLYING_GRAVITY_MULTIPLIER;
+                if (this.gameMode === 'test') {
+                    currentGravity *= C.TEST_MODE_GRAVITY_MULTIPLIER;
+                }
             }
             player.velocityY += currentGravity * deltaTime * 60; // Scale gravity
 
             // Jumping
-            if (this.keysPressed['arrowup'] && onGround) { // Simple jump, no coyote time yet
+            if ((this.keysPressed['arrowup'] || this.keysPressed['w']) && onGround) { // Simple jump, no coyote time yet
                 player.velocityY = -C.JUMP_STRENGTH;
                 player.onGround = false; // Leave ground immediately
                 onGround = false; // Update local variable
                 player.animationState = 'jumping';
+                if (this.game && this.game.audioCtx) {
+                    this.game.triggerJumpSound(this.game.audioCtx.currentTime);
+                }
             }
 
             // Flying (apply upward force if space is pressed and not on ground)
             if (this.keysPressed[' '] && !onGround) {
-                player.velocityY -= C.FLY_STRENGTH * deltaTime * 60;
-                // Clamp upward fly speed
-                player.velocityY = Math.max(player.velocityY, -C.MAX_FLY_SPEED);
-                 player.animationState = 'jumping'; // Use jumping anim for flying for now
+                let flyStrength = C.FLY_STRENGTH;
+                if (this.gameMode === 'test') {
+                    flyStrength *= C.TEST_MODE_FLY_STRENGTH_MULTIPLIER;
+                }
+                player.velocityY -= flyStrength * deltaTime * 60;
+                const maxFlySpeed = this.gameMode === 'test' ? C.MAX_FLY_SPEED * C.TEST_MODE_MAX_FLY_SPEED_MULTIPLIER : C.MAX_FLY_SPEED;
+                player.velocityY = Math.max(player.velocityY, -maxFlySpeed);
+                player.animationState = 'jumping';
+
+                if (this.effectsSystem && Math.random() < C.FLYING_PARTICLE_RATE) {
+                    const centerX = player.x + player.width / 2;
+                    const bottomY = player.y + player.height;
+                    this.effectsSystem.emitParticle({
+                        x: centerX + (Math.random() * 20 - 10),
+                        y: bottomY + 5 + (Math.random() * 10),
+                        vx: Math.random() * 20 - 10,
+                        vy: Math.random() * 5 + 5,
+                        life: 0.5 + Math.random() * 0.5,
+                        size: 2 + Math.random() * 3,
+                        color: Math.random() < 0.5 ? C.CARPET_COLOR_1 : C.CARPET_COLOR_2
+                    });
+                }
             }
 
             // --- Collision Detection ---
@@ -214,7 +257,7 @@ export class GameplayScene extends Scene {
                         else if (player.y >= platform.y + platform.height && nextY <= platform.y + platform.height) {
                              nextY = platform.y + platform.height;
                              if (player.velocityY < 0) player.velocityY = 0; // Stop upward movement
-                             collidedHorizontally = true; // Treat as horizontal collision for simplicity here
+                             collidedVertically = true; // Corrected from collidedHorizontally
                         }
                     }
                 }
@@ -224,10 +267,8 @@ export class GameplayScene extends Scene {
             player.x = nextX;
             player.y = nextY;
 
-            // Update animation state if falling
-            if (!player.onGround && player.velocityY > 0 && player.animationState !== 'jumping') {
-                 player.animationState = 'falling'; // Or use 'jumping' animation for falling
-            }
+            // Update animation state
+            this.updateAnimationState();
 
             // Prevent falling through floor (simple boundary)
              if (player.y + player.height > C.CANVAS_HEIGHT) {
@@ -356,6 +397,9 @@ export class GameplayScene extends Scene {
         ctx.fillText(`Camera: (${this.camera.x.toFixed(0)}, ${this.camera.y.toFixed(0)})`, 10, 50);
         ctx.fillText(`Player: (${this.player.x.toFixed(0)}, ${this.player.y.toFixed(0)})`, 10, 70);
         ctx.fillText(`Platforms: ${this.platforms.length}`, 10, 90);
+
+        // Render debug information
+        this.renderDebugInfo(ctx);
     }
     
     drawDesertDunesBackground(time, camX, ctx) {
@@ -528,6 +572,14 @@ export class GameplayScene extends Scene {
             ctx.textAlign = 'center';
             ctx.fillText('LEVEL COMPLETE!', C.CANVAS_WIDTH / 2, C.CANVAS_HEIGHT / 2);
         }
+
+        if (!this.player.onGround && this.keysPressed[' ']) {
+            const flyingText = this.gameMode === 'test' ? "ENHANCED FLYING" : "FLYING";
+            ctx.fillStyle = this.gameMode === 'test' ? '#FF9900' : '#FFFFFF';
+            ctx.font = '16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(flyingText, C.CANVAS_WIDTH / 2, 50);
+        }
     }
 
     updateLivesDisplay() {
@@ -573,6 +625,14 @@ export class GameplayScene extends Scene {
         if (e.key.toLowerCase() === 't' && !e.repeat) {
             this.toggleGameMode();
         }
+
+        // Add debug mode toggle on 'F9' key
+        if (e.key === 'F9' && !e.repeat) {
+            this.debugMode = !this.debugMode;
+            console.log(`Debug mode: ${this.debugMode ? 'ON' : 'OFF'}`);
+        }
+
+        console.log("Key pressed:", e.key, "Current input state:", this.keysPressed);
     }
 
     handleKeyUp(e) {
@@ -747,8 +807,8 @@ export class GameplayScene extends Scene {
         const waveSpeed = C.CARPET_WAVE_SPEED || 8;
         const waveAmpX = C.CARPET_WAVE_AMP_X || 0.08;
         const waveAmpY = C.CARPET_WAVE_AMP_Y || 0.15;
-        const baseWidth = C.CARPET_WIDTH || 110;
-        const baseHeight = C.CARPET_HEIGHT || 10;
+        let baseWidth = C.CARPET_WIDTH || 110;
+        let baseHeight = C.CARPET_HEIGHT || 10;
 
         const waveX1 = Math.sin(time * waveSpeed) * waveAmpX;
         const waveX2 = Math.sin(time * waveSpeed * 0.6 + 1) * waveAmpX * 0.5;
@@ -764,8 +824,15 @@ export class GameplayScene extends Scene {
 
         ctx.save();
 
-        ctx.shadowColor = C.CARPET_COLOR_1 || 'rgba(160, 96, 255, 0.5)';
-        ctx.shadowBlur = 8;
+        if (this.gameMode === 'test') {
+            baseWidth *= 1.2;
+            baseHeight *= 1.2;
+            ctx.shadowColor = C.CARPET_COLOR_1 || 'rgba(160, 96, 255, 0.8)';
+            ctx.shadowBlur = 15;
+        } else {
+            ctx.shadowColor = C.CARPET_COLOR_1 || 'rgba(160, 96, 255, 0.5)';
+            ctx.shadowBlur = 8;
+        }
 
         const carpetGradient = ctx.createLinearGradient(carpetX, carpetY, carpetX, carpetY + currentHeight);
         carpetGradient.addColorStop(0, C.CARPET_COLOR_1 || '#a060ff');
@@ -911,5 +978,74 @@ export class GameplayScene extends Scene {
             }
         }
         ctx.restore();
+    }
+
+    /**
+     * Centralizes animation state transitions for the player
+     * to avoid scattered animation state changes
+     */
+    updateAnimationState() {
+        if (!this.player) return;
+        
+        const player = this.player;
+        
+        // Landing transition
+        if ((player.animationState === 'jumping' || player.animationState === 'falling') && player.onGround) {
+            player.animationState = 'idle';
+        }
+        
+        // Running transition
+        if (player.onGround && Math.abs(player.velocityX) > 0.5) {
+            player.animationState = 'running';
+        }
+        
+        // Idle transition
+        if (player.onGround && Math.abs(player.velocityX) < 0.1) {
+            player.animationState = 'idle';
+        }
+        
+        // Falling transition
+        if (!player.onGround && player.velocityY > 0 && !this.keysPressed[' ']) {
+            player.animationState = 'falling';
+        }
+    }
+
+    /**
+     * Renders debug information for development and testing
+     * @param {CanvasRenderingContext2D} ctx - The rendering context
+     */
+    renderDebugInfo(ctx) {
+        if (!this.debugMode) return;
+        
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(10, 130, 250, 160);
+        
+        ctx.fillStyle = 'white';
+        ctx.font = '14px monospace';
+        ctx.textAlign = 'left';
+        
+        let y = 150;
+        const lineHeight = 20;
+        
+        // Camera info
+        ctx.fillText(`Camera: (${this.camera.x.toFixed(0)}, ${this.camera.y.toFixed(0)})`, 20, y);
+        y += lineHeight;
+        
+        // Player info
+        if (this.player) {
+            const p = this.player;
+            ctx.fillText(`Player: (${p.x.toFixed(0)}, ${p.y.toFixed(0)})`, 20, y);
+            y += lineHeight;
+            ctx.fillText(`Velocity: (${p.velocityX.toFixed(2)}, ${p.velocityY.toFixed(2)})`, 20, y);
+            y += lineHeight;
+            ctx.fillText(`State: ${p.animationState}, OnGround: ${p.onGround}`, 20, y);
+            y += lineHeight;
+        }
+        
+        // Performance info
+        ctx.fillText(`Active Particles: ${this.effectsSystem?.getActiveCount() || 0}`, 20, y);
+        y += lineHeight;
+        ctx.fillText(`Platforms: ${this.platforms.length}`, 20, y);
+        y += lineHeight;
     }
 }
