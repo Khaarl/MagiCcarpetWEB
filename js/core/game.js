@@ -3,6 +3,7 @@
 import * as C from '../config.js'; // Game constants
 import { SaveSystem } from './save.js'; // Handles saving/loading progress
 import { TouchControls } from './touch.js'; // Handles touch input
+import { AudioManager } from './audioManager.js'; // AudioManager for handling music and sound effects
 // Import audio functions and setup utilities
 import { makeDistortionCurve, createWhiteNoiseBuffer, triggerKick, triggerSnare, triggerHat, triggerBass, triggerLead, triggerZap, triggerSweep } from '../audio.js';
 import { getRandom } from '../utils.js'; // Utility functions
@@ -54,23 +55,9 @@ export class Game {
         // --- Audio State ---
         /** @type {AudioContext|null} */
         this.audioCtx = null; // The Web Audio API context
-        /** @type {GainNode|null} */
-        this.masterGain = null; // Master volume control
-        /** @type {WaveShaperNode|null} */
-        this.distortion = null; // Distortion effect node
-        /** @type {OscillatorNode|null} */
-        this.padLfo = null; // LFO for modulating the pad synth
-        /** @type {OscillatorNode|null} */
-        this.padOsc = null; // Oscillator for the background pad synth
-        /** @type {GainNode|null} */
-        this.padGain = null; // Gain control for the pad synth
-        /** @type {number|null} */
-        this.musicIntervalId = null; // ID for the setInterval controlling the music sequencer
+        /** @type {AudioManager|null} */
+        this.audioManager = null; // AudioManager instance
         this.isAudioInitialized = false; // Has the AudioContext been created?
-        this.stepCounter = 0; // Counter for the music sequencer step
-        this.isMuted = false; // Is the game audio muted?
-        this.bassNotes = [0, 0, 3, 0, 5, 0, 3, 0]; // Example bass sequence (semitones from root)
-        this.leadNotes = [0, 3, 7, 10, 12, 10, 7, 3]; // Example lead sequence (semitones from root)
 
         // --- Persistence ---
         this.saveSystem = new SaveSystem(); // Handles loading/saving progress
@@ -189,226 +176,26 @@ export class Game {
     }
 
     /**
-     * Initializes the Web Audio API AudioContext and sets up master gain,
-     * distortion, and the background pad synthesizer nodes.
+     * Initializes the Web Audio API AudioContext and sets up the AudioManager.
      * Should be called after user interaction (e.g., clicking the overlay).
      */
     initAudio() {
-        if (this.isAudioInitialized) return; // Prevent re-initialization
         try {
-            // Create AudioContext (handle browser differences)
             this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            if (!this.audioCtx) {
-                throw new Error("Web Audio API not supported by this browser.");
-            }
+            this.audioManager = new AudioManager(this.audioCtx);
 
-            // Master Gain Node (controls overall volume)
-            this.masterGain = this.audioCtx.createGain();
-            // Set initial volume based on mute state
-            this.masterGain.gain.setValueAtTime(this.isMuted ? 0.001 : C.MASTER_VOLUME, this.audioCtx.currentTime);
-
-            // Distortion Node
-            this.distortion = this.audioCtx.createWaveShaper();
-            this.distortion.curve = makeDistortionCurve(C.DISTORTION_AMOUNT);
-            this.distortion.oversample = '4x'; // Improves quality, reduces aliasing
-
-            // Background Pad Synth Setup
-            this.padOsc = this.audioCtx.createOscillator(); // Main pad oscillator
-            this.padGain = this.audioCtx.createGain(); // Pad volume control
-            this.padLfo = this.audioCtx.createOscillator(); // LFO for frequency modulation
-            const lfoGain = this.audioCtx.createGain(); // Controls LFO modulation depth
-
-            this.padOsc.type = 'sawtooth'; // Pad waveform
-            this.padOsc.frequency.setValueAtTime(30, this.audioCtx.currentTime); // Low base frequency
-            this.padGain.gain.setValueAtTime(C.PAD_VOLUME, this.audioCtx.currentTime); // Set pad volume
-
-            this.padLfo.frequency.setValueAtTime(C.PAD_LFO_RATE, this.audioCtx.currentTime); // LFO speed
-            lfoGain.gain.setValueAtTime(C.PAD_LFO_DEPTH, this.audioCtx.currentTime); // LFO amount
-
-            // --- Connect Audio Nodes ---
-            this.padLfo.connect(lfoGain);          // LFO oscillator -> LFO gain
-            lfoGain.connect(this.padOsc.frequency); // LFO gain modulates pad oscillator frequency
-            this.padOsc.connect(this.padGain);     // Pad oscillator -> Pad gain
-            this.padGain.connect(this.masterGain); // Pad gain -> Master gain
-            this.distortion.connect(this.masterGain);// Distortion -> Master gain (parallel path)
-            this.masterGain.connect(this.audioCtx.destination); // Master gain -> Output (speakers)
-
-            // --- Start Oscillators ---
-            this.padOsc.start();
-            this.padLfo.start();
-
-            this.isAudioInitialized = true;
-            console.log("Web Audio API Initialized successfully. BPM:", C.BPM);
-
-        } catch (e) {
-            console.error("Error initializing Web Audio API:", e);
-            alert("Could not initialize audio. Sound will be disabled. Error: " + e.message);
-            // Ensure audio features are disabled if initialization fails
-            this.isAudioInitialized = false;
-            this.audioCtx = null;
-            this.masterGain = null;
-            this.distortion = null;
-            // etc.
-        }
-    }
-
-    /**
-     * Starts the background music sequencer if audio is initialized,
-     * not muted, the game is running, and it's not already playing.
-     */
-    startMusic() {
-        // Check multiple conditions before starting
-        if (!this.isAudioInitialized || this.musicIntervalId !== null || this.isMuted || !this.isRunning) {
-            return;
-        }
-        // Additional check: Only start music if in an active gameplay scene
-        if (!this.currentScene || typeof this.currentScene.isGameplayActive !== 'function' || !this.currentScene.isGameplayActive()) {
-            return;
-        }
-
-        console.log("Starting background music sequencer.");
-        this.stepCounter = 0; // Reset sequence step
-        const intervalMilliseconds = C.SIXTEENTH_NOTE_DURATION * 1000; // Calculate interval time
-
-        // Clear any existing interval just in case
-        if (this.musicIntervalId) clearInterval(this.musicIntervalId);
-
-        // Immediately trigger the first beat
-        this.musicSequencer();
-
-        // Set the interval for subsequent beats
-        this.musicIntervalId = setInterval(() => this.musicSequencer(), intervalMilliseconds);
-    }
-
-    /**
-     * Stops the background music sequencer by clearing the interval.
-     */
-    stopMusic() {
-        if (this.musicIntervalId !== null) {
-            clearInterval(this.musicIntervalId);
-            this.musicIntervalId = null;
-            console.log("Background music sequencer stopped.");
-        }
-    }
-
-    /**
-     * The core music sequencer logic. Called at regular intervals (16th notes).
-     * Triggers different instrument sounds based on the current step counter.
-     */
-    musicSequencer() {
-        // Essential guards: Ensure audio is ready and not muted
-        if (!this.isAudioInitialized || this.isMuted || !this.audioCtx || !this.masterGain || !this.distortion) {
-            this.stopMusic(); // Stop if audio state becomes invalid
-            return;
-        }
-
-        try {
-            const now = this.audioCtx.currentTime; // Get precise current audio time
-            const noteTime = C.SIXTEENTH_NOTE_DURATION;
-            const thirtySecondNote = noteTime * 0.5;
-
-            // Calculate current position within patterns
-            const beat16 = this.stepCounter % 16; // Position within a 16-step (1 bar) pattern
-            const beat64 = this.stepCounter % 64; // Position within a 64-step (4 bar) pattern
-
-            // --- Drum Pattern ---
-            // Kick on downbeats (1, 5, 9, 13)
-            if (beat16 % 4 === 0) {
-                triggerKick(this.audioCtx, this.masterGain, now);
-            }
-            // Snare on backbeats (steps 4 and 12 in a 0-15 sequence)
-            if (beat16 === 4 || beat16 === 12) {
-                 if (Math.random() < 0.9) { // High chance for snare
-                     triggerSnare(this.audioCtx, this.distortion, now);
-                 }
-             } else if (beat16 === 14 && Math.random() < 0.2) { // Occasional ghost note before loop
-                 triggerSnare(this.audioCtx, this.distortion, now + thirtySecondNote);
-             }
-            // Hi-Hats
-            triggerHat(this.audioCtx, this.distortion, now); // Closed hat on every 16th
-            // Random off-beat closed hats
-            if (beat16 % 2 !== 0 && Math.random() < 0.6) {
-                 triggerHat(this.audioCtx, this.distortion, now + thirtySecondNote);
-            }
-            // Occasional open hats near end of phrases
-            if ((beat16 === 7 || beat16 === 15) && Math.random() < 0.5) {
-                 triggerHat(this.audioCtx, this.distortion, now, true); // true = open hat
-             }
-
-            // --- Bass Line ---
-            const bassStep = this.stepCounter % this.bassNotes.length;
-            // Play bass notes less frequently, e.g., on specific beats
-            if (beat16 % 4 === 0 || beat16 === 7 || beat16 === 11 || beat16 === 14) { // Example syncopated pattern
-                 if (Math.random() < 0.7) { // Chance to play bass note
-                    triggerBass(this.audioCtx, this.masterGain, now, this.bassNotes[bassStep]);
+            Promise.all([
+                this.audioManager.loadTrack('title', './assets/audio/middle-eastern-title.mp3'),
+                this.audioManager.loadTrack('gameplay', './assets/audio/adventure-gameplay.mp3')
+            ]).then(() => {
+                this.isAudioInitialized = true;
+                if (this.currentScene?.name === 'title') {
+                    this.audioManager.playTrack('title');
                 }
-             }
-
-            // --- Lead Melody ---
-            // Play lead only during certain sections (e.g., bars 2 & 4 of a 4-bar loop)
-            const leadActive = (beat64 >= 16 && beat64 < 32) || (beat64 >= 48 && beat64 < 64);
-            if (leadActive) {
-                 // Play lead notes sparsely, e.g., every 2 or 4 steps
-                 if (beat16 % 4 === 0 || beat16 % 4 === 2) { // Example pattern on 1st & 3rd beat of bar
-                     if (Math.random() < 0.6) { // Chance to play lead note
-                         const leadNoteIndex = beat16 % this.leadNotes.length;
-                         const octaveShift = (Math.random() < 0.15) ? 12 : 0; // Occasionally jump octave
-                         triggerLead(this.audioCtx, this.distortion, now, this.leadNotes[leadNoteIndex] + octaveShift, getRandom); // Pass getRandom utility
-                    }
-                 }
-             }
-
-            // --- FX Sounds ---
-            // Occasional random 'zap'
-            if (Math.random() < 0.04) { // Lowered frequency
-                triggerZap(this.audioCtx, this.distortion, now);
-            }
-            // Longer noise sweep, e.g., every 32 or 64 steps
-            if (beat64 === 0 && Math.random() < 0.7) { // Play sweep at start of 64-step cycle
-                triggerSweep(this.audioCtx, this.masterGain, now);
-            }
-
-            // Increment step counter for the next call
-            this.stepCounter++; // Let it increment indefinitely, use modulo for patterns
-            // Optional: Wrap stepCounter if needed for specific long-term structures
-            // this.stepCounter = this.stepCounter % 256;
-
+            }).catch(err => console.error("Failed to load audio tracks:", err));
         } catch (e) {
-            console.error("Error during musicSequencer tick:", e);
-            this.stopMusic(); // Stop music if errors occur to prevent spamming
-        }
-    }
-
-    /**
-     * Toggles the master audio mute state on/off.
-     * Smoothly ramps the master gain and stops/starts the music sequencer.
-     */
-    toggleMute() {
-        // Guard: Ensure audio is initialized before trying to mute/unmute
-        if (!this.isAudioInitialized || !this.masterGain || !this.audioCtx) {
-            console.warn("Cannot toggle mute: Audio not initialized.");
-            return;
-        }
-
-        this.isMuted = !this.isMuted; // Flip the state
-        const targetVolume = this.isMuted ? 0.001 : C.MASTER_VOLUME; // Target near zero for mute
-        const now = this.audioCtx.currentTime;
-
-        // Smoothly change the volume using linearRampToValueAtTime
-        this.masterGain.gain.cancelScheduledValues(now); // Cancel any pending ramps
-        this.masterGain.gain.linearRampToValueAtTime(targetVolume, now + 0.1); // Ramp over 0.1 seconds
-
-        console.log(`Audio Muted: ${this.isMuted}`);
-
-        // Stop or start the music sequencer based on the new mute state
-        if (this.isMuted) {
-            this.stopMusic();
-        } else {
-            // If unmuting, try to start the music only if the game is running
-            // and the current scene indicates active gameplay.
-            if (this.isRunning && this.currentScene?.isGameplayActive()) {
-                this.startMusic();
-            }
+            console.error("Audio initialization failed:", e);
+            this.isAudioInitialized = false;
         }
     }
 
@@ -429,15 +216,47 @@ export class Game {
     /**
      * Switches the currently active scene.
      * Calls `onExit()` on the old scene and `onEnter()` on the new scene.
+     * Updates the music based on the scene.
      * @param {string} name - The name of the scene to switch to.
      */
     setScene(name) {
-        if (this.currentScene) {
-            this.currentScene.onExit();
-        }
+        if (this.currentScene) this.currentScene.onExit();
         this.currentScene = this.scenes[name];
-        if (this.currentScene) {
-            this.currentScene.onEnter();
+        if (this.currentScene) this.currentScene.onEnter();
+
+        if (this.isAudioInitialized && this.audioManager) {
+            if (name === 'title') {
+                this.audioManager.crossfadeToTrack('title');
+            } else if (name === 'gameplay') {
+                this.audioManager.crossfadeToTrack('gameplay');
+            }
+        }
+    }
+
+    /**
+     * Starts the title music.
+     */
+    startTitleMusic() {
+        if (this.isAudioInitialized && this.audioManager) {
+            this.audioManager.playTrack('title');
+        }
+    }
+
+    /**
+     * Starts the gameplay music.
+     */
+    startGameplayMusic() {
+        if (this.isAudioInitialized && this.audioManager) {
+            this.audioManager.playTrack('gameplay');
+        }
+    }
+
+    /**
+     * Stops the current music track.
+     */
+    stopMusic() {
+        if (this.audioManager) {
+            this.audioManager.stopCurrentTrack();
         }
     }
 
@@ -543,7 +362,7 @@ export class Game {
         // Attempt to start music immediately if conditions are right
         // (e.g., if starting directly into an active gameplay scene)
         if (this.isAudioInitialized && !this.isMuted && this.currentScene?.isGameplayActive()) {
-             this.startMusic();
+             this.startGameplayMusic();
         }
     }
 
@@ -564,12 +383,12 @@ export class Game {
      * @param {number} time - The audio context time to schedule the sound.
      */
     triggerJumpSound(time) {
-        if (!this.isAudioInitialized || this.isMuted || !this.audioCtx || !this.masterGain) return;
+        if (!this.isAudioInitialized || this.isMuted || !this.audioCtx || !this.audioManager) return;
         
         try {
             // Import the function only when needed to avoid circular dependencies
             import('../audio.js').then(audio => {
-                audio.triggerJumpSound(this.audioCtx, this.masterGain, time);
+                audio.triggerJumpSound(this.audioCtx, this.audioManager.masterGain, time);
             }).catch(err => {
                 console.error("Error importing audio module for jump sound:", err);
             });
@@ -585,7 +404,7 @@ export class Game {
      */
     handleJump(player, onGround) {
         if ((this.inputState.keys.up || this.inputState.keys.w) && onGround) {
-            player.velocityY = -C.JUMP_STRENGTH;
+            player.velocityY = -C.JUMP_STRENGTH * 0.9; // Reduced to match other movement changes
             player.onGround = false;
             onGround = false;
             player.animationState = 'jumping';

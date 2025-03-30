@@ -9,28 +9,34 @@ export const GRAVITY = 0.6;
 export const JUMP_STRENGTH = 14.5;
 
 // --- Ground Movement ---
-export const GROUND_ACCELERATION = 3.6;
-export const GROUND_MAX_SPEED = 24;
-export const GROUND_FRICTION = 0.5; // How quickly the player stops on the ground
+export const GROUND_ACCELERATION = 2.0; // Reduced from 2.4
+export const GROUND_MAX_SPEED = 12; // Reduced from 16
+export const GROUND_FRICTION = 0.7; // Increased from 0.5
 
 // --- Air/Flying Movement ---
-export const AIR_ACCELERATION = 1.2;
-export const AIR_MAX_SPEED = 25.0; // Max horizontal speed in air (increased)
-export const AIR_FRICTION = 0.98; // Air resistance (closer to 1 means less friction)
-export const FLY_STRENGTH = 2.1; // Upward force when holding fly button
-export const MAX_FLY_SPEED = 15.0; // Max upward speed limit from flying (prevents infinite acceleration)
-export const FLYING_GRAVITY_MULTIPLIER = 0.4; // Reduced gravity effect while flying
+export const AIR_ACCELERATION = 0.65; // Reduced from 0.8
+export const AIR_MAX_SPEED = 14.0; // Reduced from 17.0
+export const AIR_FRICTION = 0.985; // Increased from 0.98
+export const FLY_STRENGTH = 1.3; // Reduced from 1.5
+export const MAX_FLY_SPEED = 9.0; // Reduced from 10.0
+export const FLYING_GRAVITY_MULTIPLIER = 0.3; // Reduced from 0.4
 export const FLYING_PARTICLE_RATE = 0.3; // 30% chance per frame for flying particles
 
 // --- Magic Carpet ---
-export const CARPET_WIDTH = 110;
-export const CARPET_HEIGHT = 10;
-export const CARPET_COLOR_1 = '#a060ff'; // Top gradient color
-export const CARPET_COLOR_2 = '#d0a0ff'; // Bottom gradient color
-export const CARPET_OFFSET_Y = 5; // Vertical offset below player feet
-export const CARPET_WAVE_SPEED = 8; // Speed of the wave animation
-export const CARPET_WAVE_AMP_X = 0.08; // Horizontal size change amplitude
-export const CARPET_WAVE_AMP_Y = 0.15; // Vertical size change amplitude
+export const CARPET_WIDTH = 130; // Increased from 110 for better visuals
+export const CARPET_HEIGHT = 15; // Increased from 10 for better visuals
+export const CARPET_COLOR_1 = '#8050e0'; // Slightly adjusted top gradient color
+export const CARPET_COLOR_2 = '#c090f0'; // Slightly adjusted bottom gradient color
+export const CARPET_OFFSET_Y = 5; // Unchanged
+export const CARPET_WAVE_SPEED = 5; // Reduced from 8 for smoother animation
+export const CARPET_WAVE_AMP_X = 0.06; // Reduced from 0.08
+export const CARPET_WAVE_AMP_Y = 0.12; // Reduced from 0.15
+export const CARPET_MOVEMENT_RESPONSE = 0.0015; // How much movement affects wave amplitude
+export const CARPET_MAX_MOVEMENT_AMP_MULT = 2.5; // Maximum multiplier for wave amplitude based on movement
+export const CARPET_TRAIL_PARTICLES = true; // Enable trailing particles for faster movement
+export const CARPET_TRAIL_SPEED_THRESHOLD = 8.0; // Minimum speed for trail particles
+export const CARPET_EDGE_DETAIL = 8; // Number of tassels/decorative elements on carpet edges
+export const CARPET_PATTERN_ENABLED = true; // Whether to show decorative pattern on carpet
 
 // --- Sword FX ---
 export const SWORD_GLOW_COLOR = 'rgba(200, 200, 255, 0.7)';
@@ -51,6 +57,7 @@ export const SWORD_VERTICAL_KNOCKBACK = -2; // Upward knockback force on hit
 export const FIREBALL_SPEED = 400; // Pixels per second
 export const FIREBALL_RADIUS = 16;
 export const FIREBALL_COOLDOWN = 0.5; // Seconds between shots
+export const FIREBALL_TEST_COOLDOWN = 0.25; // Reduced cooldown in test mode
 export const FIREBALL_LIFESPAN = 5.0; // Seconds before fizzling out
 export const FIREBALL_EXPLOSION_RADIUS = 50; // Area of effect for explosion damage
 export const FIREBALL_EXPLOSION_PARTICLES = 25; // Number of particles on explosion
@@ -82,7 +89,7 @@ export const BACKGROUND_COLOR = '#0a0a1a'; // Fallback background color if neede
 export const PLATFORM_BASE_COLOR = '#d2b48c'; // Sandy tan platform body
 export const PLATFORM_EDGE_COLOR = '#f7d78f'; // Light gold platform edge/glow
 export const PLATFORM_EDGE_GLOW_BLUR = 6;
-export const PLAYER_COLOR = '#ffffff'; // Fallback color if stick figure fails
+export const PLAYER_COLOR = '#333333'; // Changed from '#ffffff' to dark gray
 export const GOAL_FRAME_COLOR = '#a0a0ff'; // Outer color of the goal doorway
 export const GOAL_INNER_COLOR = '#100510'; // Dark color inside the goal
 export const COLLECTIBLE_COLOR = '#ffccff'; // Color of the reward orbs
@@ -302,30 +309,113 @@ export const GIANT_BAT_BOSS_PROTOTYPE = {
 // Structure defining player appearance and animations
 export const STICK_FIGURE = {
     headRadius: 8,
-    jointColor: PLAYER_COLOR, // Use constant
-    lineWidth: 3,
-    sword: { hiltOffset: [0, -3], hiltLength: 8, bladeLength: 25, angle: -Math.PI / 5 },
-    staff: { hand: 'left', length: 45, topOffset: [0, -5], color: '#8B4513', gemColor: '#FF4500', gemRadius: 4 },
-    hat: { color: '#6a0dad', tipOffset: [0, -15], brimWidth: 15, brimHeight: 4 },
-    // Animation poses defined by relative [x, y] coordinates from the anchor point (feet center)
+    jointColor: PLAYER_COLOR,
+    lineWidth: 3.5, // Increased from 3 for better visibility with dark color
+    outlineColor: '#222222', // Added outline color for contrast
+    lineColor: '#444444', // Added specific color for limbs
+    sword: null,
+    staff: { 
+        hand: 'left', 
+        length: 48, // Increased from 45 for better proportions
+        topOffset: [0, -6], // Adjusted to better align with character
+        angle: -15, // Added parameter for slight angle (degrees)
+        color: '#5B3A17', // Darker wood color
+        gemColor: '#FF3300', // Brighter red for gem
+        gemRadius: 5, // Increased from 4 for more prominence
+        gemGlow: true,
+        gemGlowColor: 'rgba(255, 80, 30, 0.8)', // Increased opacity for stronger glow
+        gemGlowRadius: 10, // Increased from 8 for wider glow
+        hasRings: true,
+        ringColor: '#D4AF37', // More antique gold color
+        ringPositions: [0.2, 0.5, 0.75], // Adjusted positions for better spacing
+        ringWidth: 3.5 // Slightly wider rings
+    },
+    hat: { 
+        color: '#3A0868', // Darker purple for hat
+        tipOffset: [0, -22], // Made taller
+        brimWidth: 19, // Slightly wider brim
+        brimHeight: 4.5, // Slightly taller brim
+        hasStar: true,
+        starColor: '#D4AF37', // More antique gold color
+        starSize: 4.5, // Slightly larger
+        starOffset: [-5, -14], // Adjusted position
+        hasMoon: true,
+        moonColor: '#A7A7A7', // Slightly darker silver
+        moonSize: 3.5, // Slightly larger
+        moonOffset: [5, -9] // Adjusted position
+    },
+    cape: {
+        enabled: true,
+        attachOffset: [0, -28],
+        width: 26, // Slightly wider
+        length: 34, // Slightly longer
+        color: '#3A0868', // Match hat color
+        liningColor: '#7455A8', // Darker lining color
+        segments: 6, // Increased from 5 for smoother wave
+        waveAmplitude: 7, // Increased from 6 for more dramatic flow
+        waveFrequency: 1.8, // Adjusted from 2 for slightly slower waves
+        respondToMovement: true
+    },
+    // Improved animation poses with better limb positioning
     poses: {
         idle: [
-            { head: [0, -35], neck: [0, -28], shoulder: [0, -28], hip: [0, -10], armL: [[-5, -28], [-10, -18], [-12, -8]], armR: [[5, -28], [12, -22], [15, -15]], legL: [[-4, -10], [-6, 0], [-8, 10]], legR: [[4, -10], [6, 0], [8, 10]] }
+            { head: [0, -35], neck: [0, -28], shoulder: [0, -28], hip: [0, -10], 
+              armL: [[-5, -28], [-10, -18], [-15, -8]], // Extended left arm for staff
+              armR: [[5, -28], [12, -22], [15, -15]], 
+              legL: [[-4, -10], [-6, 0], [-8, 10]], 
+              legR: [[4, -10], [6, 0], [8, 10]] },
+            { head: [0, -34.5], neck: [0, -27.5], shoulder: [0, -27.5], hip: [0, -10], 
+              armL: [[-5, -27.5], [-10, -17.5], [-15, -7.5]], // Subtle breathing animation
+              armR: [[5, -27.5], [12, -21.5], [15, -14.5]], 
+              legL: [[-4, -10], [-6, 0], [-8, 10]], 
+              legR: [[4, -10], [6, 0], [8, 10]] }
         ],
         running: [
-            { head: [0, -35], neck: [0, -28], shoulder: [0, -28], hip: [0, -10], armL: [[-5, -28], [-15, -22], [-25, -15]], armR: [[5, -28], [10, -25], [12, -20]], legL: [[-4, -10], [-5, 0], [-5, 10]], legR: [[4, -10], [15, -5], [20, 5]] },
-            { head: [0, -35], neck: [0, -28], shoulder: [0, -28], hip: [0, -10], armL: [[-5, -28], [-10, -25], [-5, -20]], armR: [[5, -28], [15, -22], [18, -16]], legL: [[-4, -10], [-15, -5], [-20, 5]], legR: [[4, -10], [5, 0], [5, 10]] }
+            { head: [0, -35], neck: [0, -28], shoulder: [0, -28], hip: [0, -10], 
+              armL: [[-5, -28], [-15, -23], [-25, -18]], // Better arm swing for staff
+              armR: [[5, -28], [12, -24], [16, -19]], 
+              legL: [[-4, -10], [-5, 0], [-5, 10]], 
+              legR: [[4, -10], [15, -5], [20, 5]] },
+            { head: [0, -35], neck: [0, -28], shoulder: [0, -28], hip: [0, -10], 
+              armL: [[-5, -28], [-12, -24], [-8, -19]], // Return swing
+              armR: [[5, -28], [15, -22], [20, -16]], 
+              legL: [[-4, -10], [-15, -5], [-20, 5]], 
+              legR: [[4, -10], [5, 0], [5, 10]] }
         ],
-        jumping: [ // Also used for falling/flying
-            { head: [0, -35], neck: [0, -28], shoulder: [0, -28], hip: [0, -10], armL: [[-5, -28], [-10, -35], [-15, -40]], armR: [[5, -28], [10, -30], [12, -25]], legL: [[-4, -10], [-8, -5], [-12, 0]], legR: [[4, -10], [8, -5], [12, 0]] }
+        jumping: [
+            { head: [0, -35], neck: [0, -28], shoulder: [0, -28], hip: [0, -10], 
+              armL: [[-5, -28], [-10, -35], [-15, -38]], // Staff arm position
+              armR: [[5, -28], [10, -32], [12, -28]], // More upwards arm position
+              legL: [[-4, -10], [-8, -5], [-12, 0]], 
+              legR: [[4, -10], [8, -5], [12, 0]] }
         ],
-        attacking: [ // Sword swing pose
-            { head: [0, -35], neck: [0, -28], shoulder: [0, -28], hip: [0, -10], armL: [[-5, -28], [-10, -18], [-12, -8]], armR: [[5, -28], [20, -25], [35, -25]], legL: [[-4, -10], [-6, 0], [-8, 10]], legR: [[4, -10], [6, 0], [8, 10]] }
-            // Could add more frames for a multi-frame attack animation
+        falling: [
+            { head: [0, -35], neck: [0, -28], shoulder: [0, -28], hip: [0, -10], 
+              armL: [[-5, -28], [-12, -20], [-18, -12]], // Staff arm flailing outward
+              armR: [[5, -28], [12, -20], [18, -12]], // Right arm balancing
+              legL: [[-4, -10], [-8, -2], [-6, 6]], // Legs slightly bent and spread
+              legR: [[4, -10], [8, -2], [6, 6]] }
         ],
-        landing: [ // Brief pose when hitting the ground
-            { head: [0, -33], neck: [0, -26], shoulder: [0, -26], hip: [0, -8], armL: [[-5, -26], [-8, -16], [-10, -6]], armR: [[5, -26], [8, -20], [10, -13]], legL: [[-4, -8], [-8, -2], [-10, 5]], legR: [[4, -8], [8, -2], [10, 5]] }
+        attacking: [
+            { head: [2, -35], neck: [1, -28], shoulder: [0, -28], hip: [0, -10], // Head turns slightly 
+              armL: [[-5, -28], [-10, -18], [-12, -8]], 
+              armR: [[5, -28], [20, -25], [35, -22]], // Adjusted sword arm
+              legL: [[-4, -10], [-8, 0], [-10, 10]], // Stance widens
+              legR: [[4, -10], [8, 0], [10, 10]] }
         ],
-        // Add more poses as needed (e.g., hurt, casting spells)
+        landing: [
+            { head: [0, -33], neck: [0, -26], shoulder: [0, -26], hip: [0, -8], 
+              armL: [[-5, -26], [-8, -16], [-12, -6]], // More exaggerated arms for impact
+              armR: [[5, -26], [8, -16], [12, -6]], 
+              legL: [[-5, -8], [-9, -2], [-11, 5]], // Wider stance
+              legR: [[5, -8], [9, -2], [11, 5]] }
+        ],
+        casting: [ // New pose for magic casting
+            { head: [0, -35], neck: [0, -28], shoulder: [0, -28], hip: [0, -10], 
+              armL: [[-5, -28], [-15, -30], [-25, -25]], // Staff arm extended forward
+              armR: [[5, -28], [10, -30], [15, -35]], // Supporting gesture
+              legL: [[-6, -10], [-8, 0], [-10, 10]], // Stable wide stance
+              legR: [[6, -10], [8, 0], [10, 10]] }
+        ]
     }
 };

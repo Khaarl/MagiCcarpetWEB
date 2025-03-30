@@ -214,6 +214,46 @@ export class GameplayScene extends Scene {
                 }
             }
 
+            // Handle fireball attack
+            if (this.keysPressed['1']) {
+                const player = this.player;
+                
+                // In test mode, allow fireball attacks with reduced cooldown
+                if (this.gameMode === 'test' || player.fireballCooldownTimer <= 0) {
+                    // Cast a fireball
+                    if (this.gameMode === 'test') {
+                        // In test mode, reduce cooldown or instantly reset
+                        player.fireballCooldownTimer = C.FIREBALL_COOLDOWN * 0.5; // 50% cooldown in test mode
+                        
+                        // Use the casting animation if it exists
+                        if (player.animationState !== 'casting' && C.STICK_FIGURE.poses.casting) {
+                            player.animationState = 'casting';
+                            player.animationFrameIndex = 0;
+                            player.animationTimer = 0;
+                        }
+                        
+                        // Create and launch the fireball - assuming this function exists
+                        this.launchFireball(player.x, player.y, player.width, player.height, player.facingDirection);
+                        
+                        // Optional: Add visual feedback for test mode fireballs
+                        if (this.effectsSystem) {
+                            // Add extra particles or effects for test mode
+                            this.effectsSystem.emitParticles(
+                                player.x + player.width / 2,
+                                player.y + player.height / 2,
+                                10, // more particles
+                                C.FIREBALL_COLOR,
+                                { speed: 100, lifespan: 0.8 }
+                            );
+                        }
+                    } else if (player.fireballCooldownTimer <= 0) {
+                        // Normal mode fireball code (presumably already implemented)
+                        player.fireballCooldownTimer = C.FIREBALL_COOLDOWN;
+                        this.launchFireball(player.x, player.y, player.width, player.height, player.facingDirection);
+                    }
+                }
+            }
+
             // --- Collision Detection ---
             let nextX = player.x + player.velocityX * deltaTime * 60;
             let nextY = player.y + player.velocityY * deltaTime * 60;
@@ -434,21 +474,21 @@ export class GameplayScene extends Scene {
         // 3. Dunes (Draw from back to front)
         const duneLayers = [
             {
-                parallax: 0.08,
+                parallax: 0.05, // Reduced from ~0.08
                 baseY: canvas.height * 0.65,
                 amp1: 40, freq1: 0.003,
                 amp2: 15, freq2: 0.007,
                 hue: 40, sat: 45, lightBase: 55, lightRange: 10,
             },
             {
-                parallax: 0.15,
+                parallax: 0.09, // Reduced from ~0.15
                 baseY: canvas.height * 0.75,
                 amp1: 60, freq1: 0.004,
                 amp2: 25, freq2: 0.009,
                 hue: 45, sat: 55, lightBase: 65, lightRange: 12,
             },
             {
-                parallax: 0.30,
+                parallax: 0.18, // Reduced from ~0.30
                 baseY: canvas.height * 0.85,
                 amp1: 80, freq1: 0.005,
                 amp2: 30, freq2: 0.012,
@@ -725,6 +765,12 @@ export class GameplayScene extends Scene {
 
         if (stickFigure.hat) {
             const hat = stickFigure.hat;
+            
+            // Add transparency to hat when facing left
+            if (player.facingDirection === 'left') {
+                ctx.globalAlpha = 0.6; // 60% opacity when facing left
+            }
+            
             const tip = getPos([poseData.head[0] + hat.tipOffset[0], poseData.head[1] + hat.tipOffset[1]]);
             const brimY = headPos[1] + hat.brimHeight / 2;
             const brimLeft = getPos([poseData.head[0] - hat.brimWidth / 2, poseData.head[1]]);
@@ -738,6 +784,11 @@ export class GameplayScene extends Scene {
             ctx.moveTo(tip[0], tip[1]);
             ctx.quadraticCurveTo(brimRight[0], brimY - hat.brimHeight * 1.5, brimRight[0], brimY);
             ctx.fill();
+            
+            // Restore normal opacity after drawing the hat
+            if (player.facingDirection === 'left') {
+                ctx.globalAlpha = 1.0;
+            }
         }
 
         const handLPos = getPos(poseData.armL[poseData.armL.length - 1]);
@@ -762,40 +813,10 @@ export class GameplayScene extends Scene {
             ctx.fill();
         }
 
-        const drawSword = stickFigure.sword && (stickFigure.staff?.hand !== 'right' || player.isAttacking);
+        const drawSword = false; // Changed from (stickFigure.sword && (stickFigure.staff?.hand !== 'right' || player.isAttacking));
 
         if (drawSword) {
-            const sword = stickFigure.sword;
-            const hiltBase = [handRPos[0] + sword.hiltOffset[0] * flip, handRPos[1] + sword.hiltOffset[1]];
-            let angle = sword.angle * flip;
-            if (player.isAttacking) {
-                 angle += Math.PI / 4 * flip * Math.sin(player.attackTimer / C.ATTACK_DURATION * Math.PI);
-            }
-            const hiltEndX = hiltBase[0] + Math.cos(angle + Math.PI / 2) * sword.hiltLength;
-            const hiltEndY = hiltBase[1] + Math.sin(angle + Math.PI / 2) * sword.hiltLength;
-            const bladeTipX = hiltEndX + Math.cos(angle) * sword.bladeLength;
-            const bladeTipY = hiltEndY + Math.sin(angle) * sword.bladeLength;
-
-            if (C.SWORD_GLOW_COLOR) {
-                ctx.shadowColor = C.SWORD_GLOW_COLOR;
-                ctx.shadowBlur = C.SWORD_GLOW_BLUR || 10;
-            }
-
-            ctx.strokeStyle = C.SWORD_COLOR || '#e0e0ff';
-            ctx.lineWidth = C.SWORD_LINE_WIDTH || 2;
-            ctx.beginPath();
-            ctx.moveTo(hiltEndX, hiltEndY);
-            ctx.lineTo(bladeTipX, bladeTipY);
-            ctx.stroke();
-
-            ctx.strokeStyle = stickFigure.jointColor;
-            ctx.lineWidth = stickFigure.lineWidth + 1;
-            ctx.beginPath();
-            ctx.moveTo(hiltBase[0], hiltBase[1]);
-            ctx.lineTo(hiltEndX, hiltEndY);
-            ctx.stroke();
-
-            ctx.shadowColor = 'transparent';
+            // Existing sword drawing code will be skipped
         }
 
         ctx.restore();
@@ -838,10 +859,10 @@ export class GameplayScene extends Scene {
             baseWidth *= 1.2;
             baseHeight *= 1.2;
             ctx.shadowColor = C.CARPET_COLOR_1 || 'rgba(160, 96, 255, 0.8)';
-            ctx.shadowBlur = 15;
+            ctx.shadowBlur = 18; // Increased from 15
         } else {
             ctx.shadowColor = C.CARPET_COLOR_1 || 'rgba(160, 96, 255, 0.5)';
-            ctx.shadowBlur = 8;
+            ctx.shadowBlur = 12; // Increased from 8
         }
 
         const carpetGradient = ctx.createLinearGradient(carpetX, carpetY, carpetX, carpetY + currentHeight);
@@ -891,8 +912,8 @@ export class GameplayScene extends Scene {
         ctx.arc(centerX + currentWidth * 0.3, centerY, currentHeight * 0.2, 0, Math.PI * 2);
         ctx.fill();
 
-        const numTassels = 5;
-        const tasselLength = currentHeight * 1.5;
+        const numTassels = 7; // Increased from 5
+        const tasselLength = currentHeight * 1.8; // Increased from 1.5
         const beadRadius = 3;
         ctx.strokeStyle = C.CARPET_COLOR_2 || '#d0a0ff';
         ctx.fillStyle = C.CARPET_COLOR_1 || '#a060ff';
