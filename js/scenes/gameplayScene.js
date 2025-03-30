@@ -10,6 +10,7 @@ import { PowerUpSystem } from '../core/powerup.js';
 export class GameplayScene extends Scene {
     constructor() {
         super();
+        console.log("GameplayScene constructor called");
         // Properties will be initialized in onEnter
         this.levelGenerator = null;
         this.effectsSystem = null;
@@ -26,7 +27,7 @@ export class GameplayScene extends Scene {
     }
 
     onEnter() {
-        console.log("Entering GameplayScene");
+        console.log("GameplayScene.onEnter: Initializing gameplay...");
         
         // Initialize systems
         this.levelGenerator = new LevelGenerator(C.CANVAS_WIDTH, C.CANVAS_HEIGHT);
@@ -41,16 +42,22 @@ export class GameplayScene extends Scene {
         document.getElementById('timer').textContent = "0.00";
         
         this.gameStarted = true;
+        console.log("GameplayScene.onEnter: Gameplay initialized, gameStarted =", this.gameStarted);
     }
 
     update(deltaTime) {
-        if (!this.gameStarted || this.gameWon) return;
+        console.log("GameplayScene.update called with deltaTime:", deltaTime);
+        if (!this.gameStarted || this.gameWon) {
+            console.log("GameplayScene.update: Skipping update due to game state");
+            return;
+        }
         
         // Update level timer
         this.levelTime = (Date.now() - this.startTime) / 1000;
         document.getElementById('timer').textContent = this.levelTime.toFixed(2);
         
         // Update game entities and handle physics
+        console.log("GameplayScene.update: Updating entities and physics");
         // (Implementation would be much more extensive)
         
         // Update effects and particles
@@ -61,9 +68,16 @@ export class GameplayScene extends Scene {
     }
 
     render(ctx) {
+        console.log("GameplayScene.render called");
         // Clear canvas
-        ctx.fillStyle = C.BACKGROUND_COLOR;
+        ctx.fillStyle = C.BACKGROUND_COLOR || 'black';
         ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ctx.fillStyle = 'red';
+        ctx.fillRect(100, 100, 100, 100);
+        ctx.font = '24px Arial';
+        ctx.fillStyle = 'white';
+        ctx.fillText('GAME IS RENDERING', 200, 150);
+        console.log("GameplayScene.render: Basic test elements drawn");
         
         // Apply camera transform
         ctx.save();
@@ -80,6 +94,16 @@ export class GameplayScene extends Scene {
         
         // Render UI elements that should not be affected by camera
         this.renderUI(ctx);
+        
+        if (this.player) {
+            console.log("GameplayScene.render: Drawing player at", this.player.x, this.player.y);
+            ctx.fillStyle = 'blue';
+            ctx.fillRect(this.player.x, this.player.y, this.player.width, this.player.height);
+        } else {
+            console.warn("GameplayScene.render: No player object found");
+        }
+        
+        console.log("GameplayScene.render: Complete");
     }
 
     resetLevel() {

@@ -459,6 +459,8 @@ export class Game {
              console.warn(`Scene "${name}" loaded but has no onEnter method defined.`);
         }
 
+        console.log(`Scene set to "${name}". Current scene is ${this.currentScene ? this.currentScene.constructor.name : 'null'}`);
+
         // Special handling after setting scene: Attempt to start music if applicable
         if (this.isAudioInitialized && !this.isMuted && this.isRunning && this.currentScene?.isGameplayActive()) {
              console.log("Scene changed to active gameplay: Starting music.");
@@ -475,6 +477,7 @@ export class Game {
      * @param {DOMHighResTimeStamp} timestamp - The current time provided by requestAnimationFrame.
      */
     gameLoop(timestamp) {
+        console.log(`Game loop running - time: ${timestamp.toFixed(0)}, deltaTime: ${this.deltaTime.toFixed(3)}`);
         // If the game isn't running, stop the loop immediately.
         if (!this.isRunning) {
             console.log("Game loop stopped.");
