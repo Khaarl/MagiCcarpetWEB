@@ -218,6 +218,115 @@ function handleStartGameClick(isTestMode = false) {
     }
 }
 
+// Initialize the overlay background
+function initializeOverlayBackground() {
+    const canvas = document.getElementById('overlayCanvas');
+    if (!canvas) return;
+
+    // Match canvas resolution to its display size
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let time = 0;
+
+    function drawOverlayBackground() {
+        // Clear canvas
+        ctx.clearRect(0, 0, width, height);
+
+        // Sky gradient
+        const skyGradient = ctx.createLinearGradient(0, 0, 0, height);
+        skyGradient.addColorStop(0, '#1a75ff');
+        skyGradient.addColorStop(0.5, '#66a3ff');
+        skyGradient.addColorStop(0.7, '#ffcc99');
+        skyGradient.addColorStop(1, '#ff9933');
+        ctx.fillStyle = skyGradient;
+        ctx.fillRect(0, 0, width, height);
+
+        // Sun
+        const sunX = width * 0.8;
+        const sunY = height * 0.2;
+        const sunRadius = width * 0.08;
+
+        ctx.save();
+        ctx.shadowColor = 'rgba(255, 200, 50, 0.8)';
+        ctx.shadowBlur = 50;
+        ctx.fillStyle = 'rgba(255, 240, 200, 1)';
+        ctx.beginPath();
+        ctx.arc(sunX, sunY, sunRadius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255, 255, 220, 1)';
+        ctx.beginPath();
+        ctx.arc(sunX, sunY, sunRadius * 0.7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        // Distant mountains
+        const mountainColors = [
+            { color: '#6d5f5e', y: height * 0.5 },
+            { color: '#7a6b68', y: height * 0.55 },
+            { color: '#8b7973', y: height * 0.6 }
+        ];
+
+        mountainColors.forEach(mountain => {
+            ctx.fillStyle = mountain.color;
+            ctx.beginPath();
+            ctx.moveTo(0, height);
+
+            for (let x = 0; x <= width; x += width / 20) {
+                const heightVariation = Math.sin(x * 0.01 + x * 0.005) * height * 0.15;
+                ctx.lineTo(x, mountain.y + heightVariation);
+            }
+
+            ctx.lineTo(width, height);
+            ctx.lineTo(0, height);
+            ctx.closePath();
+            ctx.fill();
+        });
+
+        // Draw dunes
+        const duneColors = [
+            { color: '#ffcc66', y: height * 0.7 },
+            { color: '#e6ac4d', y: height * 0.8 },
+            { color: '#cc9633', y: height * 0.9 }
+        ];
+
+        duneColors.forEach(dune => {
+            const baseY = dune.y;
+            ctx.fillStyle = dune.color;
+            ctx.beginPath();
+            ctx.moveTo(0, height);
+
+            for (let x = 0; x <= width; x += width / 40) {
+                const heightVariation =
+                    Math.sin(x * 0.01 + time * 0.1) * height * 0.05 +
+                    Math.sin(x * 0.02 - time * 0.05) * height * 0.03 +
+                    Math.sin(x * 0.005 + time * 0.02) * height * 0.04;
+                ctx.lineTo(x, baseY + heightVariation);
+            }
+
+            ctx.lineTo(width, height);
+            ctx.lineTo(0, height);
+            ctx.closePath();
+            ctx.fill();
+        });
+
+        time += 0.01;
+        requestAnimationFrame(drawOverlayBackground);
+    }
+
+    drawOverlayBackground();
+
+    // Handle resizing
+    window.addEventListener('resize', () => {
+        canvas.width = canvas.clientWidth;
+        canvas.height = canvas.clientHeight;
+    });
+}
 
 // --- Main Execution ---
 // Waits for the HTML document structure to be fully loaded and parsed.
@@ -227,6 +336,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (runStartupTests()) {
         try {
             initializeGame();
+            initializeOverlayBackground();
 
             // Set up beforeunload event to save game data when closing
             window.addEventListener('beforeunload', () => {
