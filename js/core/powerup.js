@@ -1,0 +1,1 @@
+/* PowerUpSystem class (placeholder) */

@@ -1,0 +1,15 @@
+body {
+    margin: 0;
+    overflow: hidden; /* Prevent scrollbars */
+    background-color: #000; /* Default background */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+canvas {
+    display: block;
+    background-color: #87CEEB; /* Sky blue background for the canvas */
+    /* The canvas size will be set dynamically via JavaScript */
+}
