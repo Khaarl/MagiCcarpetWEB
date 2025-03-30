@@ -198,18 +198,18 @@ export class GameplayScene extends Scene {
                 player.velocityY = Math.max(player.velocityY, -maxFlySpeed);
                 player.animationState = 'jumping';
 
+                // Corrected particle emission method
                 if (this.effectsSystem && Math.random() < C.FLYING_PARTICLE_RATE) {
                     const centerX = player.x + player.width / 2;
                     const bottomY = player.y + player.height;
-                    this.effectsSystem.emitParticle({
-                        x: centerX + (Math.random() * 20 - 10),
-                        y: bottomY + 5 + (Math.random() * 10),
-                        vx: Math.random() * 20 - 10,
-                        vy: Math.random() * 5 + 5,
-                        life: 0.5 + Math.random() * 0.5,
-                        size: 2 + Math.random() * 3,
-                        color: Math.random() < 0.5 ? C.CARPET_COLOR_1 : C.CARPET_COLOR_2
-                    });
+                    this.effectsSystem.emitPlayerTrail(
+                        centerX, 
+                        bottomY,
+                        player.width,
+                        player.height,
+                        player.velocityX,
+                        player.velocityY
+                    );
                 }
             }
 

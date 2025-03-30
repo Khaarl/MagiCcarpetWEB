@@ -20,6 +20,7 @@ export const AIR_FRICTION = 0.98; // Air resistance (closer to 1 means less fric
 export const FLY_STRENGTH = 2.1; // Upward force when holding fly button
 export const MAX_FLY_SPEED = 15.0; // Max upward speed limit from flying (prevents infinite acceleration)
 export const FLYING_GRAVITY_MULTIPLIER = 0.4; // Reduced gravity effect while flying
+export const FLYING_PARTICLE_RATE = 0.3; // 30% chance per frame for flying particles
 
 // --- Magic Carpet ---
 export const CARPET_WIDTH = 110;
