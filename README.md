@@ -2,43 +2,6 @@
 
 A 2D platformer game featuring a player character who can fly on a magic carpet, fight enemies with sword attacks and magic spells, and collect rewards to progress through procedurally generated levels.
 
-## Running the Game
-
-To run the game without encountering CORS issues, you need to serve the files through a local web server. Here are the steps:
-
-### Option 2: Using Node.js
-1. Install `http-server` globally by running:
-   ```bash
-   npm install -g http-server
-   ```
-2. Navigate to the project directory:
-   ```bash
-   cd "D:/PROJECTS/magic carpet game"
-   ```
-3. Start the server:
-   ```bash
-   http-server
-   ```
-4. Open the URL provided by the server (e.g., `http://127.0.0.1:8080`) in your browser.
-
-### Option 3: Using Python
-1. Navigate to the project directory:
-   ```bash
-   cd "D:/PROJECTS/magic carpet game"
-   ```
-2. Start the server:
-   - For Python 3:
-     ```bash
-     python -m http.server
-     ```
-   - For Python 2:
-     ```bash
-     python -m SimpleHTTPServer
-     ```
-3. Open the URL provided by the server (e.g., `http://127.0.0.1:8000`) in your browser.
-
-Once the server is running, you can play the game without any CORS issues.
-
 ## Project Structure
 
 ```
@@ -165,3 +128,67 @@ The game's behavior can be modified through constants in `config.js`, including:
 - Browser console logging is used extensively
 - Game state is visible through UI elements
 - Performance metrics can be added to monitor frame rate
+
+## Initialization Sequence
+
+1. The entry point is `main.js` which sets up the canvas and creates the Game instance.
+2. An audio overlay requires user interaction to start the game (browser security requirement).
+3. On overlay click, audio is initialized and the game scene is set to 'gameplay'.
+4. Scene switching happens with proper lifecycle calls (onExit, onEnter).
+
+## Current Status
+
+- Game initializes without errors.
+- Test scene renders successfully (red rectangle with "GAME IS RENDERING" text).
+- Main gameplay scene fails to properly load/initialize.
+
+## Troubleshooting Guide
+
+### Scene Management Issues
+- Check console for errors during scene transitions.
+- Verify `GameplayScene.onEnter()` completes without errors.
+- Ensure level generation is working (`levelGenerator.generateLevel()`).
+- Confirm player object is properly initialized with default state.
+
+### Audio System
+- Audio requires user interaction (click) to initialize due to browser policies.
+- System implements procedural sound synthesis with Web Audio API.
+- If no sound, check browser console for AudioContext initialization errors.
+- The `musicSequencer` implementation creates dynamic background music.
+
+### Rendering Issues
+- Canvas dimensions are set from `config.js` constants.
+- Camera position affects what's visible in the world.
+- Check if `camera.x/y` coordinates are within the level bounds.
+- Verify that `player.x/y` and platform positions are properly calculated.
+
+### Input Handling
+- The game supports keyboard, mouse, and touch input.
+- Input handler registration happens in `Game.initInput()`.
+- Touch controls are divided into screen zones for different actions.
+- Debug touch zones by checking the `TouchControls.render()` implementation.
+
+## Implementation Notes
+
+### Scene Registration
+Two methods exist for adding scenes:
+- `game.addScene(name, sceneInstance)` - Used in `main.js`.
+- `game.registerScene(name, sceneInstance)` - Used in `game.init()`.
+
+Ensure scenes are not being overwritten by using both methods.
+
+### Game Loop Management
+- The main loop is driven by `requestAnimationFrame`.
+- Delta time is capped at 50ms to prevent physics issues during lag.
+- `Game.start()` initializes the loop and `Game.stop()` terminates it.
+
+### Level Generator
+- Procedurally creates platforms, enemies, and collectibles.
+- Uses chunk-based generation for level layout.
+- Implements collision detection to prevent overlapping elements.
+- Creates a boss at the end of levels when appropriate.
+
+### Save System
+- Uses `localStorage` for persistent game data.
+- Tracks highest level reached and completion times.
+- Handles save data corruption with fallback to defaults.

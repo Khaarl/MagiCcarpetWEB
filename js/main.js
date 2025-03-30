@@ -2,11 +2,14 @@
 
 import { Game } from './core/game.js';
 import { GameplayScene } from './scenes/gameplayScene.js';
+import { TitleScene } from './scenes/titleScene.js';
 import * as C from './config.js'; // Import constants for canvas dimensions
 
 // --- DOM Elements ---
 const canvas = document.getElementById('gameCanvas');
 const audioOverlay = document.getElementById('audioOverlay');
+const startGameBtn = document.getElementById('startGameBtn');
+const startTestModeBtn = document.getElementById('startTestModeBtn');
 // Other UI elements (timer, lives, etc.) are accessed within GameplayScene
 
 // --- Global Game Instance ---
@@ -33,6 +36,8 @@ function runStartupTests() {
     test("Canvas element exists (#gameCanvas)", canvas);
     test("Canvas 2D context obtainable", canvas?.getContext('2d'));
     test("Audio Overlay exists (#audioOverlay)", audioOverlay);
+    test("Start Game Button exists (#startGameBtn)", startGameBtn);
+    test("Start Test Mode Button exists (#startTestModeBtn)", startTestModeBtn);
     test("Message div exists (#message)", document.getElementById('message'));
     test("Timer div exists (#timer)", document.getElementById('timer'));
     test("Lives display div exists (#livesDisplay)", document.getElementById('livesDisplay'));
@@ -42,6 +47,20 @@ function runStartupTests() {
     test("Game class defined", typeof Game === 'function');
     test("GameplayScene class defined", typeof GameplayScene === 'function');
     // Could add more tests for utils, core classes if desired
+
+    // Test localStorage (needed for SaveSystem)
+    const testStorage = () => {
+        try {
+            localStorage.setItem('test', 'test');
+            const result = localStorage.getItem('test') === 'test';
+            localStorage.removeItem('test');
+            return result;
+        } catch (e) {
+            console.error("localStorage test failed:", e);
+            return false;
+        }
+    };
+    test("localStorage available (needed for game saves)", testStorage());
 
     if (allPassed) {
         console.log("--- All Startup Tests Passed ---");
@@ -61,9 +80,10 @@ function initializeGame() {
     if (!canvas) {
         throw new Error("Canvas element #gameCanvas not found!");
     }
-    if (!audioOverlay) {
-         throw new Error("Audio overlay element #audioOverlay not found!");
-     }
+    if (!canvas) throw new Error("Canvas element #gameCanvas not found!");
+    if (!audioOverlay) throw new Error("Audio overlay element #audioOverlay not found!");
+    if (!startGameBtn) throw new Error("Start Game button #startGameBtn not found!");
+    if (!startTestModeBtn) throw new Error("Start Test Mode button #startTestModeBtn not found!");
 
     // Set canvas dimensions from config
     canvas.width = C.CANVAS_WIDTH;
@@ -75,23 +95,27 @@ function initializeGame() {
     console.log("Game instance created.");
 
     // Add different game states/screens
+    game.addScene('title', new TitleScene());
     game.addScene('gameplay', new GameplayScene());
-    console.log("Gameplay scene added.");
-    // Add other scenes here if needed (e.g., 'title', 'gameOver')
-    // game.addScene('title', new TitleScene());
+    console.log("Scenes added: title, gameplay");
+    game.setScene('title');
+    console.log("Initial scene set to 'title'.");
+    // Add other scenes here if needed (e.g., 'gameOver')
 
-    // Set up the audio overlay listener to start the game on user interaction
-    audioOverlay.addEventListener('click', handleOverlayClick, { once: true }); // Only fire once
-    console.log("Audio overlay listener attached. Waiting for user interaction.");
+    // Set up listeners for the specific buttons
+    startGameBtn.addEventListener('click', () => handleStartGameClick(false), { once: true });
+    startTestModeBtn.addEventListener('click', () => handleStartGameClick(true), { once: true }); // Pass true for test mode
+    console.log("Button listeners attached. Waiting for user interaction.");
 }
 
-// --- Overlay Click Handler ---
+// --- Common Game Start Logic ---
 /**
- * Handles the click event on the audio overlay.
- * Initializes audio, hides the overlay, sets the initial scene, and starts the game loop.
+ * Handles the common tasks needed when starting the game (audio, overlay, scene).
+ * @param {boolean} isTestMode - Flag indicating if test mode should be activated.
  */
-function handleOverlayClick() {
-    console.log("--- Overlay clicked ---");
+function handleStartGameClick(isTestMode = false) {
+    const mode = isTestMode ? "Test Mode" : "Normal Game";
+    console.log(`--- ${mode} button clicked ---`);
     if (!game) {
         console.error("Game object not initialized before overlay click!");
         alert("Error: Game initialization failed.");
@@ -128,14 +152,46 @@ function handleOverlayClick() {
         // 2. Hide Overlay
         audioOverlay.style.display = 'none';
 
-        // 3. Set Initial Scene
-        // Only set if no scene is currently active (prevents resetting if already started)
+        // 2.5 Load saved game data if available
+        if (game.saveSystem) {
+            try {
+                console.log("Loading saved game data...");
+                const savedData = game.saveSystem.load();
+                console.log("Game data loaded:", savedData?.currentLevel || 1);
+
+                // Display a message if returning player
+                if (savedData?.currentLevel > 1) {
+                    document.getElementById('message').textContent =
+                        `Welcome back! Continuing from level ${savedData.currentLevel}`;
+                    setTimeout(() => {
+                        document.getElementById('message').textContent = '';
+                    }, 3000);
+                }
+            } catch (e) {
+                console.error("Error loading saved data:", e);
+            }
+        }
+
+        // 3. Set Initial Scene and Pass Mode Flag
+        // Only set if no scene is currently active
         if (!game.currentScene) {
-            console.log("Overlay: Setting initial scene to 'gameplay'...");
-            game.setScene('gameplay');
-            // Check if setting the scene was successful
+            console.log(`Setting initial scene to 'gameplay' (Test Mode: ${isTestMode})...`);
+            // We need to ensure the scene instance can receive this flag.
+            // Assuming the scene instance is already created in initializeGame,
+            // we might need to call an init method on it here, or pass the flag differently.
+            // For now, let's assume we can pass it when setting the scene or via a method.
+            game.setScene('gameplay'); // Set the scene first
+            if (game.currentScene && typeof game.currentScene.init === 'function') {
+                 game.currentScene.init({ isTestMode: isTestMode }); // Pass the flag to the scene's init method
+                 console.log("Called scene init with test mode flag.");
+            } else {
+                 console.warn("GameplayScene does not have an init method or scene not set correctly. Test mode flag might not be passed.");
+                 // As a fallback, maybe set a global flag or property on the game object?
+                 // game.isTestMode = isTestMode; // Less ideal, makes game state management harder
+            }
+
             if (!game.currentScene) {
-                throw new Error("Failed to set the initial scene 'gameplay' after overlay click.");
+                throw new Error("Failed to set the initial scene 'gameplay'.");
             }
         }
 
@@ -152,11 +208,11 @@ function handleOverlayClick() {
               }
          }
 
-        console.log("--- Overlay handler finished ---");
+        console.log(`--- ${mode} start handler finished ---`);
 
     } catch (error) {
-        console.error("CRITICAL ERROR during overlay click handler:", error);
-        alert(`An error occurred starting the game: ${error.message}. Check console (F12) for details.`);
+        console.error(`CRITICAL ERROR during ${mode} start handler:`, error);
+        alert(`An error occurred starting the game (${mode}): ${error.message}. Check console (F12) for details.`);
         // Attempt to gracefully stop the game if possible
         if (game && game.stop) game.stop();
     }
@@ -171,6 +227,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (runStartupTests()) {
         try {
             initializeGame();
+
+            // Set up beforeunload event to save game data when closing
+            window.addEventListener('beforeunload', () => {
+                if (game && game.saveSystem) {
+                    console.log("Page closing: Saving game data...");
+                    game.saveSystem.save();
+                }
+            });
+
         } catch (error) {
             // Catch initialization errors (e.g., missing elements)
             console.error("Game Initialization failed:", error);
@@ -180,7 +245,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (body && audioOverlay) { // Check if body exists before modifying
                 audioOverlay.innerHTML = `<div style="color: red; font-size: 18px; padding: 20px; background: rgba(0,0,0,0.8); border-radius: 10px;">Error during game initialization: ${error.message}<br/>Please check the console (F12) and refresh.</div>`;
                 audioOverlay.style.display = 'flex'; // Ensure overlay is visible
-                audioOverlay.removeEventListener('click', handleOverlayClick); // Remove listener if init failed
+                // Remove button listeners if init failed
+                startGameBtn?.removeEventListener('click', handleStartGameClick);
+                startTestModeBtn?.removeEventListener('click', handleStartGameClick);
             }
         }
     } else {
@@ -190,7 +257,9 @@ document.addEventListener('DOMContentLoaded', () => {
          if (body && audioOverlay) {
             audioOverlay.innerHTML = `<div style="color: red; font-size: 18px; padding: 20px; background: rgba(0,0,0,0.8); border-radius: 10px;">Startup tests failed. Cannot start game.<br/>Please check the console (F12).</div>`;
             audioOverlay.style.display = 'flex'; // Ensure overlay is visible
-            audioOverlay.removeEventListener('click', handleOverlayClick); // Remove listener
+             // Remove button listeners if startup failed
+             startGameBtn?.removeEventListener('click', handleStartGameClick);
+             startTestModeBtn?.removeEventListener('click', handleStartGameClick);
         }
     }
 });

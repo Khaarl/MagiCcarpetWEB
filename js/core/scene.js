@@ -19,8 +19,6 @@ export class Scene {
      * Use this for setup specific to the scene (e.g., generating level, initializing UI).
      */
     onEnter() {
-        // Default implementation does nothing.
-        // Override in subclasses (like GameplayScene).
         console.log(`Entering scene: ${this.constructor.name}`);
     }
 
@@ -49,8 +47,6 @@ export class Scene {
      * Use this for cleanup specific to the scene (e.g., stopping timers, clearing data).
      */
     onExit() {
-        // Default implementation does nothing.
-        // Override in subclasses.
         console.log(`Exiting scene: ${this.constructor.name}`);
     }
 

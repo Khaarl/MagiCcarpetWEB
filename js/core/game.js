@@ -432,41 +432,39 @@ export class Game {
      * @param {string} name - The name of the scene to switch to.
      */
     setScene(name) {
-        console.log(`Attempting to set active scene to: "${name}"`);
-        const newScene = this.scenes[name];
-
-        if (!newScene) {
-            console.error(`Failed to set scene: Scene "${name}" not found in registry!`);
-            alert(`Error: Could not load game scene "${name}".`);
-            this.stop(); // Stop the game if a critical scene is missing
-            return;
-        }
-
-        // Call onExit on the current scene if it exists and has the method
-        if (this.currentScene && typeof this.currentScene.onExit === 'function') {
-            console.log(`Exiting previous scene: "${this.currentScene.constructor.name}"`);
+        if (this.currentScene) {
             this.currentScene.onExit();
         }
-
-        // Set the new scene as current
-        this.currentScene = newScene;
-        console.log(`Current scene set to: "${name}"`);
-
-        // Call onEnter on the new scene if it exists and has the method
-        if (typeof this.currentScene.onEnter === 'function') {
-            this.currentScene.onEnter(); // Initialize the new scene
-        } else {
-             console.warn(`Scene "${name}" loaded but has no onEnter method defined.`);
+        this.currentScene = this.scenes[name];
+        if (this.currentScene) {
+            this.currentScene.onEnter();
         }
+    }
 
-        // Special handling after setting scene: Attempt to start music if applicable
-        if (this.isAudioInitialized && !this.isMuted && this.isRunning && this.currentScene?.isGameplayActive()) {
-             console.log("Scene changed to active gameplay: Starting music.");
-             this.startMusic();
-        } else {
-             // Stop music if the new scene is not active gameplay (e.g., title screen)
-             this.stopMusic();
-        }
+    /**
+     * Registers scenes and initializes the game.
+     */
+    init() {
+        console.log("Game initializing...");
+        
+        // Only register the test scene, not gameplay
+        this.registerScene('test', new TestScene(this));
+        
+        // Don't set initial scene here - wait for user interaction
+        // this.setScene('test');
+        
+        // For testing only: If you want to start with the test scene
+        // uncomment the next line
+        this.setScene('test');
+    }
+
+    /**
+     * Registers a scene with the game.
+     * @param {string} name - The name of the scene.
+     * @param {Scene} scene - The scene instance.
+     */
+    registerScene(name, scene) {
+        this.scenes[name] = scene;
     }
 
     /**
@@ -475,6 +473,7 @@ export class Game {
      * @param {DOMHighResTimeStamp} timestamp - The current time provided by requestAnimationFrame.
      */
     gameLoop(timestamp) {
+        console.log(`Game loop running - time: ${timestamp.toFixed(0)}, deltaTime: ${this.deltaTime.toFixed(3)}`);
         // If the game isn't running, stop the loop immediately.
         if (!this.isRunning) {
             console.log("Game loop stopped.");
@@ -497,8 +496,7 @@ export class Game {
 
             // Render the current scene (always render, even if paused)
             if (this.currentScene) {
-                // Clear the canvas completely before drawing the new frame
-                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                this.currentScene.update(this.deltaTime);
                 this.currentScene.render(this.ctx);
             } else {
                 // Optional: Render a fallback if no scene is active
@@ -559,5 +557,41 @@ export class Game {
         this.stopMusic(); // Ensure music interval is cleared
         // Optionally remove custom cursor when stopped?
         // if (this.canvas) { this.canvas.classList.remove('magic-cursor'); }
+    }
+
+    /**
+     * Triggers a jump sound effect at the specified time.
+     * @param {number} time - The audio context time to schedule the sound.
+     */
+    triggerJumpSound(time) {
+        if (!this.isAudioInitialized || this.isMuted || !this.audioCtx || !this.masterGain) return;
+        
+        try {
+            // Import the function only when needed to avoid circular dependencies
+            import('../audio.js').then(audio => {
+                audio.triggerJumpSound(this.audioCtx, this.masterGain, time);
+            }).catch(err => {
+                console.error("Error importing audio module for jump sound:", err);
+            });
+        } catch (e) {
+            console.error("Error in Game.triggerJumpSound:", e);
+        }
+    }
+
+    /**
+     * Handles the jump action when the player is on the ground.
+     * @param {Object} player - The player object.
+     * @param {boolean} onGround - Whether the player is on the ground.
+     */
+    handleJump(player, onGround) {
+        if ((this.inputState.keys.up || this.inputState.keys.w) && onGround) {
+            player.velocityY = -C.JUMP_STRENGTH;
+            player.onGround = false;
+            onGround = false;
+            player.animationState = 'jumping';
+            if (this.audioCtx) {
+                this.triggerJumpSound(this.audioCtx.currentTime);
+            }
+        }
     }
 }

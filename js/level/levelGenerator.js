@@ -27,6 +27,7 @@ export class LevelGenerator {
      * Example: { platforms, collectibles, bats, groundPatrollers, snakes, goal, startPlatform, levelEndX, giantBatBoss }
      */
     generateLevel() {
+        console.log("LevelGenerator.generateLevel: Creating new level");
         console.log("Generating Level Layout...");
         const platforms = [];
         const collectibles = [];
@@ -385,7 +386,12 @@ export class LevelGenerator {
         } // End if(shouldPlaceBoss)
 
 
-        console.log(`Level Generation Complete: ${platforms.length} platforms, ${collectibles.length} rewards, ${bats.length} bats, ${groundPatrollers.length} patrollers, ${snakes.length} snakes, Boss: ${!!giantBatBoss}. Estimated EndX: ${levelEndX.toFixed(0)}`);
+        console.log(`Level Generation Complete: ${platforms.length} platforms, ${collectibles.length} rewards, ${bats.length}, ${groundPatrollers.length} patrollers, ${snakes.length} snakes, Boss: ${!!giantBatBoss}. Estimated EndX: ${levelEndX.toFixed(0)}`);
+        console.log("LevelGenerator.generateLevel: Level created", {
+            platformCount: platforms.length,
+            collectibleCount: collectibles.length,
+            startPlatform: startPlatform
+        });
 
         // Return all generated level data in a structured object
         return {

@@ -176,15 +176,15 @@ export function createEffectsSystem() {
 
             // Color variation: Lerp between base explosion color and bright yellow/white
             const lerp = Math.random();
-            let r=255, g=220, b=100; // Target bright yellow
-             try { // Protect against invalid hex color strings
-                 const baseR = parseInt(color.slice(1, 3), 16);
-                 const baseG = parseInt(color.slice(3, 5), 16);
-                 const baseB = parseInt(color.slice(5, 7), 16);
-                 r = Math.floor(baseR * (1 - lerp) + 255 * lerp); // Lerp towards target R
-                 g = Math.floor(baseG * (1 - lerp) + 220 * lerp); // Lerp towards target G
-                 b = Math.floor(baseB * (1 - lerp) + 100 * lerp); // Lerp towards target B
-             } catch (e) { console.error("Error parsing color in emitFireballExplosion:", color, e); }
+            let r = 255, g = 220, b = 100; // Target bright yellow
+            try { // Protect against invalid hex color strings
+                const baseR = parseInt(color.slice(1, 3), 16);
+                const baseG = parseInt(color.slice(3, 5), 16);
+                const baseB = parseInt(color.slice(5, 7), 16);
+                r = Math.floor(baseR * (1 - lerp) + 255 * lerp); // Lerp towards target R
+                g = Math.floor(baseG * (1 - lerp) + 220 * lerp); // Lerp towards target G
+                b = Math.floor(baseB * (1 - lerp) + 100 * lerp); // Lerp towards target B
+            } catch (e) { console.error("Error parsing color in emitFireballExplosion:", color, e); }
 
             particle.color = `rgb(${r},${g},${b})`;
             particle.size = getRandom(2, 6); // Larger fiery particles
@@ -207,9 +207,9 @@ export function createEffectsSystem() {
     };
 
     /** Gets the current number of active particles. */
-    const getActiveParticleCount = () => {
+    const getActiveCount = () => {
         return particlePool.getActiveCount();
-    }
+    };
 
     // Return the public interface of the effects system
     return {
@@ -221,6 +221,6 @@ export function createEffectsSystem() {
         emitFireballExplosion,
         update,
         render,
-        getActiveParticleCount // Expose count for debugging/monitoring
+        getActiveCount // Simplified to a single method
     };
 }

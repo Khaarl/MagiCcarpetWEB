@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Refactored Psy Flight N+-1 (v3.7: Wizard Fire)</title>
+    <title>Magic Carpet Game</title>
     <link rel="stylesheet" href="css/style.css">
     <style>
         /* Basic styles for loading/error states */
@@ -20,7 +20,10 @@
     </canvas>
 
     <!-- UI Overlay Elements -->
-    <div id="audioOverlay">Click or Tap<br>to Start Audio & Game</div>
+    <div id="audioOverlay">
+        <button id="startGameBtn">Start Game</button>
+        <button id="startTestModeBtn">Start Test Mode</button>
+    </div>
     <div id="message"></div>
     <div id="instructions">Arrows/AD: Move | W/Up/Space: Fly/Jump | X: Attack | 1: Fireball | 2: Lightning Bolt | R: New Level/Next | M: Mute</div>
     <div id="timer">0.00</div>
@@ -31,7 +34,6 @@
     <div id="loading-message" style="display: none; position: absolute; color: white;">Loading Game...</div>
 
     <!-- JavaScript Entry Point -->
-    <!-- type="module" is essential for using import/export -->
     <script type="module" src="js/main.js"></script>
 
     <!-- Fallback for browsers that don't support modules -->
