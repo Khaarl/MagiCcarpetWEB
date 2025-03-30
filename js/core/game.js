@@ -432,43 +432,32 @@ export class Game {
      * @param {string} name - The name of the scene to switch to.
      */
     setScene(name) {
-        console.log(`Attempting to set active scene to: "${name}"`);
-        const newScene = this.scenes[name];
-
-        if (!newScene) {
-            console.error(`Failed to set scene: Scene "${name}" not found in registry!`);
-            alert(`Error: Could not load game scene "${name}".`);
-            this.stop(); // Stop the game if a critical scene is missing
-            return;
-        }
-
-        // Call onExit on the current scene if it exists and has the method
-        if (this.currentScene && typeof this.currentScene.onExit === 'function') {
-            console.log(`Exiting previous scene: "${this.currentScene.constructor.name}"`);
+        if (this.currentScene) {
             this.currentScene.onExit();
         }
-
-        // Set the new scene as current
-        this.currentScene = newScene;
-        console.log(`Current scene set to: "${name}"`);
-
-        // Call onEnter on the new scene if it exists and has the method
-        if (typeof this.currentScene.onEnter === 'function') {
-            this.currentScene.onEnter(); // Initialize the new scene
-        } else {
-             console.warn(`Scene "${name}" loaded but has no onEnter method defined.`);
+        this.currentScene = this.scenes[name];
+        if (this.currentScene) {
+            this.currentScene.onEnter();
         }
+    }
 
-        console.log(`Scene set to "${name}". Current scene is ${this.currentScene ? this.currentScene.constructor.name : 'null'}`);
+    /**
+     * Registers scenes and initializes the game.
+     */
+    init() {
+        console.log("Game initializing...");
+        this.registerScene('test', new TestScene(this));
+        this.registerScene('gameplay', new GameplayScene(this));
+        this.setScene('test');
+    }
 
-        // Special handling after setting scene: Attempt to start music if applicable
-        if (this.isAudioInitialized && !this.isMuted && this.isRunning && this.currentScene?.isGameplayActive()) {
-             console.log("Scene changed to active gameplay: Starting music.");
-             this.startMusic();
-        } else {
-             // Stop music if the new scene is not active gameplay (e.g., title screen)
-             this.stopMusic();
-        }
+    /**
+     * Registers a scene with the game.
+     * @param {string} name - The name of the scene.
+     * @param {Scene} scene - The scene instance.
+     */
+    registerScene(name, scene) {
+        this.scenes[name] = scene;
     }
 
     /**
@@ -500,8 +489,7 @@ export class Game {
 
             // Render the current scene (always render, even if paused)
             if (this.currentScene) {
-                // Clear the canvas completely before drawing the new frame
-                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                this.currentScene.update(this.deltaTime);
                 this.currentScene.render(this.ctx);
             } else {
                 // Optional: Render a fallback if no scene is active

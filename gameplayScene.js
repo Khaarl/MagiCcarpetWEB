@@ -1,4 +1,15 @@
 render(ctx) {
+    console.log("GameplayScene render called");
+
+    // Clear canvas with a bright color to verify rendering
+    ctx.fillStyle = "magenta";
+    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+
+    // Add text to verify rendering
+    ctx.fillStyle = "white";
+    ctx.font = "30px Arial";
+    ctx.fillText("Game is rendering", 100, 100);
+
     // Clear canvas
     ctx.fillStyle = C.BACKGROUND_COLOR;
     ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
