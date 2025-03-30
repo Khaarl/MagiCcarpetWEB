@@ -11,16 +11,27 @@
     #timer { position: absolute; top: 10px; right: 15px; color: #eee; font-size: 20px; font-family: monospace; text-shadow: 1px 1px 2px #000; z-index: 5; }
     #livesDisplay { position: absolute; top: 35px; right: 15px; color: #f99; font-size: 18px; font-family: monospace; text-shadow: 1px 1px 2px #000; z-index: 5; transition: color 0.1s ease-out, text-shadow 0.1s ease-out; }
     #orbShieldDisplay { position: absolute; top: 55px; right: 15px; color: #9cf; font-size: 16px; font-family: monospace; text-shadow: 1px 1px 2px #000; z-index: 5; transition: color 0.1s ease-out, text-shadow 0.1s ease-out; }
+    #weaponDisplay { 
+        position: absolute; 
+        top: 80px; 
+        right: 15px; 
+        color: #ffcc66; 
+        font-size: 16px; 
+        font-family: monospace; 
+        text-shadow: 1px 1px 2px #000; 
+        z-index: 5; 
+    }
 </style>
 </head>
 <body>
 
 <div id="audioOverlay">Click or Tap<br>to Start Audio & Game</div>
 <div id="message"></div>
-<div id="instructions">Arrows/AD: Move | W/Up/Space: Fly/Jump | X: Attack | F: Fireball | R: New Level/Next | M: Mute</div>
+<div id="instructions">Arrows/AD: Move | W/Up/Space: Fly/Jump | X: Attack | 1: Fireball | 2: Lightning Bolt | R: New Level/Next | M: Mute</div>
 <div id="timer">0.00</div>
 <div id="livesDisplay">Lives: 3</div>
 <div id="orbShieldDisplay">Shield: 0</div>
+<div id="weaponDisplay">Weapon: 1 (Fireball)</div>
 <canvas id="gameCanvas"></canvas>
 
 <script>
@@ -32,6 +43,7 @@
     const timerDiv = document.getElementById('timer');
     const livesDisplayDiv = document.getElementById('livesDisplay');
     const orbShieldDisplayDiv = document.getElementById('orbShieldDisplay');
+    const weaponDisplayDiv = document.getElementById('weaponDisplay');
 
     // --- Constants ---
     canvas.width = 1280; canvas.height = 720;
@@ -77,7 +89,9 @@
     const NUM_REWARDS = 3;
     const STARTING_LIVES = 3;
     const SCREEN_FLASH_DURATION = 0.3; const SCREEN_FLASH_COLOR_DAMAGE = 'rgba(255, 50, 50, 0.5)'; const SCREEN_FLASH_COLOR_POWER = 'rgba(255, 255, 150, 0.6)';
-    const BAT_DESTROY_RADIUS = 180; const BACKGROUND_COLOR = '#0a0a1a'; const PLATFORM_BASE_COLOR = '#202530'; const PLATFORM_EDGE_COLOR = '#a0c0ff'; const PLATFORM_EDGE_GLOW_BLUR = 6;
+    const BAT_DESTROY_RADIUS = 180; const BACKGROUND_COLOR = '#0a0a1a'; const PLATFORM_BASE_COLOR = '#d2b48c'; // Changed from '#202530' to sandy tan
+    const PLATFORM_EDGE_COLOR = '#f7d78f'; // Changed from '#a0c0ff' to light gold
+    const PLATFORM_EDGE_GLOW_BLUR = 6;
     const PLAYER_COLOR = '#ffffff'; const GOAL_FRAME_COLOR = '#a0a0ff'; const GOAL_INNER_COLOR = '#100510'; const COLLECTIBLE_COLOR = '#ffccff';
     const SWORD_COLOR = '#e0e0ff'; const SWORD_LINE_WIDTH = 2; const REWARD_BASE_RADIUS = 15; const REWARD_COLLISION_SIZE = REWARD_BASE_RADIUS * 2;
     const GOAL_DOOR_WIDTH = 80; const GOAL_DOOR_HEIGHT = 120; const PULSE_SPEED = 4.0; const PULSE_MAGNITUDE_ORB = 0.3;
@@ -96,13 +110,13 @@
     const BPM = 145; const SIXTEENTH_NOTE_DURATION = 60 / BPM / 4; const KICK_FREQ = 55; const KICK_DECAY = 0.18; const KICK_PITCH_ENV_AMOUNT = 30; const SNARE_DECAY = 0.1; const SNARE_FREQ = 1600; const HAT_DECAY = 0.03; const HAT_DECAY_OPEN = 0.15; const HAT_FREQ = 9000; const BASS_FREQ = 41; const BASS_FILTER_FREQ = 350; const BASS_DECAY = SIXTEENTH_NOTE_DURATION * 1.8; const LEAD_FREQ_BASE = 220; const LEAD_FILTER_FREQ_START = 5000; const LEAD_FILTER_FREQ_END = 500; const LEAD_FILTER_Q = 8; const LEAD_DECAY = SIXTEENTH_NOTE_DURATION * 0.9; const ZAP_FREQ_START = 4000; const ZAP_FREQ_END = 100; const ZAP_DECAY = 0.05; const NOISE_BURST_DECAY = 0.04; const SWEEP_DURATION = SIXTEENTH_NOTE_DURATION * 16; const MASTER_VOLUME = 0.3; const DISTORTION_AMOUNT = 40; const PAD_VOLUME = 0.08; const PAD_LFO_RATE = 0.1; const PAD_LFO_DEPTH = 5;
     const ATTACK_DURATION = 0.25; const ATTACK_COOLDOWN = 0.1;
     const SWORD_HITBOX_WIDTH = 45; const SWORD_HITBOX_HEIGHT = 30; const SWORD_HITBOX_OFFSET_X = 15;
-    const PATROLLER_SPEED = 1.5; const PATROLLER_WIDTH = 25; const PATROLLER_HEIGHT = 60; const PATROLLER_COLOR = '#dd8855'; const PATROLLER_HEALTH = 2; const NUM_PATROLLERS_TO_SPAWN = 10;
+    const PATROLLER_SPEED = 1.5; const PATROLLER_WIDTH = 25; const PATROLLER_HEIGHT = 60; const PATROLLER_COLOR = '#dd8855'; const PATROLLER_HEALTH = 2; const NUM_PATROLLERS_TO_SPAWN = 4;
     const LOW_STATUS_PULSE_SPEED = 8.0;
     const COYOTE_TIME_DURATION = 0.1;
     const SWORD_KNOCKBACK_STRENGTH = 6;
     const SWORD_VERTICAL_KNOCKBACK = -2;
     const FIREBALL_SPEED = 400;
-    const FIREBALL_RADIUS = 8;
+    const FIREBALL_RADIUS = 16;
     const FIREBALL_COOLDOWN = 0.5;
     const FIREBALL_LIFESPAN = 5.0; // seconds
     const FIREBALL_EXPLOSION_RADIUS = 50;
@@ -110,12 +124,85 @@
     const FIREBALL_COLOR = '#ff8800';
     const FIREBALL_EXPLOSION_COLOR = '#ffcc66';
 
+    // --- Lightning Bolt Attack Constants ---
+    const LIGHTNING_BOLT_COOLDOWN = 1.0;
+    const LIGHTNING_BOLT_CHAIN_COUNT = 3;
+    const LIGHTNING_BOLT_RANGE = 300;
+    const LIGHTNING_BOLT_CHAIN_RANGE = 200;
+    const LIGHTNING_BOLT_DURATION = 0.5;
+    const LIGHTNING_BOLT_COLOR = '#00FFFF';
+    const LIGHTNING_BOLT_SECONDARY_COLOR = '#FFFFFF';
+    const LIGHTNING_BOLT_WIDTH = 3;
+    const LIGHTNING_BOLT_SEGMENTS = 8;
+
+    // --- Giant Bat Boss Constants ---
+    const GIANT_BAT_BOSS_WIDTH = 80;
+    const GIANT_BAT_BOSS_HEIGHT = 50;
+    const GIANT_BAT_BOSS_COLOR_1 = '#4b0082';
+    const GIANT_BAT_BOSS_COLOR_2 = '#8a2be2';
+    const GIANT_BAT_BOSS_EYE_COLOR = '#ff1493';
+    const GIANT_BAT_BOSS_HEALTH = 20;
+    const GIANT_BAT_BOSS_CHASE_SPEED = 95.0;
+    const GIANT_BAT_BOSS_PATROL_SPEED = 55.0;
+    const GIANT_BAT_BOSS_DETECTION_RADIUS = 550;
+    const GIANT_BAT_BOSS_LEASH_RADIUS = GIANT_BAT_BOSS_DETECTION_RADIUS * 1.8;
+    const GIANT_BAT_BOSS_SPAWN_INTERVAL = 15.0;
+    const GIANT_BAT_BOSS_SPAWN_COUNT = 2;
+    const GIANT_BAT_BOSS_SPAWN_RADIUS = 200;
+    const GIANT_BAT_BOSS_FLAP_SPEED_MULT = 0.7;
+    const GIANT_BAT_BOSS_KNOCKBACK_RESISTANCE = 0.4;
+
+    // --- Snake Enemy Constants ---
+    const NUM_SNAKES_TO_SPAWN = 10;
+    const SNAKE_WIDTH = 40;
+    const SNAKE_HEIGHT = 20;
+    const SNAKE_COLOR = '#d4af37';
+    const SNAKE_ACCENT_COLOR = '#8b4513';
+    const SNAKE_PATROL_RANGE = 250;
+    const SNAKE_DETECTION_RADIUS = 350;
+    const SNAKE_LEASH_RADIUS = SNAKE_DETECTION_RADIUS * 1.4;
+    const SNAKE_PATROL_SPEED = 120.0;
+    const SNAKE_CHASE_SPEED = 120.0;
+    const SNAKE_HEALTH = 3;
+    const SNAKE_BODY_SEGMENTS = 64;
+    const SNAKE_UNDULATION_SPEED = 6.0;
+    const SNAKE_UNDULATION_AMPLITUDE = 15.0;
+
     // --- Initial Game Object States ---
-    const player = { x: 100, y: canvas.height - 100, width: 20, height: 45, velocityX: 0, velocityY: 0, onGround: false, groundPlatform: null, facingDirection: 'right', animationState: 'idle', animationTimer: 0, animationFrameIndex: 0, isAttacking: false, attackTimer: 0, attackCooldownTimer: 0, landingTimer: 0, coyoteTimer: 0, lives: STARTING_LIVES, orbShieldCount: 0, fireballCooldownTimer: 0 };
+    const player = { x: 100, y: canvas.height - 100, width: 20, height: 45, velocityX: 0, velocityY: 0, onGround: false, groundPlatform: null, facingDirection: 'right', animationState: 'idle', animationTimer: 0, animationFrameIndex: 0, isAttacking: false, attackTimer: 0, attackCooldownTimer: 0, landingTimer: 0, coyoteTimer: 0, lives: STARTING_LIVES, orbShieldCount: 0, fireballCooldownTimer: 0, lightningBoltCooldownTimer: 0, selectedWeapon: 1 };
     const goal = { x: 0, y: 0, width: GOAL_DOOR_WIDTH, height: GOAL_DOOR_HEIGHT, color: GOAL_FRAME_COLOR };
     const batProto = { x: 0, y: 0, width: 25, height: 15, velocityX: 0, velocityY: 0, type: 'bat', state: 'idle', stateTimer: 0, originX: 0, originY: 0, patrolTargetX: 0, patrolTargetY: 0, patrolRange: BAT_PATROL_RANGE, detectionRadius: BAT_DETECTION_RADIUS, leashRadius: BAT_LEASH_RADIUS, chaseSpeed: 80.0, patrolSpeed: 48.0, flapTimer: 0, health: 1, randomMoveTimer: 0 }; // Increased speeds again (ludicrous speed)
-    const groundPatrollerProto = { x: 0, y: 0, width: PATROLLER_WIDTH, height: PATROLLER_HEIGHT, velocityX: 20, type: 'patroller', health: PATROLLER_HEALTH, onPlatform: null, direction: 1 };
+    const groundPatrollerProto = { 
+        x: 0, 
+        y: 0, 
+        width: PATROLLER_WIDTH, 
+        height: PATROLLER_HEIGHT, 
+        velocityX: 10, // Changed from 20 to 0 (initial velocity)
+        type: 'patroller', 
+        health: PATROLLER_HEALTH, 
+        onPlatform: null, 
+        direction: 1,
+        friction: 0.9 // Added friction property
+    };
     const fireballProto = { x: 0, y: 0, vx: 0, vy: 0, radius: FIREBALL_RADIUS, life: FIREBALL_LIFESPAN, active: false };
+    const snakeProto = { 
+        x: 0, y: 0, width: SNAKE_WIDTH, height: SNAKE_HEIGHT, velocityX: 0, velocityY: 0, 
+        type: 'snake', state: 'idle', stateTimer: 0, originX: 0, originY: 0, 
+        patrolTargetX: 0, patrolTargetY: 0, patrolRange: SNAKE_PATROL_RANGE, 
+        detectionRadius: SNAKE_DETECTION_RADIUS, leashRadius: SNAKE_LEASH_RADIUS, 
+        chaseSpeed: SNAKE_CHASE_SPEED, patrolSpeed: SNAKE_PATROL_SPEED, 
+        undulationTimer: 0, health: SNAKE_HEALTH, randomMoveTimer: 0, facingDirection: 1 
+    };
+    const giantBatBossProto = {
+        x: 0, y: 0, width: GIANT_BAT_BOSS_WIDTH, height: GIANT_BAT_BOSS_HEIGHT,
+        velocityX: 0, velocityY: 0, type: 'giantBatBoss',
+        state: 'idle', stateTimer: 0, originX: 0, originY: 0,
+        patrolTargetX: 0, patrolTargetY: 0, patrolRange: BAT_PATROL_RANGE * 1.5,
+        detectionRadius: GIANT_BAT_BOSS_DETECTION_RADIUS, leashRadius: GIANT_BAT_BOSS_LEASH_RADIUS,
+        chaseSpeed: GIANT_BAT_BOSS_CHASE_SPEED, patrolSpeed: GIANT_BAT_BOSS_PATROL_SPEED,
+        flapTimer: 0, health: GIANT_BAT_BOSS_HEALTH, randomMoveTimer: 0,
+        batSpawnTimer: GIANT_BAT_BOSS_SPAWN_INTERVAL, isDefeated: false
+    };
 
     // --- Utility Functions ---
     function getRandom(min, max) { return Math.random() * (max - min) + min; }
@@ -163,6 +250,7 @@
     function triggerLandSound(time) { if (!game || !game.audioCtx || !game.masterGain) return; try { const noiseSource = game.audioCtx.createBufferSource(); const noiseBuf = createWhiteNoiseBuffer(0.08); if (!noiseBuf) return; noiseSource.buffer = noiseBuf; const filter = game.audioCtx.createBiquadFilter(); const gain = game.audioCtx.createGain(); filter.type = 'lowpass'; filter.frequency.setValueAtTime(600, time); gain.gain.setValueAtTime(0.25, time); gain.gain.exponentialRampToValueAtTime(0.01, time + 0.06); noiseSource.connect(filter); filter.connect(gain); gain.connect(game.masterGain); noiseSource.start(time); noiseSource.stop(time + 0.08); } catch(e) { console.error("Error in triggerLandSound:", e); } }
     function triggerFireballShoot(time) { if (!game || !game.audioCtx || !game.masterGain) return; try { const osc = game.audioCtx.createOscillator(); const gain = game.audioCtx.createGain(); osc.type = 'square'; osc.frequency.setValueAtTime(600, time); osc.frequency.exponentialRampToValueAtTime(300, time + 0.1); gain.gain.setValueAtTime(0.2, time); gain.gain.exponentialRampToValueAtTime(0.001, time + 0.1); osc.connect(gain); gain.connect(game.masterGain); osc.start(time); osc.stop(time + 0.12); } catch(e) { console.error("Error in triggerFireballShoot:", e); } }
     function triggerFireballExplode(time) { if (!game || !game.audioCtx || !game.distortion || !game.masterGain) return; try { const noiseSource = game.audioCtx.createBufferSource(); const noiseBuf = createWhiteNoiseBuffer(0.3); if (!noiseBuf) return; noiseSource.buffer = noiseBuf; const filter = game.audioCtx.createBiquadFilter(); const gain = game.audioCtx.createGain(); filter.type = 'lowpass'; filter.frequency.setValueAtTime(800, time); filter.frequency.exponentialRampToValueAtTime(100, time + 0.2); filter.Q.value = 5; gain.gain.setValueAtTime(0.6, time); gain.gain.exponentialRampToValueAtTime(0.001, time + 0.25); noiseSource.connect(filter); filter.connect(gain); gain.connect(game.distortion); noiseSource.start(time); noiseSource.stop(time + 0.3); } catch(e) { console.error("Error in triggerFireballExplode:", e); } }
+    function triggerLightningBoltSound(time) { if (!game || !game.audioCtx || !game.distortion || !game.masterGain) return; try { const osc = game.audioCtx.createOscillator(); const gain = game.audioCtx.createGain(); osc.type = 'sawtooth'; osc.frequency.setValueAtTime(800, time); osc.frequency.exponentialRampToValueAtTime(200, time + 0.2); gain.gain.setValueAtTime(0.5, time); gain.gain.exponentialRampToValueAtTime(0.001, time + 0.2); osc.connect(gain); gain.connect(game.masterGain); osc.start(time); osc.stop(time + 0.25); } catch(e) { console.error("Error in triggerLightningBoltSound:", e); } }
 
 
     // --- Particle Pool Class ---
@@ -242,14 +330,45 @@
     class LevelGenerator {
         constructor(canvasWidth, canvasHeight) { this.width = canvasWidth; this.height = canvasHeight; this.safeSpawnBuffer = LAVA_WAVE_HEIGHT * 1.5 + 100; }
         generateLevel() {
-            console.log("Generating Level..."); const platforms = []; const collectibles = []; const bats = []; const groundPatrollers = []; let currentX = 0; const safeStartY = this.height - LAVA_BASE_HEIGHT - this.safeSpawnBuffer; let currentY = safeStartY; let levelEndX = CHUNK_WIDTH * NUM_CHUNKS;
+            console.log("Generating Level..."); const platforms = []; const collectibles = []; const bats = []; const groundPatrollers = []; const snakes = []; let currentX = 0; const safeStartY = this.height - LAVA_BASE_HEIGHT - this.safeSpawnBuffer; let currentY = safeStartY; let levelEndX = CHUNK_WIDTH * NUM_CHUNKS;
             const startPlatform = { x: 50, y: safeStartY, width: START_PLATFORM_WIDTH, height: PLATFORM_HEIGHT, color: PLATFORM_BASE_COLOR, hasCactus: false }; platforms.push(startPlatform); currentX = startPlatform.x + startPlatform.width;
             console.log(`Start Platform Y: ${startPlatform.y.toFixed(0)} (Safe Buffer: ${this.safeSpawnBuffer.toFixed(0)}, Base Lava Y: ${this.height - LAVA_BASE_HEIGHT})`);
-            for (let i = 0; i < NUM_CHUNKS; i++) { const chunkStartX = i * CHUNK_WIDTH; const chunkEndX = chunkStartX + CHUNK_WIDTH; let chunkPlatCount = 0; let attempts = 0; while (currentX < chunkEndX && attempts < MAX_PLACEMENT_ATTEMPTS * 2) { attempts++; const stepUp = Math.random() < 0.4; const stepDown = !stepUp && Math.random() < 0.3; const isFloating = !stepUp && !stepDown; let nextWidth = getRandom(MIN_PLAT_WIDTH_CHUNK, MAX_PLAT_WIDTH_CHUNK); let nextX, nextY; if (isFloating) { nextX = currentX + getRandom(FLOAT_PLAT_MIN_SEP_X, FLOAT_PLAT_MAX_SEP_X); nextY = currentY + getRandom(-FLOAT_PLAT_MAX_SEP_Y, FLOAT_PLAT_MAX_SEP_Y); nextY = Math.max(PLATFORM_HEIGHT * 2, Math.min(this.height - LAVA_BASE_HEIGHT - PLATFORM_HEIGHT * 3, nextY)); } else { nextX = currentX + getRandom(STEP_WIDTH_MIN, STEP_WIDTH_MAX); let yChange = getRandom(STEP_HEIGHT_MIN, STEP_HEIGHT_MAX); if (stepDown) yChange *= -1; nextY = currentY + yChange; nextY = Math.max(PLATFORM_HEIGHT, Math.min(this.height - LAVA_BASE_HEIGHT - PLATFORM_HEIGHT, nextY)); } const newPlat = { x: nextX, y: nextY, width: nextWidth, height: PLATFORM_HEIGHT, color: PLATFORM_BASE_COLOR, hasCactus: Math.random() < CACTUS_CHANCE && nextWidth > CACTUS_WIDTH * 1.5 }; const checkRadius = MAX_PLAT_WIDTH_CHUNK + FLOAT_PLAT_MAX_SEP_X; const nearbyPlatforms = platforms.filter(p => Math.abs(p.x + p.width/2 - newPlat.x - newPlat.width/2) < checkRadius); if (!checkPlatformArrayOverlap(newPlat, nearbyPlatforms)) { const distToSpawn = Math.sqrt(Math.pow(newPlat.x + newPlat.width/2 - (startPlatform.x + startPlatform.width/2), 2) + Math.pow(newPlat.y + newPlat.height/2 - (startPlatform.y + startPlatform.height/2), 2)); if (distToSpawn > SPAWN_CLEAR_RADIUS) { platforms.push(newPlat); currentX = newPlat.x + newPlat.width; currentY = newPlat.y; chunkPlatCount++; if (groundPatrollers.length < NUM_PATROLLERS_TO_SPAWN && !newPlat.hasCactus && newPlat.width > PATROLLER_WIDTH * 2 && Math.random() < 0.15) { const patroller = { ...groundPatrollerProto }; patroller.x = newPlat.x + newPlat.width / 2 - patroller.width / 2; patroller.y = newPlat.y - patroller.height; patroller.onPlatform = newPlat; patroller.direction = (Math.random() < 0.5) ? 1 : -1; patroller.velocityX = 0; let tooClose = false; for(const gp of groundPatrollers) { if (Math.abs(gp.x - patroller.x) < 100 && Math.abs(gp.y - patroller.y) < 50) { tooClose = true; break; } } if (!tooClose) { groundPatrollers.push(patroller); } } } } } if (chunkPlatCount === 0) { currentX = chunkEndX; } }
+            for (let i = 0; i < NUM_CHUNKS; i++) { const chunkStartX = i * CHUNK_WIDTH; const chunkEndX = chunkStartX + CHUNK_WIDTH; let chunkPlatCount = 0; let attempts = 0; while (currentX < chunkEndX && attempts < MAX_PLACEMENT_ATTEMPTS * 2) { attempts++; const stepUp = Math.random() < 0.4; const stepDown = !stepUp && Math.random() < 0.3; const isFloating = !stepUp && !stepDown; let nextWidth = getRandom(MIN_PLAT_WIDTH_CHUNK, MAX_PLAT_WIDTH_CHUNK); let nextX, nextY; if (isFloating) { nextX = currentX + getRandom(FLOAT_PLAT_MIN_SEP_X, FLOAT_PLAT_MAX_SEP_X); nextY = currentY + getRandom(-FLOAT_PLAT_MAX_SEP_Y, FLOAT_PLAT_MAX_SEP_Y); nextY = Math.max(PLATFORM_HEIGHT * 2, Math.min(this.height - LAVA_BASE_HEIGHT - PLATFORM_HEIGHT * 3, nextY)); } else { nextX = currentX + getRandom(STEP_WIDTH_MIN, STEP_WIDTH_MAX); let yChange = getRandom(STEP_HEIGHT_MIN, STEP_HEIGHT_MAX); if (stepDown) yChange *= -1; nextY = currentY + yChange; nextY = Math.max(PLATFORM_HEIGHT, Math.min(this.height - LAVA_BASE_HEIGHT - PLATFORM_HEIGHT, nextY)); } const newPlat = { x: nextX, y: nextY, width: nextWidth, height: PLATFORM_HEIGHT, color: PLATFORM_BASE_COLOR, hasCactus: Math.random() < CACTUS_CHANCE && nextWidth > CACTUS_WIDTH * 1.5 }; const checkRadius = MAX_PLAT_WIDTH_CHUNK + FLOAT_PLAT_MAX_SEP_X; const nearbyPlatforms = platforms.filter(p => Math.abs(p.x + p.width/2 - newPlat.x + newPlat.width/2) < checkRadius); if (!checkPlatformArrayOverlap(newPlat, nearbyPlatforms)) { const distToSpawn = Math.sqrt(Math.pow(newPlat.x + newPlat.width/2 - (startPlatform.x + startPlatform.width/2), 2) + Math.pow(newPlat.y + newPlat.height/2 - (startPlatform.y + startPlatform.height/2), 2)); if (distToSpawn > SPAWN_CLEAR_RADIUS) { platforms.push(newPlat); currentX = newPlat.x + newPlat.width; currentY = newPlat.y; chunkPlatCount++; if (groundPatrollers.length < NUM_PATROLLERS_TO_SPAWN && !newPlat.hasCactus && newPlat.width > PATROLLER_WIDTH * 2 && Math.random() < 0.15) { const patroller = { ...groundPatrollerProto }; patroller.x = newPlat.x + newPlat.width / 2 - patroller.width / 2; patroller.y = newPlat.y - patroller.height; patroller.onPlatform = newPlat; patroller.direction = (Math.random() < 0.5) ? 1 : -1; patroller.velocityX = 0; let tooClose = false; for(const gp of groundPatrollers) { if (Math.abs(gp.x - patroller.x) < 100 && Math.abs(gp.y - patroller.y) < 50) { tooClose = true; break; } } if (!tooClose) { groundPatrollers.push(patroller); } } } } } if (chunkPlatCount === 0) { currentX = chunkEndX; } }
             let endPlatform = platforms[platforms.length - 1]; if (platforms.length > 2) { endPlatform = platforms[getRandomInt(Math.floor(platforms.length * 0.8), platforms.length - 1)]; } levelEndX = Math.max(levelEndX, endPlatform.x + endPlatform.width + 100); const goal = { x: endPlatform.x + (endPlatform.width / 2) - (GOAL_DOOR_WIDTH / 2), y: endPlatform.y - GOAL_DOOR_HEIGHT, width: GOAL_DOOR_WIDTH, height: GOAL_DOOR_HEIGHT, color: GOAL_FRAME_COLOR }; const goalRect = { x: goal.x, y: goal.y, width: goal.width, height: goal.height }; if (checkPlatformArrayOverlap(goalRect, platforms.filter(p => p !== endPlatform), -10)) { goal.x = endPlatform.x + endPlatform.width - goal.width - 5; goal.y = endPlatform.y - goal.height; console.warn("Goal position adjusted due to overlap."); }
             let placedRewards = 0; let rewardAttempts = 0; while (placedRewards < NUM_REWARDS && rewardAttempts < MAX_REWARD_PLACEMENT_ATTEMPTS) { rewardAttempts++; const platformIndex = getRandomInt(1, platforms.length - 2); const targetPlatform = platforms[platformIndex]; if (!targetPlatform || targetPlatform.hasCactus) continue; const rewardX = targetPlatform.x + targetPlatform.width / 2 - REWARD_COLLISION_SIZE / 2; const rewardY = targetPlatform.y - REWARD_COLLISION_SIZE - getRandom(5, 25); const rewardRect = { x: rewardX, y: rewardY, width: REWARD_COLLISION_SIZE, height: REWARD_COLLISION_SIZE }; const distToSpawn = Math.sqrt(Math.pow(rewardX - startPlatform.x, 2) + Math.pow(rewardY - startPlatform.y, 2)); const distToGoal = Math.sqrt(Math.pow(rewardX - goal.x, 2) + Math.pow(rewardY - goal.y, 2)); if (distToSpawn > REWARD_CLEAR_RADIUS && distToGoal > REWARD_CLEAR_RADIUS && !checkRewardArrayOverlap(rewardRect, collectibles) && !checkPlatformArrayOverlap(rewardRect, platforms.filter(p => p !== targetPlatform), -REWARD_COLLISION_SIZE * 0.8)) { collectibles.push({ x: rewardX, y: rewardY, width: REWARD_COLLISION_SIZE, height: REWARD_COLLISION_SIZE, color: COLLECTIBLE_COLOR, collected: false }); placedRewards++; } } if (placedRewards < NUM_REWARDS) console.warn(`Only placed ${placedRewards}/${NUM_REWARDS} rewards.`);
             let placedBats = 0; let batAttempts = 0; while (placedBats < NUM_BATS_TO_SPAWN && batAttempts < MAX_PLACEMENT_ATTEMPTS * 2) { batAttempts++; const targetPlatform = platforms[getRandomInt(1, platforms.length - 1)]; if (!targetPlatform) continue; const originX = targetPlatform.x + targetPlatform.width / 2 + getRandom(-CHUNK_WIDTH/3, CHUNK_WIDTH/3); const originY = targetPlatform.y - getRandom(batProto.height * 2, batProto.height * 6); const clampedY = Math.max(batProto.height + 10, Math.min(this.height - LAVA_BASE_HEIGHT - batProto.height - 10, originY)); const batRect = { x: originX - batProto.width / 2, y: clampedY - batProto.height / 2, width: batProto.width, height: batProto.height }; const distToSpawn = Math.sqrt(Math.pow(originX - startPlatform.x, 2) + Math.pow(clampedY - startPlatform.y, 2)); const distToGoal = Math.sqrt(Math.pow(originX - goal.x, 2) + Math.pow(clampedY - goal.y, 2)); if (distToSpawn > SPAWN_CLEAR_RADIUS * 1.2 && distToGoal > EXIT_CLEAR_RADIUS * 0.8 && !checkPlatformArrayOverlap(batRect, platforms, 20) && !checkBatArrayOverlap(batRect, bats, 50)) { const bat = { ...batProto }; bat.originX = originX; bat.originY = clampedY; bat.x = bat.originX - bat.width / 2; bat.y = bat.originY - bat.height / 2; bat.state = (Math.random() < 0.5) ? 'idle' : 'patrolling'; [bat.patrolTargetX, bat.patrolTargetY] = getRandomPatrolPoint(bat.originX, bat.originY, bat.patrolRange); bat.stateTimer = getRandom(1, 3); bat.health = 1; bat.randomMoveTimer = getRandom(0, 1); bats.push(bat); placedBats++; } } if (placedBats < NUM_BATS_TO_SPAWN) console.warn(`Only placed ${placedBats}/${NUM_BATS_TO_SPAWN} bats.`);
-            console.log(`Level Generated: ${platforms.length} platforms, ${collectibles.length} rewards, ${bats.length} bats, ${groundPatrollers.length} patrollers. EndX: ${levelEndX.toFixed(0)}`); return { platforms, collectibles, bats, groundPatrollers, goal, startPlatform, levelEndX };
+            let placedSnakes = 0; let snakeAttempts = 0; while (placedSnakes < NUM_SNAKES_TO_SPAWN && snakeAttempts < MAX_PLACEMENT_ATTEMPTS * 2) { snakeAttempts++; const targetPlatform = platforms[getRandomInt(1, platforms.length - 1)]; if (!targetPlatform) continue; const originX = targetPlatform.x + targetPlatform.width / 2 + getRandom(-CHUNK_WIDTH/3, CHUNK_WIDTH/3); const originY = targetPlatform.y - getRandom(snakeProto.height * 2, snakeProto.height * 4); const clampedY = Math.max(snakeProto.height + 10, Math.min(this.height - LAVA_BASE_HEIGHT - snakeProto.height - 10, originY)); const snakeRect = { x: originX - snakeProto.width / 2, y: clampedY - snakeProto.height / 2, width: snakeProto.width, height: snakeProto.height }; const distToSpawn = Math.sqrt(Math.pow(originX - startPlatform.x, 2) + Math.pow(clampedY - startPlatform.y, 2)); const distToGoal = Math.sqrt(Math.pow(originX - goal.x, 2) + Math.pow(clampedY - goal.y, 2)); if (distToSpawn > SPAWN_CLEAR_RADIUS * 1.2 && distToGoal > EXIT_CLEAR_RADIUS * 0.8 && !checkPlatformArrayOverlap(snakeRect, platforms, 20)) { const snake = { ...snakeProto }; snake.originX = originX; snake.originY = clampedY; snake.x = snake.originX - snake.width / 2; snake.y = snake.originY - snake.height / 2; snake.state = (Math.random() < 0.5) ? 'idle' : 'patrolling'; [snake.patrolTargetX, snake.patrolTargetY] = getRandomPatrolPoint(snake.originX, snake.originY, snake.patrolRange); snake.stateTimer = getRandom(1, 3); snake.health = 1; snake.randomMoveTimer = getRandom(0, 1); snakes.push(snake); placedSnakes++; } } if (placedSnakes < NUM_SNAKES_TO_SPAWN) console.warn(`Only placed ${placedSnakes}/${NUM_SNAKES_TO_SPAWN} snakes.`);
+            let giantBatBoss = null;
+            let bossSpawnAttempts = 0;
+            const MAX_BOSS_SPAWN_ATTEMPTS = 10;
+            let bossPlaced = false;
+
+            while (!bossPlaced && bossSpawnAttempts < MAX_BOSS_SPAWN_ATTEMPTS) {
+                bossSpawnAttempts++;
+                const bossOriginX = goal.x + goal.width / 2 - getRandom(50, 150);
+                const bossOriginY = goal.y - GIANT_BAT_BOSS_HEIGHT - getRandom(80, 150);
+                const clampedBossY = Math.max(GIANT_BAT_BOSS_HEIGHT + 20, Math.min(this.height - LAVA_BASE_HEIGHT - GIANT_BAT_BOSS_HEIGHT - 20, bossOriginY));
+
+                const bossRect = {
+                    x: bossOriginX - GIANT_BAT_BOSS_WIDTH / 2,
+                    y: clampedBossY - GIANT_BAT_BOSS_HEIGHT / 2,
+                    width: GIANT_BAT_BOSS_WIDTH,
+                    height: GIANT_BAT_BOSS_HEIGHT
+                };
+
+                if (!checkPlatformArrayOverlap(bossRect, platforms, 40)) {
+                    giantBatBoss = { ...giantBatBossProto };
+                    giantBatBoss.originX = bossOriginX;
+                    giantBatBoss.originY = clampedBossY;
+                    giantBatBoss.x = bossRect.x;
+                    giantBatBoss.y = bossRect.y;
+                    [giantBatBoss.patrolTargetX, giantBatBoss.patrolTargetY] = getRandomPatrolPoint(giantBatBoss.originX, giantBatBoss.originY, giantBatBoss.patrolRange);
+                    giantBatBoss.stateTimer = getRandom(2, 4);
+                    bossPlaced = true;
+                }
+            }
+            console.log(`Level Generated: ${platforms.length} platforms, ${collectibles.length} rewards, ${bats.length} bats, ${groundPatrollers.length} patrollers, ${snakes.length} snakes. EndX: ${levelEndX.toFixed(0)}`);
+            return { platforms, collectibles, bats, groundPatrollers, snakes, goal, startPlatform, levelEndX, giantBatBoss };
         }
      }
 
@@ -266,8 +385,9 @@
     class GameplayScene extends Scene {
         constructor() {
             super();
-            this.player = { ...player }; this.platforms = []; this.collectibles = []; this.bats = []; this.groundPatrollers = []; this.goal = { ...goal }; this.stars = []; this.fireballs = [];
-            this.orbiterAngle = 0; this.levelEndX = 0; this.gameWon = false; this.gameStartTime = null; this.lastFrameTime = 0; this.levelNumber = 1; this.messageTimeoutId = null; this.startPlatform = null; this.levelGenerator = null; this.effectsSystem = null; this.powerUpSystem = null; this.screenFlashTimer = 0; this.screenFlashColor = null;
+            this.player = { ...player }; this.platforms = []; this.collectibles = []; this.bats = []; this.groundPatrollers = []; this.snakes = []; this.goal = { ...goal }; this.stars = []; this.fireballs = [];
+            this.lightningBolts = []; // Added lightning bolts array
+            this.boss = null;
         }
 
         onEnter() {
@@ -282,6 +402,8 @@
                 messageDiv.style.display = 'none'; if (this.messageTimeoutId) clearTimeout(this.messageTimeoutId);
                 this.initStars();
                 this.screenFlashTimer = 0; this.screenFlashColor = null;
+                this.player.selectedWeapon = 1;
+                this.updateWeaponDisplay();
                 if (this.game.isAudioInitialized && this.game.musicIntervalId === null && !this.game.isMuted) { this.game.startMusic(); }
                 console.log("Gameplay Scene onEnter finished successfully.");
             } catch (error) { console.error("CRITICAL ERROR during GameplayScene onEnter:", error); alert("A critical error occurred loading the level. Check the console."); if(this.game) this.game.stop(); }
@@ -293,8 +415,8 @@
              console.log("GameplayScene.generateLevel called (Full Reset).");
              try {
                  const levelData = this.levelGenerator.generateLevel();
-                 if (!levelData || !levelData.startPlatform || !levelData.collectibles || !levelData.goal || !levelData.bats || !levelData.groundPatrollers) { throw new Error("Level generator failed to return valid data."); }
-                 this.platforms = levelData.platforms; this.goal = levelData.goal; this.collectibles = levelData.collectibles; this.bats = levelData.bats; this.groundPatrollers = levelData.groundPatrollers; this.levelEndX = levelData.levelEndX; this.startPlatform = levelData.startPlatform;
+                 if (!levelData || !levelData.startPlatform || !levelData.collectibles || !levelData.goal || !levelData.bats || !levelData.groundPatrollers || !levelData.snakes) { throw new Error("Level generator failed to return valid data."); }
+                 this.platforms = levelData.platforms; this.goal = levelData.goal; this.collectibles = levelData.collectibles; this.bats = levelData.bats; this.groundPatrollers = levelData.groundPatrollers; this.snakes = levelData.snakes; this.levelEndX = levelData.levelEndX; this.startPlatform = levelData.startPlatform;
                  this.player.x = this.startPlatform.x + this.startPlatform.width / 2 - this.player.width / 2; this.player.y = this.startPlatform.y - this.player.height - 1;
                  this.player.velocityX = 0; this.player.velocityY = 0; this.player.onGround = false; this.player.groundPlatform = null;
                  this.player.animationState = 'idle'; this.player.animationTimer = 0; this.player.animationFrameIndex = 0;
@@ -302,34 +424,99 @@
                  this.player.isAttacking = false; this.player.attackTimer = 0; this.player.attackCooldownTimer = 0;
                  this.player.landingTimer = 0; this.player.coyoteTimer = 0;
                  this.player.fireballCooldownTimer = 0; // Reset fireball cooldown
+                 this.player.lightningBoltCooldownTimer = 0; // Reset lightning bolt cooldown
+                 this.player.selectedWeapon = 1; // Reset selected weapon
                  this.collectibles.forEach(c => c.collected = false); this.gameWon = false; this.orbiterAngle = 0; this.screenFlashTimer = 0; this.screenFlashColor = null;
                  this.fireballs = []; // Clear existing fireballs
-                 this.updateLivesDisplay(); this.updateOrbShieldDisplay();
-                 console.log(`Level generated. Lives: ${this.player.lives}, Shield: ${this.player.orbShieldCount}`);
+                 this.lightningBolts = []; // Clear existing lightning bolts
+                 this.snakes.forEach(snake => { 
+                     if (snake.health > 0) { 
+                         snake.x = snake.originX - snake.width / 2; 
+                         snake.y = snake.originY - snake.height / 2; 
+                         snake.velocityX = 0; 
+                         snake.velocityY = 0; 
+                         snake.state = (Math.random() < 0.5) ? 'idle' : 'patrolling'; 
+                         [snake.patrolTargetX, snake.patrolTargetY] = getRandomPatrolPoint(snake.originX, snake.originY, snake.patrolRange); 
+                         snake.stateTimer = getRandom(1, 3); 
+                         snake.randomMoveTimer = getRandom(0, 1); 
+                         snake.undulationTimer = getRandom(0, Math.PI * 2);
+                     } else { 
+                         snake.x = -1000; 
+                         snake.y = -1000; 
+                     } 
+                 });
+                 this.boss = levelData.giantBatBoss;
+                 this.updateLivesDisplay(); this.updateOrbShieldDisplay(); this.updateWeaponDisplay();
+                 console.log(`Level generated. Lives: ${this.player.lives}, Shield: ${this.player.orbShieldCount}, Weapon: ${this.player.selectedWeapon}`);
              } catch (error) { console.error("CRITICAL ERROR within GameplayScene.generateLevel:", error); alert("Failed to generate the level layout. Please try refreshing."); if(this.game) this.game.stop(); }
          }
 
-        initStars() { this.stars = []; for (let i = 0; i < STAR_COUNT; i++) { this.stars.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, z: Math.random() * canvas.width }); } }
+        updateLivesDisplay() { 
+            if (livesDisplayDiv) { 
+                livesDisplayDiv.textContent = `Lives: ${this.player.lives}`; 
+                if (!this.gameWon && this.player.lives === 1 && this.player.orbShieldCount === 0) { 
+                    const pulse = (Math.sin(this.game.currentTime * LOW_STATUS_PULSE_SPEED) + 1) / 2; 
+                    livesDisplayDiv.style.color = `rgb(255, ${150 * (1-pulse)}, ${150 * (1-pulse)})`; 
+                    livesDisplayDiv.style.textShadow = `1px 1px ${2 + pulse * 3}px #000`; 
+                } else { 
+                    livesDisplayDiv.style.color = '#f99'; 
+                    livesDisplayDiv.style.textShadow = '1px 1px 2px #000'; 
+                } 
+            } 
+        }
+        
+        updateOrbShieldDisplay() { 
+            if (orbShieldDisplayDiv) { 
+                orbShieldDisplayDiv.textContent = `Shield: ${this.player.orbShieldCount}`; 
+                if (!this.gameWon && this.player.orbShieldCount === 1) { 
+                    const pulse = (Math.sin(this.game.currentTime * LOW_STATUS_PULSE_SPEED + Math.PI / 2) + 1) / 2; 
+                    orbShieldDisplayDiv.style.color = `rgb(${150 * (1-pulse)}, ${200}, 255)`; 
+                    orbShieldDisplayDiv.style.textShadow = `1px 1px ${2 + pulse * 3}px #000`; 
+                } else { 
+                    orbShieldDisplayDiv.style.color = '#9cf'; 
+                    orbShieldDisplayDiv.style.textShadow = '1px 1px 2px #000'; 
+                } 
+            } 
+        }
 
-        update(deltaTime) {
-            if (this.gameWon) return;
-            if (this.screenFlashTimer > 0) { this.screenFlashTimer -= deltaTime; }
+        updateWeaponDisplay() {
+            if (weaponDisplayDiv) {
+                let weaponName = "Unknown";
+                switch(this.player.selectedWeapon) {
+                    case 1: weaponName = "Fireball"; break;
+                    case 2: weaponName = "Lightning"; break;
+                    case 3: weaponName = "Weapon 3"; break;
+                    case 4: weaponName = "Weapon 4"; break;
+                    case 5: weaponName = "Weapon 5"; break;
+                }
+                weaponDisplayDiv.textContent = `Weapon: ${this.player.selectedWeapon} (${weaponName})`;
+            }
+        }
 
-            const kbdInput = this.game.inputState.keys;
-            const touchInput = this.game.touchControls ? this.game.touchControls.getInput() : { left: false, right: false, space: false, attack: false };
-            const jumpOrFlyInput = kbdInput.space || kbdInput.up || kbdInput.w || touchInput.space;
-            const combinedInput = { left: kbdInput.left || touchInput.left, right: kbdInput.right || touchInput.right, jumpOrFly: jumpOrFlyInput, attack: kbdInput.x || touchInput.attack, shoot: kbdInput.f }; // Added shoot input
-
-            this.updatePlayer(deltaTime, combinedInput);
-            this.updateBats(deltaTime);
-            this.updateGroundPatrollers(deltaTime);
-            this.updateFireballs(deltaTime); // Added fireball update
-            if (this.player.isAttacking) { this.checkAttackCollisions(); }
-            this.effectsSystem.update(deltaTime);
-            this.powerUpSystem.update(deltaTime);
-            this.updateOrbiter(deltaTime);
-            this.checkCollisions();
-            this.checkBoundaries();
+        handleRangedAttack() {
+            switch(this.player.selectedWeapon) {
+                case 1:
+                    if (this.player.fireballCooldownTimer <= 0) {
+                        this.spawnFireball();
+                        this.player.fireballCooldownTimer = FIREBALL_COOLDOWN;
+                    }
+                    break;
+                case 2:
+                    if (this.player.lightningBoltCooldownTimer <= 0) {
+                        this.castLightningBolt();
+                        this.player.lightningBoltCooldownTimer = LIGHTNING_BOLT_COOLDOWN;
+                    }
+                    break;
+                case 3:
+                    console.log("Attempted to fire Weapon 3 (Not Implemented)");
+                    break;
+                case 4:
+                    console.log("Attempted to fire Weapon 4 (Not Implemented)");
+                    break;
+                case 5:
+                    console.log("Attempted to fire Weapon 5 (Not Implemented)");
+                    break;
+            }
         }
 
         updatePlayer(dt, input) {
@@ -339,15 +526,22 @@
             if (this.player.landingTimer > 0) this.player.landingTimer -= dt;
             if (this.player.coyoteTimer > 0) this.player.coyoteTimer -= dt;
             if (this.player.fireballCooldownTimer > 0) this.player.fireballCooldownTimer -= dt; // Fireball cooldown
+            if (this.player.lightningBoltCooldownTimer > 0) this.player.lightningBoltCooldownTimer -= dt; // Lightning bolt cooldown
 
             // --- Attack State ---
             if (this.player.isAttacking && this.player.attackTimer <= 0) { this.player.isAttacking = false; }
             if (input.attack && !this.player.isAttacking && this.player.attackCooldownTimer <= 0) { this.player.isAttacking = true; this.player.attackTimer = ATTACK_DURATION; this.player.attackCooldownTimer = ATTACK_DURATION + ATTACK_COOLDOWN; if (game && game.audioCtx) triggerSwordSwing(game.audioCtx.currentTime); }
 
-            // --- Fireball Shooting ---
-            if (input.shoot && this.player.fireballCooldownTimer <= 0) {
-                this.spawnFireball();
-                this.player.fireballCooldownTimer = FIREBALL_COOLDOWN;
+            let weaponChanged = false;
+            if (input.selectWeapon1 && this.player.selectedWeapon !== 1) { this.player.selectedWeapon = 1; weaponChanged = true; }
+            else if (input.selectWeapon2 && this.player.selectedWeapon !== 2) { this.player.selectedWeapon = 2; weaponChanged = true; }
+            else if (input.selectWeapon3 && this.player.selectedWeapon !== 3) { this.player.selectedWeapon = 3; weaponChanged = true; }
+            else if (input.selectWeapon4 && this.player.selectedWeapon !== 4) { this.player.selectedWeapon = 4; weaponChanged = true; }
+            else if (input.selectWeapon5 && this.player.selectedWeapon !== 5) { this.player.selectedWeapon = 5; weaponChanged = true; }
+
+            if (weaponChanged) {
+                console.log("Selected Weapon:", this.player.selectedWeapon);
+                this.updateWeaponDisplay();
             }
 
             const wasOnGround = this.player.onGround;
@@ -413,340 +607,144 @@
             if (emitStardust) { const trailX = this.player.x + this.player.width / 2; const trailY = this.player.y + this.player.height; this.effectsSystem.emitPlayerTrail(trailX, trailY, this.player.velocityX, this.player.velocityY); }
          } // End updatePlayer
 
-         updateBats(deltaTime) {
-             const BAT_ACCELERATION = 500; // How quickly the bat changes direction
-             const BAT_FRICTION = 0.9; // Slows down the bat gradually
+        castLightningBolt() {
+            const playerCenterX = this.player.x + this.player.width / 2;
+            const playerCenterY = this.player.y + this.player.height / 2;
+            let targets = [];
+            let hitTargets = new Set();
+            let closestTarget = this.findClosestEnemyInRange(playerCenterX, playerCenterY, LIGHTNING_BOLT_RANGE);
 
-             this.bats.forEach(bat => {
-                 if (bat.health <= 0) { bat.x = -1000; return; } // Keep dead bats off-screen
+            if (closestTarget) {
+                targets.push({
+                    startX: playerCenterX,
+                    startY: playerCenterY,
+                    endX: closestTarget.x + closestTarget.width / 2,
+                    endY: closestTarget.y + closestTarget.height / 2,
+                    target: closestTarget,
+                    duration: LIGHTNING_BOLT_DURATION
+                });
+                hitTargets.add(closestTarget);
 
-                 bat.flapTimer += deltaTime * 15; // Keep flapping animation
-                 bat.stateTimer -= deltaTime;
+                let lastX = targets[0].endX;
+                let lastY = targets[0].endY;
 
-                 const playerCenterX = this.player.x + this.player.width / 2;
-                 const playerCenterY = this.player.y + this.player.height / 2;
-                 const batCenterX = bat.x + bat.width / 2;
-                 const batCenterY = bat.y + bat.height / 2;
+                for (let i = 1; i < LIGHTNING_BOLT_CHAIN_COUNT; i++) {
+                    const nextTarget = this.findClosestEnemyInRange(
+                        lastX, lastY, LIGHTNING_BOLT_CHAIN_RANGE, Array.from(hitTargets)
+                    );
+                    if (!nextTarget) break;
 
-                 const dxPlayer = playerCenterX - batCenterX;
-                 const dyPlayer = playerCenterY - batCenterY;
-                 const distSqPlayer = dxPlayer * dxPlayer + dyPlayer * dyPlayer;
+                    targets.push({
+                        startX: lastX,
+                        startY: lastY,
+                        endX: nextTarget.x + nextTarget.width / 2,
+                        endY: nextTarget.y + nextTarget.height / 2,
+                        target: nextTarget,
+                        duration: LIGHTNING_BOLT_DURATION
+                    });
+                    hitTargets.add(nextTarget);
+                    lastX = targets[i].endX;
+                    lastY = targets[i].endY;
+                }
 
-                 const dxOrigin = bat.originX - batCenterX;
-                 const dyOrigin = bat.originY - batCenterY;
-                 const distSqOrigin = dxOrigin * dxOrigin + dyOrigin * dyOrigin;
+                hitTargets.forEach(target => {
+                    if (target.type === 'bat') {
+                        target.health = 0;
+                        this.effectsSystem.emitBatExplosion(target.x + target.width / 2, target.y + target.height / 2);
+                    } else if (target.type === 'patroller') {
+                        target.health -= 1;
+                        if (target.health <= 0) {
+                            this.effectsSystem.emitBatExplosion(target.x + target.width / 2, target.y + target.height / 2, 10, PATROLLER_COLOR);
+                            if (game && game.audioCtx) triggerPatrollerDestroy(game.audioCtx.currentTime);
+                        } else {
+                            this.effectsSystem.emitRewardSparkles(target.x + target.width / 2, target.y + target.height / 2, 5, '#ffccaa');
+                            if (game && game.audioCtx) triggerPatrollerHit(game.audioCtx.currentTime);
+                        }
+                    } else if (target.type === 'snake') {
+                        target.health = 0;
+                        this.effectsSystem.emitBatExplosion(target.x + target.width / 2, target.y + target.height / 2, 10, SNAKE_COLOR);
+                    } else if (target.type === 'giantBatBoss') {
+                        target.health--;
+                        this.effectsSystem.emitRewardSparkles(target.x + target.width / 2, target.y + target.height / 2, 10, GIANT_BAT_BOSS_COLOR_2);
+                    }
+                });
 
-                 // --- State Transitions ---
-                 if (bat.state === 'chasing') {
-                     // If player gets too far away, return to origin
-                     if (distSqPlayer > bat.leashRadius * bat.leashRadius) {
-                         bat.state = 'returning';
-                         bat.stateTimer = 10; // Time limit to return
-                         // console.log(`Bat ${this.bats.indexOf(bat)}: Returning (Leash broken)`);
-                     }
-                 } else if (bat.state === 'returning') {
-                     // If returned close to origin, go back to patrolling
-                     if (distSqOrigin < BAT_ORIGIN_THRESHOLD_SQ || bat.stateTimer <= 0) {
-                         bat.state = 'patrolling';
-                         [bat.patrolTargetX, bat.patrolTargetY] = getRandomPatrolPoint(bat.originX, bat.originY, bat.patrolRange);
-                         bat.stateTimer = getRandom(3, 6); // Time for next patrol point
-                         // console.log(`Bat ${this.bats.indexOf(bat)}: Patrolling (Returned)`);
-                     }
-                 } else { // Idle or Patrolling
-                     // If player gets close, start chasing
-                     if (distSqPlayer < bat.detectionRadius * bat.detectionRadius) {
-                         bat.state = 'chasing';
-                         bat.stateTimer = 0; // No timer for chasing
-                         // console.log(`Bat ${this.bats.indexOf(bat)}: Chasing (Player detected)`);
-                     }
-                     // If patrol timer runs out or reached target, get new patrol point
-                     else if (bat.state === 'patrolling' && bat.stateTimer <= 0) {
-                         [bat.patrolTargetX, bat.patrolTargetY] = getRandomPatrolPoint(bat.originX, bat.originY, bat.patrolRange);
-                         bat.stateTimer = getRandom(3, 6);
-                         // console.log(`Bat ${this.bats.indexOf(bat)}: Patrolling (New target)`);
-                     } else if (bat.state === 'idle' && bat.stateTimer <= 0) {
-                         // Start patrolling after idle time
-                         bat.state = 'patrolling';
-                         [bat.patrolTargetX, bat.patrolTargetY] = getRandomPatrolPoint(bat.originX, bat.originY, bat.patrolRange);
-                         bat.stateTimer = getRandom(3, 6);
-                         // console.log(`Bat ${this.bats.indexOf(bat)}: Patrolling (From Idle)`);
-                     }
-                 }
-
-                 // --- Movement Logic ---
-                 let targetX, targetY, maxSpeed, acceleration;
-
-                 if (bat.state === 'chasing') {
-                     targetX = playerCenterX;
-                     targetY = playerCenterY;
-                     maxSpeed = bat.chaseSpeed * 500; // Convert speed to pixels/sec
-                     acceleration = BAT_ACCELERATION * 1.2;
-                 } else if (bat.state === 'returning') {
-                     targetX = bat.originX;
-                     targetY = bat.originY;
-                     maxSpeed = bat.patrolSpeed * BAT_RETURN_SPEED_MULTIPLIER * 100;
-                     acceleration = BAT_ACCELERATION * 100.1;
-                 } else { // Patrolling or Idle (moves towards patrol target)
-                     targetX = bat.patrolTargetX;
-                     targetY = bat.patrolTargetY;
-                     maxSpeed = bat.patrolSpeed * 60;
-                     acceleration = BAT_ACCELERATION;
-                 }
-
-                 // Calculate direction towards target
-                 const dxTarget = targetX - batCenterX;
-                 const dyTarget = targetY - batCenterY;
-                 const distTarget = Math.sqrt(dxTarget * dxTarget + dyTarget * dyTarget);
-
-                 // Apply acceleration towards target
-                 if (distTarget > 1) { // Avoid division by zero and jittering at target
-                     const accelX = (dxTarget / distTarget) * acceleration;
-                     const accelY = (dyTarget / distTarget) * acceleration;
-                     bat.velocityX += accelX * deltaTime;
-                     bat.velocityY += accelY * deltaTime;
-                 }
-
-                 // Apply friction
-                 bat.velocityX *= BAT_FRICTION;
-                 bat.velocityY *= BAT_FRICTION;
-
-                 // Clamp speed
-                 const currentSpeedSq = bat.velocityX * bat.velocityX + bat.velocityY * bat.velocityY;
-                 const maxSpeedSq = maxSpeed * maxSpeed;
-                 if (currentSpeedSq > maxSpeedSq) {
-                     const scale = Math.sqrt(maxSpeedSq / currentSpeedSq);
-                     bat.velocityX *= scale;
-                     bat.velocityY *= scale;
-                 }
-
-                 // Apply Velocity
-                 bat.x += bat.velocityX * deltaTime;
-                 bat.y += bat.velocityY * deltaTime;
-
-                 // Boundary checks (keep within level bounds, above lava)
-                 bat.x = Math.max(0, Math.min(this.levelEndX - bat.width, bat.x));
-                 bat.y = Math.max(0, Math.min(canvas.height - LAVA_BASE_HEIGHT - bat.height, bat.y));
-
-                 // Simple collision avoidance with platforms (push away slightly)
-                 for (const platform of this.platforms) {
-                     const batRect = { x: bat.x, y: bat.y, width: bat.width, height: bat.height };
-                     if (checkRectOverlap(batRect, platform)) {
-                         const overlapX = (batCenterX) - (platform.x + platform.width / 2);
-                         const overlapY = (batCenterY) - (platform.y + platform.height / 2);
-                         const pushForce = 1.5; // Increased push force
-                         const combinedHalfWidth = (bat.width + platform.width) / 2;
-                         const combinedHalfHeight = (bat.height + platform.height) / 2;
-                         const overlapAmountX = combinedHalfWidth - Math.abs(overlapX);
-                         const overlapAmountY = combinedHalfHeight - Math.abs(overlapY);
-
-                         if (overlapAmountX > 0 && overlapAmountY > 0) {
-                             if (overlapAmountX < overlapAmountY) { // Horizontal collision is shallower
-                                 bat.velocityX += Math.sign(overlapX) * pushForce;
-                                 bat.x += Math.sign(overlapX) * overlapAmountX * 0.5; // Nudge out
-                             } else { // Vertical collision is shallower
-                                 bat.velocityY += Math.sign(overlapY) * pushForce;
-                                 bat.y += Math.sign(overlapY) * overlapAmountY * 0.5; // Nudge out
-                             }
-                         }
-                     }
-                 }
-             });
-         }
-
-        updateGroundPatrollers(deltaTime) {
-            for (let i = this.groundPatrollers.length - 1; i >= 0; i--) {
-                const patroller = this.groundPatrollers[i];
-                if (patroller.health <= 0) { this.effectsSystem.emitBatExplosion(patroller.x + patroller.width / 2, patroller.y + patroller.height / 2, 10, PATROLLER_COLOR); if (game && game.audioCtx) triggerPatrollerDestroy(game.audioCtx.currentTime); this.groundPatrollers.splice(i, 1); continue; }
-                const platform = patroller.onPlatform; if (!platform) { console.warn("Patroller lost its platform link!", patroller); this.groundPatrollers.splice(i, 1); continue; }
-
-                // Apply reduced friction
-                patroller.velocityX *= 0.96; if (Math.abs(patroller.velocityX) < 0.1) patroller.velocityX = 0;
-
-                let currentSpeed = PATROLLER_SPEED * patroller.direction; let totalVelocityX = patroller.velocityX + currentSpeed; let nextX = patroller.x + totalVelocityX * deltaTime; let reverseDirection = false;
-                if (patroller.direction > 0 && (nextX + patroller.width > platform.x + platform.width)) { patroller.x = platform.x + platform.width - patroller.width; reverseDirection = true; patroller.velocityX = 0; }
-                else if (patroller.direction < 0 && (nextX < platform.x)) { patroller.x = platform.x; reverseDirection = true; patroller.velocityX = 0; }
-                else { patroller.x = nextX; }
-                for (const otherPlat of this.platforms) { if (otherPlat === platform) continue; const patrollerRectNext = {x: patroller.x, y: patroller.y - 1, width: patroller.width, height: patroller.height + 2}; if (checkRectOverlap(patrollerRectNext, otherPlat)) { if (totalVelocityX > 0 && patroller.x + patroller.width > otherPlat.x && patroller.x < otherPlat.x) { patroller.x = otherPlat.x - patroller.width - 0.1; reverseDirection = true; patroller.velocityX = 0; break; } if (totalVelocityX < 0 && patroller.x < otherPlat.x + otherPlat.width && patroller.x + patroller.width > otherPlat.x + otherPlat.width) { patroller.x = otherPlat.x + otherPlat.width + 0.1; reverseDirection = true; patroller.velocityX = 0; break; } } }
-                if (reverseDirection) { patroller.direction *= -1; }
-                patroller.y = platform.y - patroller.height;
+                this.lightningBolts.push(...targets);
+                if (game && game.audioCtx) triggerLightningBoltSound(game.audioCtx.currentTime);
             }
         }
 
-         updateFireballs(dt) {
-             for (let i = this.fireballs.length - 1; i >= 0; i--) {
-                 const fb = this.fireballs[i];
-                 if (!fb.active) continue;
+        findClosestEnemyInRange(x, y, range, excludeTargets = []) {
+            let closestDistance = range * range;
+            let closestEnemy = null;
 
-                 fb.life -= dt;
-                 if (fb.life <= 0) {
-                     fb.active = false;
-                     this.triggerFireballExplosion(fb.x, fb.y); // Explode at end of life
-                     continue;
-                 }
+            const checkEnemy = (enemy) => {
+                if (excludeTargets.includes(enemy)) return;
+                const enemyCenterX = enemy.x + enemy.width / 2;
+                const enemyCenterY = enemy.y + enemy.height / 2;
+                const dx = x - enemyCenterX;
+                const dy = y - enemyCenterY;
+                const distSq = dx * dx + dy * dy;
+                if (distSq < closestDistance) {
+                    closestDistance = distSq;
+                    closestEnemy = enemy;
+                }
+            };
 
-                 fb.x += fb.vx * dt;
-                 fb.y += fb.vy * dt;
+            this.bats.forEach(bat => { if (bat.health > 0) checkEnemy(bat); });
+            this.groundPatrollers.forEach(patroller => { if (patroller.health > 0) checkEnemy(patroller); });
+            this.snakes.forEach(snake => { if (snake.health > 0) checkEnemy(snake); });
+            if (this.boss && this.boss.health > 0) checkEnemy(this.boss);
 
-                 // Check collision with platforms
-                 for (const platform of this.platforms) {
-                     if (fb.x + fb.radius > platform.x && fb.x - fb.radius < platform.x + platform.width &&
-                         fb.y + fb.radius > platform.y && fb.y - fb.radius < platform.y + platform.height) {
-                         fb.active = false;
-                         this.triggerFireballExplosion(fb.x, fb.y);
-                         break; // Stop checking platforms for this fireball
-                     }
-                 }
-                 if (!fb.active) continue; // Skip enemy check if already exploded
-
-                 // Check collision with bats
-                 for (const bat of this.bats) {
-                     if (bat.health > 0 && checkRectOverlap({ x: fb.x - fb.radius, y: fb.y - fb.radius, width: fb.radius * 2, height: fb.radius * 2 }, bat)) {
-                         bat.health = 0; // Kill bat
-                         this.effectsSystem.emitBatExplosion(bat.x + bat.width / 2, bat.y + bat.height / 2);
-                         fb.active = false;
-                         this.triggerFireballExplosion(fb.x, fb.y);
-                         break; // Stop checking enemies for this fireball
-                     }
-                 }
-                 if (!fb.active) continue;
-
-                 // Check collision with ground patrollers
-                 for (const patroller of this.groundPatrollers) {
-                      if (patroller.health > 0 && checkRectOverlap({ x: fb.x - fb.radius, y: fb.y - fb.radius, width: fb.radius * 2, height: fb.radius * 2 }, patroller)) {
-                          patroller.health = 0; // Kill patroller
-                          this.effectsSystem.emitBatExplosion(patroller.x + patroller.width / 2, patroller.y + patroller.height / 2, 10, PATROLLER_COLOR);
-                          if (game && game.audioCtx) triggerPatrollerDestroy(game.audioCtx.currentTime);
-                          fb.active = false;
-                          this.triggerFireballExplosion(fb.x, fb.y);
-                          break; // Stop checking enemies for this fireball
-                      }
-                 }
-             }
-             // Clean up inactive fireballs (optional, could pool them)
-             this.fireballs = this.fireballs.filter(fb => fb.active);
-         }
-
-         spawnFireball() {
-             const fireball = { ...fireballProto };
-             const direction = this.player.facingDirection === 'right' ? 1 : -1;
-             // Spawn from near the player's center/staff tip
-             fireball.x = this.player.x + this.player.width / 2 + (direction * (this.player.width / 2 + FIREBALL_RADIUS + 5));
-             fireball.y = this.player.y + this.player.height / 2; // Adjust Y as needed
-             fireball.vx = direction * FIREBALL_SPEED;
-             fireball.vy = 0; // Straight line
-             fireball.life = FIREBALL_LIFESPAN;
-             fireball.active = true;
-             this.fireballs.push(fireball);
-             if (game && game.audioCtx) triggerFireballShoot(game.audioCtx.currentTime);
-         }
-
-         triggerFireballExplosion(x, y) {
-             this.effectsSystem.emitFireballExplosion(x, y);
-             if (game && game.audioCtx) triggerFireballExplode(game.audioCtx.currentTime);
-             // Optional: Check for nearby enemies in explosion radius
-             const explosionRadiusSq = FIREBALL_EXPLOSION_RADIUS * FIREBALL_EXPLOSION_RADIUS;
-             for (const bat of this.bats) {
-                 if (bat.health > 0) {
-                     const dx = (bat.x + bat.width / 2) - x;
-                     const dy = (bat.y + bat.height / 2) - y;
-                     if (dx * dx + dy * dy < explosionRadiusSq) {
-                         bat.health = 0;
-                         this.effectsSystem.emitBatExplosion(bat.x + bat.width / 2, bat.y + bat.height / 2);
-                     }
-                 }
-             }
-              for (const patroller of this.groundPatrollers) {
-                 if (patroller.health > 0) {
-                     const dx = (patroller.x + patroller.width / 2) - x;
-                     const dy = (patroller.y + patroller.height / 2) - y;
-                     if (dx * dx + dy * dy < explosionRadiusSq) {
-                         patroller.health = 0;
-                         this.effectsSystem.emitBatExplosion(patroller.x + patroller.width / 2, patroller.y + patroller.height / 2, 10, PATROLLER_COLOR);
-                         if (game && game.audioCtx) triggerPatrollerDestroy(game.audioCtx.currentTime);
-                     }
-                 }
-             }
-         }
-
-        updateOrbiter(dt) { this.orbiterAngle += ORBITER_SPEED * dt; }
-
-        checkAttackCollisions() {
-            if (!this.player.isAttacking || this.player.attackTimer <= ATTACK_DURATION * 0.2) return;
-            const hitboxX = (this.player.facingDirection === 'right') ? this.player.x + this.player.width * 0.5 + SWORD_HITBOX_OFFSET_X : this.player.x + this.player.width * 0.5 - SWORD_HITBOX_OFFSET_X - SWORD_HITBOX_WIDTH;
-            const hitboxY = this.player.y + this.player.height * 0.2;
-            const attackHitbox = { x: hitboxX, y: hitboxY, width: SWORD_HITBOX_WIDTH, height: SWORD_HITBOX_HEIGHT };
-            let hitSomething = false; const knockbackDir = (this.player.facingDirection === 'right' ? 1 : -1);
-            for (const bat of this.bats) { if (bat.health > 0 && checkRectOverlap(attackHitbox, bat)) { bat.health = 0; this.effectsSystem.emitBatExplosion(bat.x + bat.width / 2, bat.y + bat.height / 2); bat.velocityX = knockbackDir * SWORD_KNOCKBACK_STRENGTH; bat.velocityY = SWORD_VERTICAL_KNOCKBACK; hitSomething = true; } }
-            for (const patroller of this.groundPatrollers) { if (patroller.health > 0 && checkRectOverlap(attackHitbox, patroller)) { patroller.health--; this.effectsSystem.emitRewardSparkles(patroller.x + patroller.width/2, patroller.y + patroller.height/2, 5, '#ffccaa'); patroller.velocityX = knockbackDir * SWORD_KNOCKBACK_STRENGTH; hitSomething = true; if (patroller.health > 0) { if (game && game.audioCtx) triggerPatrollerHit(game.audioCtx.currentTime); } } }
-            if (hitSomething && game && game.audioCtx) { triggerSwordHit(game.audioCtx.currentTime); }
+            return closestEnemy;
         }
 
-        checkCollisions() {
-             for (let i = this.collectibles.length - 1; i >= 0; i--) { const collectible = this.collectibles[i]; if (!collectible.collected && this.screenFlashTimer <= 0 && checkRectOverlap(this.player, collectible)) { collectible.collected = true; this.player.orbShieldCount++; this.updateOrbShieldDisplay(); this.effectsSystem.emitRewardSparkles(collectible.x + collectible.width / 2, collectible.y + collectible.height / 2, 30, collectible.color); console.log(`Collected reward! Shield: ${this.player.orbShieldCount}`); break; } }
-             if (checkRectOverlap(this.player, this.goal)) { if (!this.gameWon) this.winGame(); }
-             if (this.screenFlashTimer <= 0) {
-                for (const bat of this.bats) { if (bat.health > 0 && checkRectOverlap(this.player, bat)) { this.handlePlayerDamage("bat"); return; } }
-                for (const patroller of this.groundPatrollers) { if (patroller.health > 0 && checkRectOverlap(this.player, patroller)) { this.handlePlayerDamage("patroller"); return; } }
-                for (const platform of this.platforms) { if (platform.hasCactus) { const cactusRect = { x: platform.x + (platform.width / 2) - (CACTUS_WIDTH / 2), y: platform.y - CACTUS_HEIGHT, width: CACTUS_WIDTH, height: CACTUS_HEIGHT }; if (checkRectOverlap(this.player, cactusRect)) { this.handlePlayerDamage("cactus"); return; } } }
-             }
+        updateLightningBolts(deltaTime) {
+            for (let i = this.lightningBolts.length - 1; i >= 0; i--) {
+                const bolt = this.lightningBolts[i];
+                bolt.duration -= deltaTime;
+                if (bolt.duration <= 0) this.lightningBolts.splice(i, 1);
+            }
         }
 
-        checkBoundaries() {
-            if (this.player.x < 0) { this.player.x = 0; this.player.velocityX = 0; }
-            if (this.player.x + this.player.width > this.levelEndX) { this.player.x = this.levelEndX - this.player.width; this.player.velocityX = 0; }
-            if (this.player.y < 0) { this.player.y = 0; this.player.velocityY = Math.max(0, this.player.velocityY); }
-            const currentLavaTop = this.getLavaTopY(this.player.x + this.player.width / 2, this.game.currentTime * 1000);
-            if (this.screenFlashTimer <= 0 && this.player.y + this.player.height > currentLavaTop) { this.handlePlayerDamage("lava"); }
+        drawLightningBolt(bolt, ctx) {
+            ctx.save();
+            ctx.strokeStyle = LIGHTNING_BOLT_COLOR;
+            ctx.lineWidth = LIGHTNING_BOLT_WIDTH;
+            ctx.shadowColor = LIGHTNING_BOLT_COLOR;
+            ctx.shadowBlur = 10;
+            ctx.beginPath();
+            ctx.moveTo(bolt.startX, bolt.startY);
+            for (let i = 1; i <= LIGHTNING_BOLT_SEGMENTS; i++) {
+                const t = i / LIGHTNING_BOLT_SEGMENTS;
+                const x = bolt.startX + (bolt.endX - bolt.startX) * t;
+                const y = bolt.startY + (bolt.endY - bolt.startY) * t;
+                const offsetX = (i !== LIGHTNING_BOLT_SEGMENTS) ? (Math.random() * 2 - 1) * 10 : 0;
+                const offsetY = (i !== LIGHTNING_BOLT_SEGMENTS) ? (Math.random() * 2 - 1) * 10 : 0;
+                ctx.lineTo(x + offsetX, y + offsetY);
+            }
+            ctx.stroke();
+            ctx.restore();
         }
-
-        handlePlayerDamage(source = "unknown") {
-            if (this.gameWon || this.screenFlashTimer > 0) return;
-            if (this.player.orbShieldCount > 0) { console.log(`Player hit by ${source} - Shield absorbed!`); this.player.orbShieldCount--; this.updateOrbShieldDisplay(); this.screenFlashColor = SCREEN_FLASH_COLOR_POWER; this.screenFlashTimer = SCREEN_FLASH_DURATION; this.triggerOrbBomb(); this.restartCurrentLevelOnDeath(false); }
-            else { console.log(`Player hit by ${source} - Lost a life!`); this.player.lives--; this.updateLivesDisplay(); this.screenFlashColor = SCREEN_FLASH_COLOR_DAMAGE; this.screenFlashTimer = SCREEN_FLASH_DURATION; if (this.player.lives <= 0) { console.log("Game Over - Restarting Level"); this.goToNextLevelOrGameOver(false); } else { this.restartCurrentLevelOnDeath(true); } }
-        }
-
-        triggerOrbBomb() {
-            const playerCenterX = this.player.x + this.player.width / 2; const playerCenterY = this.player.y + this.player.height / 2; const destroyRadiusSq = BAT_DESTROY_RADIUS * BAT_DESTROY_RADIUS; let batsDestroyed = 0;
-            for (let i = this.bats.length - 1; i >= 0; i--) { const bat = this.bats[i]; if (bat.health > 0) { const batCenterX = bat.x + bat.width / 2; const batCenterY = bat.y + bat.height / 2; const dx = playerCenterX - batCenterX; const dy = playerCenterY - batCenterY; const distSq = dx * dx + dy * dy; if (distSq < destroyRadiusSq) { bat.health = 0; batsDestroyed++; this.effectsSystem.emitBatExplosion(batCenterX, batCenterY); } } }
-            this.effectsSystem.emitPlayerBombExplosion(playerCenterX, playerCenterY); console.log(`Bomb destroyed ${batsDestroyed} bats.`);
-         }
-
-        restartCurrentLevelOnDeath(logLifeLoss = true) {
-            if(logLifeLoss) console.log("Restarting current level attempt (lost a life)...");
-            else console.log("Restarting current level attempt (shield used)...");
-            if (this.startPlatform) { this.player.x = this.startPlatform.x + this.startPlatform.width / 2 - this.player.width / 2; this.player.y = this.startPlatform.y - this.player.height - 1; }
-            else { this.player.x = 100; this.player.y = canvas.height - 150; }
-            this.player.velocityX = 0; this.player.velocityY = 0; this.player.onGround = false;
-            this.player.animationState = 'idle'; this.player.isAttacking = false; this.player.attackTimer = 0; this.player.attackCooldownTimer = 0;
-            this.player.landingTimer = 0; this.player.coyoteTimer = 0;
-            this.player.fireballCooldownTimer = 0; // Reset fireball cooldown on death
-            this.orbiterAngle = 0;
-            this.fireballs = []; // Clear fireballs on death
-            this.bats.forEach(bat => { if (bat.health > 0) { bat.x = bat.originX - bat.width / 2; bat.y = bat.originY - bat.height / 2; bat.velocityX = 0; bat.velocityY = 0; bat.state = (Math.random() < 0.5) ? 'idle' : 'patrolling'; [bat.patrolTargetX, bat.patrolTargetY] = getRandomPatrolPoint(bat.originX, bat.originY, bat.patrolRange); bat.stateTimer = getRandom(1, 3); bat.randomMoveTimer = getRandom(0, 1); } else { bat.x = -1000; bat.y = -1000; } });
-            this.groundPatrollers.forEach(p => { if (p.health > 0 && p.onPlatform) { p.x = p.onPlatform.x + p.onPlatform.width / 2 - p.width / 2; p.y = p.onPlatform.y - p.height; p.direction = (Math.random() < 0.5) ? 1 : -1; p.velocityX = 0; } else if (p.health <= 0) { p.x = -1000; p.y = -1000; } });
-        }
-
-        updateLivesDisplay() { if (livesDisplayDiv) { livesDisplayDiv.textContent = `Lives: ${this.player.lives}`; if (!this.gameWon && this.player.lives === 1 && this.player.orbShieldCount === 0) { const pulse = (Math.sin(this.game.currentTime * LOW_STATUS_PULSE_SPEED) + 1) / 2; livesDisplayDiv.style.color = `rgb(255, ${150 * (1-pulse)}, ${150 * (1-pulse)})`; livesDisplayDiv.style.textShadow = `1px 1px ${2 + pulse * 3}px #000`; } else { livesDisplayDiv.style.color = '#f99'; livesDisplayDiv.style.textShadow = '1px 1px 2px #000'; } } }
-        updateOrbShieldDisplay() { if (orbShieldDisplayDiv) { orbShieldDisplayDiv.textContent = `Shield: ${this.player.orbShieldCount}`; if (!this.gameWon && this.player.orbShieldCount === 1) { const pulse = (Math.sin(this.game.currentTime * LOW_STATUS_PULSE_SPEED + Math.PI / 2) + 1) / 2; orbShieldDisplayDiv.style.color = `rgb(${150 * (1-pulse)}, ${200}, 255)`; orbShieldDisplayDiv.style.textShadow = `1px 1px ${2 + pulse * 3}px #000`; } else { orbShieldDisplayDiv.style.color = '#9cf'; orbShieldDisplayDiv.style.textShadow = '1px 1px 2px #000'; } } }
-        winGame() { if (this.gameWon) return; this.gameWon = true; const finalTime = (performance.now() - this.gameStartTime) / 1000; messageDiv.textContent = `You Win! ${finalTime.toFixed(2)}s (R for Next)`; messageDiv.style.display = 'block'; this.game.stopMusic(); this.game.saveSystem.levelCompleted(this.levelNumber, finalTime); }
-        goToNextLevelOrGameOver(advanceLevel = false) { console.log(`goToNextLevelOrGameOver called. Advance: ${advanceLevel}`); if (advanceLevel) { this.levelNumber = this.game.saveSystem.data.currentLevel; console.log(`Advancing to level ${this.levelNumber}`); } else { console.log(`Game Over on level ${this.levelNumber} or Manual Reset. Regenerating.`); } this.gameWon = false; messageDiv.style.display = 'none'; if (this.messageTimeoutId) clearTimeout(this.messageTimeoutId); this.orbiterAngle = 0; this.generateLevel(); this.gameStartTime = performance.now(); if (this.game.isAudioInitialized && !this.game.isMuted) { this.game.startMusic(); } }
-        showTemporaryMessage(text) { if (this.gameWon) return; messageDiv.textContent = text; messageDiv.style.display = 'block'; if (this.messageTimeoutId) clearTimeout(this.messageTimeoutId); this.messageTimeoutId = setTimeout(() => { if (!this.gameWon) messageDiv.style.display = 'none'; this.messageTimeoutId = null; }, 2000); }
 
         render(ctx) {
-            const time = this.game.currentTime; let cameraX = this.player.x - canvas.width / 3; cameraX = Math.max(0, Math.min(this.levelEndX - canvas.width, cameraX)); let cameraY = 0;
+            const time = this.game.currentTime; this.cameraX = this.player.x - canvas.width / 3; this.cameraX = Math.max(0, Math.min(this.levelEndX - canvas.width, this.cameraX)); let cameraY = 0;
 
             // ** USE THE NEW BACKGROUND FUNCTION HERE **
-            this.drawDesertDunesBackground(time * 1000, cameraX, ctx);
-            // this.drawAlienMarioBackground(time * 1000, cameraX, ctx); // OLD ONE COMMENTED OUT
+            this.drawDesertDunesBackground(time * 1000, this.cameraX, ctx);
+            // this.drawAlienMarioBackground(time * 1000, this.cameraX, ctx); // OLD ONE COMMENTED OUT
 
-            this.drawLava(time * 1000, cameraX, ctx);
-            ctx.save(); ctx.translate(-cameraX, -cameraY);
+            this.drawLava(time * 1000, this.cameraX, ctx);
+            ctx.save(); ctx.translate(-this.cameraX, -cameraY);
             this.platforms.forEach(p => { this.drawPlatformSimple(p, ctx); if (p.hasCactus) this.drawCactus(p.x + p.width / 2, p.y, ctx); });
             this.collectibles.forEach(c => { if (!c.collected) { const pulse = (1 + Math.sin(time * PULSE_SPEED)) / 2; const r = REWARD_BASE_RADIUS * (1 + pulse * PULSE_MAGNITUDE_ORB); this.drawPulsatingOrb(c.x + c.width / 2, c.y + c.height / 2, r, c.color, time, ctx); } });
             this.drawDoorway(this.goal.x, this.goal.y, this.goal.width, this.goal.height, this.goal.color, time, ctx);
             this.bats.forEach(b => { if (b.health > 0) this.drawBat(b, ctx); });
             this.groundPatrollers.forEach(p => { if (p.health > 0) this.drawGroundPatroller(p, ctx); }); // Calls the updated draw function
+            this.snakes.forEach(s => { if (s.health > 0) this.drawSnake(s, ctx); }); // Draw snakes
             this.fireballs.forEach(fb => this.drawFireball(fb, ctx)); // Draw fireballs
+            this.lightningBolts.forEach(bolt => this.drawLightningBolt(bolt, ctx)); // Draw lightning bolts
+            if (this.boss) this.drawGiantBatBoss(this.boss, time, ctx); // Draw boss
             if (!this.player.onGround) { this.drawMagicCarpet(this.player, time, ctx); }
             this.drawPlayer(ctx); this.drawOrbiters(time, ctx);
             this.effectsSystem.render(ctx);
@@ -756,12 +754,13 @@
             this.debugDrawRect(this.player, '#00FF00', ctx);
             this.groundPatrollers.forEach(p => this.debugDrawRect(p, '#FFA500', ctx));
             this.bats.forEach(b => this.debugDrawRect(b, '#FF00FF', ctx));
+            this.snakes.forEach(s => this.debugDrawRect(s, '#FFD700', ctx)); // Debug snake rectangle
             this.platforms.forEach(p => { if(p.hasCactus) this.debugDrawRect({ x: p.x + (p.width / 2) - (CACTUS_WIDTH / 2), y: p.y - CACTUS_HEIGHT, width: CACTUS_WIDTH, height: CACTUS_HEIGHT }, '#00DD00', ctx); });
             if(this.player.coyoteTimer > 0) { ctx.fillStyle = 'yellow'; ctx.fillRect(this.player.x, this.player.y - 10, this.player.width * (this.player.coyoteTimer / COYOTE_TIME_DURATION), 5); }
             */// --- End Debug ---
             ctx.restore();
             if (this.screenFlashTimer > 0 && this.screenFlashColor) { const flashAlpha = (this.screenFlashTimer / SCREEN_FLASH_DURATION) * 0.7; const colorWithAlpha = this.screenFlashColor.replace(/[\d\.]+\)$/g, `${flashAlpha.toFixed(2)})`); ctx.fillStyle = colorWithAlpha; ctx.fillRect(0, 0, canvas.width, canvas.height); }
-            this.updateTimerDisplay(); this.updateLivesDisplay(); this.updateOrbShieldDisplay();
+            this.updateTimerDisplay(); this.updateLivesDisplay(); this.updateOrbShieldDisplay(); this.updateWeaponDisplay();
             if (this.game.touchControls) this.game.touchControls.render(ctx);
             if (this.gameWon) { this.drawWinTextSimple(ctx); }
         }
@@ -818,7 +817,7 @@
                     amp2: 25, freq2: 0.009,
                     hue: 45, sat: 55, lightBase: 65, lightRange: 12 // Standard sand
                 },
-                // Near layer
+                // Near layer - Added to the array
                 {
                     parallax: 0.30, // Fastest scroll
                     baseY: canvas.height * 0.85,
@@ -1039,53 +1038,677 @@
             }
             ctx.restore();
         }
-        debugDrawRect(rect, color, ctx) { ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.strokeRect(rect.x, rect.y, rect.width, rect.height); }
-        drawMagicCarpet(player, time, ctx) {
-            const anchorX = player.x + player.width / 2;
-            const anchorY = player.y + player.height + CARPET_OFFSET_Y;
-            const wave = Math.sin(time * CARPET_WAVE_SPEED);
-            const currentWidth = CARPET_WIDTH * (1 + wave * CARPET_WAVE_AMP_X);
-            const currentHeight = CARPET_HEIGHT * (1 - wave * CARPET_WAVE_AMP_Y * 0.5);
-            const carpetX = anchorX - currentWidth / 2;
-            const carpetY = anchorY - currentHeight / 2;
+
+        drawSnake(snake, ctx) {
             ctx.save();
-            ctx.fillStyle = CARPET_COLOR_1;
-            ctx.fillRect(carpetX, carpetY, currentWidth, currentHeight);
-            ctx.fillStyle = CARPET_COLOR_2;
-            ctx.fillRect(carpetX + currentWidth * 0.2, carpetY + currentHeight * 0.2, currentWidth * 0.6, currentHeight * 0.6);
-            ctx.strokeStyle = CARPET_COLOR_2;
-            ctx.lineWidth = 1;
-            const tasselLength = currentHeight * 0.6;
-            for (let i = 0; i < 5; i++) { const tasselX = carpetX + (currentWidth / 4) * i; ctx.beginPath(); ctx.moveTo(tasselX, carpetY + currentHeight); ctx.lineTo(tasselX + wave * 2, carpetY + currentHeight + tasselLength + wave * 2); ctx.stroke(); }
-            ctx.restore();
-        }
-        drawFireball(fb, ctx) {
-            if (!fb.active) return;
-            ctx.save();
-            ctx.fillStyle = FIREBALL_COLOR;
-            ctx.shadowColor = '#ffcc00';
-            ctx.shadowBlur = 8;
-            ctx.beginPath();
-            ctx.arc(fb.x, fb.y, fb.radius, 0, Math.PI * 2);
-            ctx.fill();
-            // Add a simple trail effect
-            const trailLength = 3;
-            const alphaStep = 0.6 / trailLength;
-            for (let i = 1; i <= trailLength; i++) {
-                ctx.globalAlpha = 0.6 - i * alphaStep;
+            const centerX = snake.x + snake.width / 2;
+            const centerY = snake.y + snake.height / 2;
+
+            const segmentCount = SNAKE_BODY_SEGMENTS;
+
+            for (let i = segmentCount - 1; i >= 0; i--) {
+                const segmentPhase = snake.undulationTimer - i * 0.3;
+
+                let segmentSizeFactor;
+                if (i === 0) segmentSizeFactor = 1.0;
+                else if (i === 1) segmentSizeFactor = 1.0;
+                else segmentSizeFactor = 0.99 - (i / segmentCount) * 0.6;
+
+                const undulationFactor = Math.sin((i / segmentCount) * Math.PI * 0.8);
+
+                const segmentSpacing = (snake.width / segmentCount) * 5;
+                const segmentX = centerX - (i * segmentSpacing) * snake.facingDirection;
+
+                const undulationAmplitude = SNAKE_UNDULATION_AMPLITUDE * (1 - (i / segmentCount) * 0.3);
+                const offsetY = Math.sin(segmentPhase) * undulationAmplitude * undulationFactor;
+                const segmentY = centerY + offsetY;
+
+                const segmentWidth = snake.width * (i === 0 ? 0.5 : 0.4) * segmentSizeFactor;
+                const segmentHeight = snake.height * (i === 0 ? 0.7 : 0.6) * segmentSizeFactor;
+
+                const isEvenSegment = i % 2 === 0;
+                ctx.fillStyle = isEvenSegment ? SNAKE_COLOR : SNAKE_ACCENT_COLOR;
+
                 ctx.beginPath();
-                ctx.arc(fb.x - fb.vx * 0.02 * i, fb.y - fb.vy * 0.02 * i, fb.radius * (1 - i * 0.15), 0, Math.PI * 2);
+                ctx.ellipse(segmentX, segmentY, segmentWidth, segmentHeight, 0, 0, Math.PI * 2);
                 ctx.fill();
+
+                if (i < segmentCount - 2 && isEvenSegment) {
+                    ctx.fillStyle = `rgba(255, 255, 200, 0.2)`;
+                    ctx.beginPath();
+                    ctx.ellipse(
+                        segmentX + segmentWidth * 0.3 * snake.facingDirection,
+                        segmentY - segmentHeight * 0.2,
+                        segmentWidth * 0.4,
+                        segmentHeight * 0.3,
+                        0, 0, Math.PI * 2
+                    );
+                    ctx.fill();
+                }
+
+                if (i === 0) {
+                    const headWidthFactor = 1.0;
+                    const headLengthFactor = 1.3;
+                    const headBaseFactor = 0.4;
+
+                    const tipX = segmentX + segmentWidth * headLengthFactor * snake.facingDirection;
+                    const tipY = segmentY;
+
+                    const wideOffsetY = segmentHeight * headWidthFactor;
+                    const widePointTopX = segmentX;
+                    const widePointTopY = segmentY - wideOffsetY;
+                    const widePointBottomX = segmentX;
+                    const widePointBottomY = segmentY + wideOffsetY;
+
+                    ctx.beginPath();
+                    ctx.moveTo(tipX, tipY);
+                    ctx.lineTo(widePointTopX, widePointTopY);
+                    ctx.lineTo(segmentX - segmentWidth * 0.5 * snake.facingDirection, segmentY);
+                    ctx.lineTo(widePointBottomX, widePointBottomY);
+                    ctx.closePath();
+                    ctx.fill();
+
+                    const eyeX = segmentX + (segmentWidth * 0.6) * snake.facingDirection;
+                    const eyeY = segmentY - segmentHeight * 0.1;
+
+                    ctx.fillStyle = '#FF2200';
+                    ctx.beginPath();
+                    ctx.ellipse(eyeX, eyeY, segmentWidth * 0.3, segmentHeight * 0.25, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = '#000';
+                    ctx.beginPath();
+                    ctx.ellipse(
+                        eyeX + (segmentWidth * 0.15) * snake.facingDirection,
+                        eyeY,
+                        segmentWidth * 0.15,
+                        segmentHeight * 0.04,
+                        0, 0, Math.PI * 2
+                    );
+                    ctx.fill();
+
+                    if (snake.state === 'chasing' && Math.sin(snake.undulationTimer * 5) > 0.7) {
+                        ctx.strokeStyle = '#FF0066';
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        const tongueStartX = segmentX + segmentWidth * 1.1 * snake.facingDirection;
+                        const tongueStartY = segmentY + segmentHeight * 0.1;
+                        const tongueForkLength = segmentWidth * 1.2;
+
+                        ctx.moveTo(tongueStartX, tongueStartY);
+                        ctx.lineTo(
+                            tongueStartX + tongueForkLength * snake.facingDirection,
+                            tongueStartY - tongueForkLength * 0.4
+                        );
+                        ctx.moveTo(tongueStartX + tongueForkLength * 0.7 * snake.facingDirection, tongueStartY);
+                        ctx.lineTo(
+                            tongueStartX + tongueForkLength * snake.facingDirection,
+                            tongueStartY + tongueForkLength * 0.4
+                        );
+                        ctx.stroke();
+                    }
+                }
             }
             ctx.restore();
         }
 
-    } // End GameplayScene Class
+        debugDrawRect(rect, color, ctx) { ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.strokeRect(rect.x, rect.y, rect.width, rect.height); }
+        drawMagicCarpet(player, time, ctx) {
+            const anchorX = player.x + player.width / 2;
+            const anchorY = player.y + player.height + CARPET_OFFSET_Y;
+            
+            // Enhanced wave calculation with multiple sine waves
+            const waveBase = Math.sin(time * CARPET_WAVE_SPEED);
+            const waveDetail = Math.sin(time * CARPET_WAVE_SPEED * 1.7 + 1.3) * 0.3;
+            const waveCombined = waveBase + waveDetail;
+            
+            const currentWidth = CARPET_WIDTH * (1 + waveCombined * CARPET_WAVE_AMP_X);
+            const currentHeight = CARPET_HEIGHT * (1 - waveCombined * CARPET_WAVE_AMP_Y * 0.5);
+            const carpetX = anchorX - currentWidth / 2;
+            const carpetY = anchorY - currentHeight / 2;
+
+            // Draw carpet trail particles
+            this.drawCarpetTrail(carpetX, carpetY, player.velocityX, player.velocityY, time, ctx);
+
+            ctx.save();
+            
+            // Create carpet base with gradient
+            const carpetGradient = ctx.createLinearGradient(carpetX, carpetY, carpetX, carpetY + currentHeight);
+            carpetGradient.addColorStop(0, CARPET_COLOR_1);
+            carpetGradient.addColorStop(1, CARPET_COLOR_2);
+            
+            // Draw the carpet with curved edges for more natural wave appearance
+            ctx.fillStyle = carpetGradient;
+            ctx.beginPath();
+            
+            // Custom shape with curved edges
+            const cornerRadius = currentHeight * 0.4;
+            
+            // Top edge with wave
+            ctx.moveTo(carpetX + cornerRadius, carpetY);
+            for (let i = 0; i <= 10; i++) {
+                const xPos = carpetX + cornerRadius + (currentWidth - cornerRadius * 2) * (i / 10);
+                const wavePhase = time * CARPET_WAVE_SPEED * 2 + i * 0.5;
+                const yOffset = Math.sin(wavePhase) * (currentHeight * 0.1);
+                ctx.lineTo(xPos, carpetY + yOffset);
+            }
+            
+            // Right curve
+            ctx.quadraticCurveTo(carpetX + currentWidth, carpetY, carpetX + currentWidth, carpetY + cornerRadius);
+            
+            // Bottom edge with opposite wave pattern
+            for (let i = 10; i >= 0; i--) {
+                const xPos = carpetX + cornerRadius + (currentWidth - cornerRadius * 2) * (i / 10);
+                const wavePhase = time * CARPET_WAVE_SPEED * 1.5 + i * 0.6 + Math.PI;
+                const yOffset = Math.sin(wavePhase) * (currentHeight * 0.15);
+                ctx.lineTo(xPos, carpetY + currentHeight + yOffset);
+            }
+            
+            // Left curve
+            ctx.quadraticCurveTo(carpetX, carpetY + currentHeight, carpetX, carpetY + cornerRadius);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Add carpet pattern/decoration
+            ctx.fillStyle = CARPET_COLOR_2;
+            
+            // Central pattern
+            const patternWidth = currentWidth * 0.7;
+            const patternHeight = currentHeight * 0.7;
+            const patternX = carpetX + (currentWidth - patternWidth) / 2;
+            const patternY = carpetY + (currentHeight - patternHeight) / 2;
+            
+            // Draw diamond pattern
+            ctx.beginPath();
+            ctx.moveTo(patternX + patternWidth/2, patternY);
+            ctx.lineTo(patternX + patternWidth, patternY + patternHeight/2);
+            ctx.lineTo(patternX + patternWidth/2, patternY + patternHeight);
+            ctx.lineTo(patternX, patternY + patternHeight/2);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Add smaller decorative patterns
+            ctx.fillStyle = '#8040cc'; // Darker accent color
+            for (let i = 0; i < 3; i++) {
+                const ornX = patternX + patternWidth * (0.3 + i * 0.2);
+                const ornY = patternY + patternHeight * 0.5;
+                const ornSize = patternHeight * 0.15;
+                ctx.beginPath();
+                ctx.arc(ornX, ornY, ornSize, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // Draw tassels with wave motion
+            const tasselCount = 7;
+            const tasselSpacing = currentWidth / (tasselCount + 1);
+            const tasselLength = currentHeight * 0.8;
+            
+            ctx.strokeStyle = '#d0a0ff'; // Tassel color
+            ctx.lineWidth = 2;
+            
+            for (let i = 1; i <= tasselCount; i++) {
+                const tasselX = carpetX + tasselSpacing * i;
+                const phaseOffset = i * 0.7;
+                const tasselWave = Math.sin(time * CARPET_WAVE_SPEED * 1.2 + phaseOffset) * 5;
+                
+                // Create wavy tassels
+                ctx.beginPath();
+                ctx.moveTo(tasselX, carpetY + currentHeight);
+                
+                // Multiple control points for more natural wave
+                const cp1x = tasselX + tasselWave * 0.5;
+                const cp1y = carpetY + currentHeight + tasselLength * 0.3;
+                const cp2x = tasselX - tasselWave;
+                const cp2y = carpetY + currentHeight + tasselLength * 0.6;
+                const endX = tasselX + tasselWave * 1.5;
+                const endY = carpetY + currentHeight + tasselLength;
+                
+                ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, endX, endY);
+                ctx.stroke();
+                
+                // Add small decorative bead at the end of each tassel
+                ctx.fillStyle = '#e0c0ff';
+                ctx.beginPath();
+                ctx.arc(endX, endY, 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // Add a subtle glow effect
+            ctx.shadowColor = CARPET_COLOR_1;
+            ctx.shadowBlur = 10;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.rect(carpetX, carpetY, currentWidth, currentHeight);
+            ctx.stroke();
+            
+            ctx.restore();
+        }
+
+        drawCarpetTrail(carpetX, carpetY, velocityX, velocityY, time, ctx) {
+            // Only draw trail when moving at a certain speed
+            const speed = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
+            if (speed < 5) return;
+
+            ctx.save();
+
+            // Number of trail particles depends on speed
+            const particleCount = Math.min(15, Math.floor(speed / 7) + 6);
+
+            // Direction of movement affects trail position
+            const dirX = velocityX !== 0 ? -Math.sign(velocityX) : 0;
+            const dirY = velocityY !== 0 ? -Math.sign(velocityY) : 0;
+            
+            // Calculate trail starting point at the back of the carpet
+            const trailStartX = carpetX + (dirX < 0 ? CARPET_WIDTH * 0.4 : dirX > 0 ? -CARPET_WIDTH * 0.4 : 0);
+            const trailStartY = carpetY + (dirY < 0 ? CARPET_HEIGHT * 0.4 : dirY > 0 ? -CARPET_HEIGHT * 0.4 : 0);
+
+            // Create glowing particle effect
+            ctx.globalCompositeOperation = 'lighter';
+
+            for (let i = 0; i < particleCount; i++) {
+                // Calculate particle position with more varied distribution
+                const offset = i * 6 + Math.sin(time * 5 + i) * 3;
+                const phaseShift = i * 0.4;
+                
+                // Position particles with more interesting patterns
+                const waveX = Math.sin(time * 3 + phaseShift) * 4;
+                const waveY = Math.cos(time * 2.5 + phaseShift) * 3;
+                
+                const x = trailStartX + dirX * (offset + CARPET_WIDTH * 0.3) + waveX;
+                const y = trailStartY + dirY * (offset * 0.5 + CARPET_HEIGHT * 0.2) + waveY;
+
+                // Particle size decreases with distance but varies with time
+                const sizeVar = Math.sin(time * 4 + i * 0.3) * 0.3 + 1;
+                const size = (5 - (i / particleCount) * 3) * sizeVar;
+
+                // Particle opacity decreases with distance but pulses
+                const alphaVar = Math.sin(time * 3 + i * 0.5) * 0.15 + 1;
+                const alpha = (0.7 - (i / particleCount) * 0.6) * alphaVar;
+
+                // Create colors that shift with time
+                const hue = 270 + Math.sin(time + i * 0.2) * 20;
+                const saturation = 80 + Math.cos(time * 1.5 + i * 0.3) * 10;
+                const lightness = 75 + Math.sin(time * 2 + i * 0.25) * 10;
+                
+                ctx.fillStyle = `hsla(${hue}, ${saturation}%, ${lightness}%, ${alpha})`;
+
+                // Draw particle
+                ctx.beginPath();
+                ctx.arc(x, y, size, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Add occasional star-shaped sparkle effect
+                if (Math.random() < 0.3 && i < particleCount / 2) {
+                    ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.9})`;
+                    
+                    // Draw star-like shape
+                    const starX = x + Math.random() * 4 - 2;
+                    const starY = y + Math.random() * 4 - 2;
+                    const starSize = size * 0.7;
+                    
+                    ctx.beginPath();
+                    for (let j = 0; j < 5; j++) {
+                        const angle = j * Math.PI * 2 / 5 - Math.PI / 2;
+                        const length = j % 2 === 0 ? starSize : starSize * 0.5;
+                        const pointX = starX + Math.cos(angle) * length;
+                        const pointY = starY + Math.sin(angle) * length;
+                        
+                        if (j === 0) ctx.moveTo(pointX, pointY);
+                        else ctx.lineTo(pointX, pointY);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            }
+
+            ctx.restore();
+        }
+
+        drawGiantBatBoss(boss, time, ctx) {
+            ctx.save();
+            
+            // Base color for the giant bat boss
+            ctx.fillStyle = '#4A1942'; // Darker purple than regular bats
+            
+            const centerX = boss.x + boss.width / 2;
+            const centerY = boss.y + boss.height / 2;
+            
+            // Larger wingspan for boss
+            const wingSpan = boss.width * 1.2;
+            const wingHeight = boss.height * 0.8;
+            
+            // More dramatic wing flapping animation
+            const flapAmount = Math.sin(boss.flapTimer) * wingHeight * 0.6;
+            const flapDetail = Math.sin(boss.flapTimer * 1.5) * wingHeight * 0.2;
+            
+            // Draw wings with more complex shape
+            ctx.beginPath();
+            
+            // Left wing
+            ctx.moveTo(centerX, centerY);
+            ctx.quadraticCurveTo(
+                centerX - wingSpan * 0.5, 
+                centerY - flapAmount * 0.5, 
+                centerX - wingSpan, 
+                centerY + flapAmount
+            );
+            ctx.quadraticCurveTo(
+                centerX - wingSpan * 0.7, 
+                centerY + flapAmount + flapDetail, 
+                centerX - wingSpan * 0.3, 
+                centerY + wingHeight * 0.4
+            );
+            
+            // Body
+            ctx.lineTo(centerX, centerY + wingHeight * 0.6);
+            
+            // Right wing
+            ctx.lineTo(centerX + wingSpan * 0.3, centerY + wingHeight * 0.4);
+            ctx.quadraticCurveTo(
+                centerX + wingSpan * 0.7, 
+                centerY + flapAmount + flapDetail, 
+                centerX + wingSpan, 
+                centerY + flapAmount
+            );
+            ctx.quadraticCurveTo(
+                centerX + wingSpan * 0.5, 
+                centerY - flapAmount * 0.5, 
+                centerX, 
+                centerY
+            );
+            
+            ctx.closePath();
+            ctx.fill();
+            
+            // Apply a glow effect
+            ctx.shadowColor = '#FF0000';
+            ctx.shadowBlur = 15;
+            
+            // Add details - eyes
+            ctx.fillStyle = '#FF0000'; // Red eyes
+            const eyeSize = boss.width * 0.15;
+            ctx.beginPath();
+            ctx.arc(centerX - eyeSize * 1.5, centerY - eyeSize, eyeSize, 0, Math.PI * 2);
+            ctx.arc(centerX + eyeSize * 1.5, centerY - eyeSize, eyeSize, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Eye pupils
+            ctx.fillStyle = '#000000';
+            const pupilSize = eyeSize * 0.4;
+            ctx.beginPath();
+            ctx.arc(centerX - eyeSize * 1.5, centerY - eyeSize, pupilSize, 0, Math.PI * 2);
+            ctx.arc(centerX + eyeSize * 1.5, centerY - eyeSize, pupilSize, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Fangs
+            ctx.fillStyle = '#FFFFFF';
+            const fangWidth = boss.width * 0.08;
+            const fangHeight = boss.height * 0.2;
+            
+            ctx.beginPath();
+            ctx.moveTo(centerX - fangWidth * 1.5, centerY + fangHeight * 0.3);
+            ctx.lineTo(centerX - fangWidth * 2, centerY + fangHeight);
+            ctx.lineTo(centerX - fangWidth, centerY + fangHeight * 0.3);
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.moveTo(centerX + fangWidth * 1.5, centerY + fangHeight * 0.3);
+            ctx.lineTo(centerX + fangWidth * 2, centerY + fangHeight);
+            ctx.lineTo(centerX + fangWidth, centerY + fangHeight * 0.3);
+            ctx.fill();
+            
+            ctx.restore();
+        }
+
+        spawnFireball() {
+            const playerWorldX = this.player.x + this.player.width / 2;
+            const playerWorldY = this.player.y + this.player.height / 2;
+            const mouseWorldX = this.game.mouseX + this.cameraX;
+            const mouseWorldY = this.game.mouseY;
+            const dx = mouseWorldX - playerWorldX;
+            const dy = mouseWorldY - playerWorldY;
+            const angle = Math.atan2(dy, dx);
+
+            const fireball = { ...fireballProto };
+            const spawnDist = this.player.width * 0.6;
+            fireball.x = playerWorldX + Math.cos(angle) * spawnDist;
+            fireball.y = playerWorldY + Math.sin(angle) * spawnDist;
+            fireball.vx = FIREBALL_SPEED * Math.cos(angle);
+            fireball.vy = FIREBALL_SPEED * Math.sin(angle);
+            fireball.active = true;
+            fireball.life = FIREBALL_LIFESPAN;
+
+            this.fireballs.push(fireball);
+
+            if (game && game.audioCtx) {
+                triggerFireballShoot(game.audioCtx.currentTime);
+            }
+        }
+
+        updateFireballs(deltaTime) {
+            for (let i = this.fireballs.length - 1; i >= 0; i--) {
+                const fireball = this.fireballs[i];
+                
+                if (!fireball.active) {
+                    this.fireballs.splice(i, 1);
+                    continue;
+                }
+                
+                // Update position
+                fireball.x += fireball.vx * deltaTime;
+                fireball.y += fireball.vy * deltaTime;
+                
+                // Update lifetime
+                fireball.life -= deltaTime;
+                if (fireball.life <= 0) {
+                    fireball.active = false;
+                    continue;
+                }
+                
+                // Check for collisions with enemies
+                this.checkFireballCollisions(fireball);
+            }
+        }
+
+        checkFireballCollisions(fireball) {
+            // Simple collision checking with enemies
+            for (const bat of this.bats) {
+                if (bat.health <= 0) continue;
+                
+                const dx = fireball.x - (bat.x + bat.width / 2);
+                const dy = fireball.y - (bat.y + bat.height / 2);
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < fireball.radius + bat.width / 2) {
+                    // Hit bat
+                    bat.health = 0;
+                    this.effectsSystem.emitBatExplosion(bat.x + bat.width / 2, bat.y + bat.height / 2);
+                    this.effectsSystem.emitFireballExplosion(fireball.x, fireball.y);
+                    if (game && game.audioCtx) triggerFireballExplode(game.audioCtx.currentTime);
+                    fireball.active = false;
+                    return true;
+                }
+            }
+            
+            // Similar checks for other enemies...
+            return false;
+        }
+
+        updateOrbiter(deltaTime) {
+            this.orbiterAngle += deltaTime * ORBITER_SPEED;
+        }
+
+        checkCollisions() {
+            // Check player collisions with collectibles
+            for (const collectible of this.collectibles) {
+                if (!collectible.collected && checkRectOverlap(this.player, collectible)) {
+                    collectible.collected = true;
+                    this.player.orbShieldCount++;
+                    this.effectsSystem.emitRewardSparkles(
+                        collectible.x + collectible.width / 2,
+                        collectible.y + collectible.height / 2,
+                        25
+                    );
+                    this.updateOrbShieldDisplay();
+                }
+            }
+            
+            // Check for collisions with enemies
+            // (Simplified for brevity)
+            
+            // Goal collision check
+            if (checkRectOverlap(this.player, this.goal)) {
+                this.winGame();
+            }
+        }
+
+        checkBoundaries() {
+            // Keep player within level bounds
+            this.player.x = Math.max(0, Math.min(this.levelEndX - this.player.width, this.player.x));
+            
+            // Check for falling into lava (simplified)
+            const lavaY = canvas.height - LAVA_BASE_HEIGHT;
+            if (this.player.y + this.player.height > lavaY) {
+                this.restartCurrentLevelOnDeath();
+            }
+        }
+
+        winGame() {
+            if (this.gameWon) return;
+            
+            this.gameWon = true;
+            const elapsedTime = (performance.now() - this.gameStartTime) / 1000;
+            
+            // Save level completion
+            this.game.saveSystem.levelCompleted(this.levelNumber, elapsedTime);
+            
+            // Show win message
+            messageDiv.textContent = `Level ${this.levelNumber} cleared in ${elapsedTime.toFixed(2)}s! Press R for next level.`;
+            messageDiv.style.display = 'block';
+        }
+
+        restartCurrentLevelOnDeath() {
+            // Reset the current level
+            this.generateLevel();
+        }
+
+        goToNextLevelOrGameOver(wasWin) {
+            if (wasWin) {
+                // Go to next level
+                this.levelNumber++;
+                console.log(`Going to level ${this.levelNumber}`);
+                this.generateLevel();
+                messageDiv.style.display = 'none';
+                this.gameStartTime = performance.now();
+            } else {
+                // Just restart the current level
+                this.restartCurrentLevelOnDeath();
+            }
+        }
+    }
 
     // --- Game Class ---
     class Game {
-        constructor(canvas) { this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.currentScene = null; this.scenes = {}; this.lastTime = 0; this.deltaTime = 0; this.currentTime = 0; this.isPaused = false; this.isRunning = false; this.inputState = { keys: { left: false, right: false, up: false, w: false, space: false, r: false, m: false, x: false, f: false } }; this.touchControls = null; this.audioCtx = null; this.masterGain = null; this.distortion = null; this.padLfo = null; this.padOsc = null; this.padGain = null; this.musicIntervalId = null; this.isAudioInitialized = false; this.stepCounter = 0; this.isMuted = false; this.bassNotes = [0, 0, 3, 0, 5, 0, 3, 0]; this.leadNotes = [0, 3, 7, 10, 12, 10, 7, 3]; this.saveSystem = new SaveSystem(); this.initInput(); }
-        initInput() { window.addEventListener('keydown', (e) => { const key = e.key.toLowerCase(); if (key === 'arrowleft' || key === 'a') this.inputState.keys.left = true; if (key === 'arrowright' || key === 'd') this.inputState.keys.right = true; if (key === 'arrowup') this.inputState.keys.up = true; if (key === 'w') this.inputState.keys.w = true; if (key === ' ') this.inputState.keys.space = true; if (key === 'x') this.inputState.keys.x = true; if (key === 'f') this.inputState.keys.f = true; if (key === 'r') { if (!this.inputState.keys.r) this.handleReset(); this.inputState.keys.r = true; } if (key === 'm') { if (!this.inputState.keys.m) this.toggleMute(); this.inputState.keys.m = true; } }); window.addEventListener('keyup', (e) => { const key = e.key.toLowerCase(); if (key === 'arrowleft' || key === 'a') this.inputState.keys.left = false; if (key === 'arrowright' || key === 'd') this.inputState.keys.right = false; if (key === 'arrowup') this.inputState.keys.up = false; if (key === 'w') this.inputState.keys.w = false; if (key === ' ') this.inputState.keys.space = false; if (key === 'x') this.inputState.keys.x = false; if (key === 'f') this.inputState.keys.f = false; if (key === 'r') this.inputState.keys.r = false; if (key === 'm') this.inputState.keys.m = false; }); if ('ontouchstart' in window || navigator.maxTouchPoints > 0) { this.touchControls = new TouchControls(this); } }
+        constructor(canvas) {
+            this.canvas = canvas;
+            this.ctx = canvas.getContext('2d');
+            this.currentScene = null;
+            this.scenes = {};
+            this.lastTime = 0;
+            this.deltaTime = 0;
+            this.currentTime = 0;
+            this.isPaused = false;
+            this.isRunning = false;
+            this.inputState = { 
+                keys: {
+                    left: false, right: false, up: false, w: false, space: false,
+                    r: false, m: false, x: false,
+                    num1: false, num2: false, num3: false, num4: false, num5: false
+                } 
+            };
+            this.touchControls = null;
+            this.audioCtx = null;
+            this.masterGain = null;
+            this.distortion = null;
+            this.padLfo = null;
+            this.padOsc = null;
+            this.padGain = null;
+            this.musicIntervalId = null;
+            this.isAudioInitialized = false;
+            this.stepCounter = 0;
+            this.isMuted = false;
+            this.bassNotes = [0, 0, 3, 0, 5, 0, 3, 0];
+            this.leadNotes = [0, 3, 7, 10, 12, 10, 7, 3];
+            this.saveSystem = new SaveSystem();
+            this.mouseX = 0; // Add mouse position tracking
+            this.mouseY = 0; // Add mouse position tracking
+            this.initInput();
+        }
+
+        initInput() {
+            window.addEventListener('keydown', (e) => {
+                const key = e.key.toLowerCase();
+                if (key === 'arrowleft' || key === 'a') this.inputState.keys.left = true;
+                if (key === 'arrowright' || key === 'd') this.inputState.keys.right = true;
+                if (key === 'arrowup') this.inputState.keys.up = true;
+                if (key === 'w') this.inputState.keys.w = true;
+                if (key === ' ') this.inputState.keys.space = true;
+                if (key === 'x') this.inputState.keys.x = true;
+                if (key >= '1' && key <= '5') {
+                    this.inputState.keys[`num${key}`] = true;
+                }
+                if (key === 'r') {
+                    if (!this.inputState.keys.r) this.handleReset();
+                    this.inputState.keys.r = true;
+                }
+                if (key === 'm') {
+                    if (!this.inputState.keys.m) this.toggleMute();
+                    this.inputState.keys.m = true;
+                }
+            });
+
+            window.addEventListener('keyup', (e) => {
+                const key = e.key.toLowerCase();
+                if (key === 'arrowleft' || key === 'a') this.inputState.keys.left = false;
+                if (key === 'arrowright' || key === 'd') this.inputState.keys.right = false;
+                if (key === 'arrowup') this.inputState.keys.up = false;
+                if (key === 'w') this.inputState.keys.w = false;
+                if (key === ' ') this.inputState.keys.space = false;
+                if (key === 'x') this.inputState.keys.x = false;
+                if (key >= '1' && key <= '5') {
+                    this.inputState.keys[`num${key}`] = false;
+                }
+                if (key === 'r') this.inputState.keys.r = false;
+                if (key === 'm') this.inputState.keys.m = false;
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                const rect = this.canvas.getBoundingClientRect();
+                const scaleX = this.canvas.width / rect.width;
+                const scaleY = this.canvas.height / rect.height;
+                this.mouseX = (e.clientX - rect.left) * scaleX;
+                this.mouseY = (e.clientY - rect.top) * scaleY;
+            });
+
+            window.addEventListener('mousedown', (e) => {
+                if (e.button === 0) { // Left mouse button
+                    if (this.currentScene instanceof GameplayScene) {
+                        this.currentScene.handleRangedAttack();
+                    }
+                }
+            });
+
+            if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+                this.touchControls = new TouchControls(this);
+            }
+            
+            // Apply the magic cursor directly to canvas once without event handlers
+            if (this.canvas) {
+                this.canvas.classList.add('magic-cursor');
+            }
+        }
+
         handleReset() { if (this.currentScene instanceof GameplayScene) { this.currentScene.goToNextLevelOrGameOver(this.currentScene.gameWon); } }
         initAudio() { if (this.isAudioInitialized) return; try { this.audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (!this.audioCtx) { console.error("Web Audio API not supported!"); return; } this.masterGain = this.audioCtx.createGain(); this.distortion = this.audioCtx.createWaveShaper(); this.padOsc = this.audioCtx.createOscillator(); this.padGain = this.audioCtx.createGain(); this.padLfo = this.audioCtx.createOscillator(); const lfoGain = this.audioCtx.createGain(); this.masterGain.gain.setValueAtTime(this.isMuted ? 0.001 : MASTER_VOLUME, this.audioCtx.currentTime); this.distortion.curve = makeDistortionCurve(DISTORTION_AMOUNT); this.distortion.oversample = '4x'; this.padOsc.type = 'sawtooth'; this.padOsc.frequency.setValueAtTime(30, this.audioCtx.currentTime); this.padGain.gain.setValueAtTime(PAD_VOLUME, this.audioCtx.currentTime); this.padLfo.frequency.setValueAtTime(PAD_LFO_RATE, this.audioCtx.currentTime); lfoGain.gain.setValueAtTime(PAD_LFO_DEPTH, this.audioCtx.currentTime); this.padLfo.connect(lfoGain); lfoGain.connect(this.padOsc.frequency); this.padOsc.connect(this.padGain); this.padGain.connect(this.masterGain); this.distortion.connect(this.masterGain); this.masterGain.connect(this.audioCtx.destination); this.padOsc.start(); this.padLfo.start(); this.isAudioInitialized = true; console.log("Audio Initialized. BPM:", BPM); } catch (e) { console.error("Error initializing Web Audio:", e); alert("Could not initialize Web Audio API."); this.isAudioInitialized = false; } }
         startMusic() { if (!this.isAudioInitialized || this.musicIntervalId !== null || this.isMuted || !this.isRunning) { return; } console.log("StartMusic: Starting music interval."); this.stepCounter = 0; const intervalMilliseconds = SIXTEENTH_NOTE_DURATION * 1000; if (this.musicIntervalId) clearInterval(this.musicIntervalId); musicSequencer.call(this); this.musicIntervalId = setInterval(() => musicSequencer.call(this), intervalMilliseconds); }
@@ -1094,14 +1717,28 @@
         addScene(name, scene) { this.scenes[name] = scene; scene.game = this; }
         setScene(name) { console.log(`Attempting to set scene to: ${name}`); if (this.currentScene && typeof this.currentScene.onExit === 'function') { this.currentScene.onExit(); } this.currentScene = this.scenes[name]; if (this.currentScene && typeof this.currentScene.onEnter === 'function') { this.currentScene.onEnter(); } else if (!this.currentScene) { console.error(`Failed to set scene: Scene "${name}" not found!`); } else { console.warn(`Scene "${name}" loaded but has no onEnter method.`); } }
         gameLoop(timestamp) { if (!this.isRunning) { return; } try { if (!this.lastTime) this.lastTime = timestamp; this.deltaTime = Math.min(0.05, (timestamp - this.lastTime) / 1000); this.lastTime = timestamp; this.currentTime = timestamp / 1000.0; if (!this.isPaused && this.currentScene) { this.currentScene.update(this.deltaTime); } if (this.currentScene) { this.currentScene.render(this.ctx); } requestAnimationFrame(this.gameLoop.bind(this)); } catch (error) { console.error("CRITICAL ERROR in game loop:", error); this.stop(); alert("A critical error occurred during the game loop. Check console for details."); } }
-        start() { if (this.isRunning) { return; } console.log("Game.start: Initializing game loop..."); this.isRunning = true; this.lastTime = 0; this.currentTime = 0; console.log("Game.start: Requesting first animation frame."); requestAnimationFrame(this.gameLoop.bind(this)); if (this.isAudioInitialized && !this.isMuted && this.currentScene instanceof GameplayScene && !this.currentScene.gameWon) { this.startMusic(); } }
+        start() { 
+            if (this.isRunning) { return; } 
+            console.log("Game.start: Initializing game loop..."); 
+            this.isRunning = true; 
+            this.lastTime = 0; 
+            this.currentTime = 0; 
+            
+            // Remove the magic cursor application from here
+            
+            console.log("Game.start: Requesting first animation frame."); 
+            requestAnimationFrame(this.gameLoop.bind(this)); 
+            if (this.isAudioInitialized && !this.isMuted && this.currentScene instanceof GameplayScene && !this.currentScene.gameWon) { 
+                this.startMusic(); 
+            } 
+        }
         stop() { if (!this.isRunning) return; console.log("Game.stop: Stopping game loop and music..."); this.isRunning = false; this.stopMusic(); }
     }
 
     // --- Startup Self-Test ---
     function runStartupTests() {
         console.log("--- Running Startup Tests ---"); let allPassed = true; const test = (name, condition) => { if (condition) { console.log(`[PASS] ${name}`); } else { console.error(`[FAIL] ${name}`); allPassed = false; } };
-        test("Canvas element exists", !!canvas); test("Canvas 2D context exists", !!ctx); test("Message div exists", !!messageDiv); test("Audio Overlay exists", !!audioOverlay); test("Timer div exists", !!timerDiv); test("Lives display div exists", !!livesDisplayDiv); test("Orb Shield display div exists", !!orbShieldDisplayDiv); test("Game class defined", typeof Game === 'function'); test("GameplayScene class defined", typeof GameplayScene === 'function'); test("LevelGenerator class defined", typeof LevelGenerator === 'function'); test("PowerUpSystem class defined", typeof PowerUpSystem === 'function'); test("SaveSystem class defined", typeof SaveSystem === 'function'); test("ParticlePool class defined", typeof ParticlePool === 'function'); test("EffectsSystem factory defined", typeof createEffectsSystem === 'function'); test("TouchControls class defined", typeof TouchControls === 'function');
+        test("Canvas element exists", !!canvas); test("Canvas 2D context exists", !!ctx); test("Message div exists", !!messageDiv); test("Audio Overlay exists", !!audioOverlay); test("Timer div exists", !!timerDiv); test("Lives display div exists", !!livesDisplayDiv); test("Orb Shield display div exists", !!orbShieldDisplayDiv); test("Weapon display div exists", !!weaponDisplayDiv); test("Game class defined", typeof Game === 'function'); test("GameplayScene class defined", typeof GameplayScene === 'function'); test("LevelGenerator class defined", typeof LevelGenerator === 'function'); test("PowerUpSystem class defined", typeof PowerUpSystem === 'function'); test("SaveSystem class defined", typeof SaveSystem === 'function'); test("ParticlePool class defined", typeof ParticlePool === 'function'); test("EffectsSystem factory defined", typeof createEffectsSystem === 'function'); test("TouchControls class defined", typeof TouchControls === 'function');
         if (allPassed) { console.log("--- All Startup Tests Passed ---"); } else { console.error("--- Some Startup Tests Failed! ---"); } return allPassed;
      }
 
