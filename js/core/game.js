@@ -446,8 +446,15 @@ export class Game {
      */
     init() {
         console.log("Game initializing...");
+        
+        // Only register the test scene, not gameplay
         this.registerScene('test', new TestScene(this));
-        this.registerScene('gameplay', new GameplayScene(this));
+        
+        // Don't set initial scene here - wait for user interaction
+        // this.setScene('test');
+        
+        // For testing only: If you want to start with the test scene
+        // uncomment the next line
         this.setScene('test');
     }
 

@@ -24,25 +24,76 @@ export class GameplayScene extends Scene {
         this.startTime = 0;
         this.levelTime = 0;
         this.currentLevel = 1;
+        this.gameMode = 'normal'; // Default, will be set by init
+    }
+
+    /**
+     * Initializes the scene with options, called after the scene is set in main.js.
+     * @param {object} options - Initialization options.
+     * @param {boolean} [options.isTestMode=false] - Whether to start in test mode.
+     */
+    init(options = {}) {
+        this.gameMode = options.isTestMode ? 'test' : 'normal';
+        console.log(`GameplayScene initialized with mode: ${this.gameMode}`);
+        // Note: onEnter will be called by the SceneManager *after* this init.
+    }
+
+    toggleGameMode() {
+        this.gameMode = this.gameMode === 'normal' ? 'test' : 'normal';
+        console.log(`Game mode switched to: ${this.gameMode}`);
+        this.resetLevel();
     }
 
     onEnter() {
-        console.log("GameplayScene.onEnter: Initializing gameplay...");
+        console.log("==== GameplayScene.onEnter: START ====");
         
-        // Initialize systems
-        this.levelGenerator = new LevelGenerator(C.CANVAS_WIDTH, C.CANVAS_HEIGHT);
-        this.effectsSystem = createEffectsSystem();
-        
-        // Generate the level
-        this.resetLevel();
-        
-        // Initialize UI
-        this.updateLivesDisplay();
-        this.updateOrbShieldDisplay();
-        document.getElementById('timer').textContent = "0.00";
-        
-        this.gameStarted = true;
-        console.log("GameplayScene.onEnter: Gameplay initialized, gameStarted =", this.gameStarted);
+        try {
+            console.log("Initializing level generator...");
+            this.levelGenerator = new LevelGenerator(C.CANVAS_WIDTH, C.CANVAS_HEIGHT);
+            console.log("Level generator created successfully");
+            
+            console.log("Initializing effects system...");
+            this.effectsSystem = createEffectsSystem();
+            console.log("Effects system created successfully");
+            
+            // resetLevel is now called within onEnter, using the gameMode set by init()
+            // console.log("Calling resetLevel..."); // Moved inside onEnter logic
+            // this.resetLevel(); // Moved inside onEnter logic
+            // console.log("resetLevel completed successfully"); // Moved inside onEnter logic
+            
+            // Initialize based on the mode set by init()
+            console.log(`Calling resetLevel for mode: ${this.gameMode}...`);
+            this.resetLevel(); // resetLevel uses this.gameMode internally
+            console.log("resetLevel completed successfully");
+
+            console.log("Updating UI elements...");
+            this.updateLivesDisplay();
+            this.updateOrbShieldDisplay();
+            document.getElementById('timer').textContent = "0.00";
+            console.log("UI updated successfully");
+            
+            if (this.game) {
+                document.addEventListener('keydown', (e) => {
+                    if (e.key.toLowerCase() === 't' && !e.repeat) {
+                        this.toggleGameMode();
+                    }
+                });
+            }
+
+            this.gameStarted = true;
+            console.log("==== GameplayScene.onEnter: COMPLETE ====");
+        } catch (error) {
+            console.error("ERROR in GameplayScene.onEnter:", error);
+            // Simple visual error on canvas
+            if (this.game && this.game.ctx) {
+                const ctx = this.game.ctx;
+                ctx.fillStyle = 'black';
+                ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+                ctx.fillStyle = 'red';
+                ctx.font = '24px Arial';
+                ctx.fillText(`GameplayScene Error: ${error.message}`, 20, 100);
+            }
+        }
     }
 
     update(deltaTime) {
@@ -68,80 +119,118 @@ export class GameplayScene extends Scene {
     }
 
     render(ctx) {
-        console.log("GameplayScene.render called");
-        // Clear canvas
-        ctx.fillStyle = C.BACKGROUND_COLOR || 'black';
+        // Clear background
+        ctx.fillStyle = this.gameMode === 'test' ? '#111122' : 'black'; // Dark blue for test, black for normal
         ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+
+        // --- Conditional Rendering based on Mode ---
+        if (this.gameMode === 'normal') {
+            // TODO: Add normal background rendering here (stars, lava, etc.)
+            // Assuming these might be drawn by separate methods or within this block
+            console.log("Rendering normal background elements (placeholder)");
+        } else {
+            // Test mode has a plain background (already cleared above)
+            console.log("Rendering minimal test background");
+        }
+
+        // --- Common Rendering (Platforms, Player, UI Text) ---
+
+        // Draw simple test elements (kept for debugging visibility)
         ctx.fillStyle = 'red';
         ctx.fillRect(100, 100, 100, 100);
-        ctx.font = '24px Arial';
         ctx.fillStyle = 'white';
-        ctx.fillText('GAME IS RENDERING', 200, 150);
-        console.log("GameplayScene.render: Basic test elements drawn");
+        ctx.font = '24px Arial';
+        ctx.fillText('GAMEPLAY SCENE ACTIVE', 150, 80);
         
-        // Apply camera transform
-        ctx.save();
-        ctx.translate(-this.camera.x, -this.camera.y);
-        
-        // Render all game elements
-        // (Implementation would render platforms, player, enemies, effects, etc.)
-        
-        // Render effects and particles
-        this.effectsSystem.render(ctx);
-        
-        // Restore original transform
-        ctx.restore();
-        
-        // Render UI elements that should not be affected by camera
-        this.renderUI(ctx);
-        
+        // Draw player if available
         if (this.player) {
-            console.log("GameplayScene.render: Drawing player at", this.player.x, this.player.y);
             ctx.fillStyle = 'blue';
-            ctx.fillRect(this.player.x, this.player.y, this.player.width, this.player.height);
-        } else {
-            console.warn("GameplayScene.render: No player object found");
+            ctx.fillRect(this.player.x - this.camera.x, this.player.y - this.camera.y, 
+                        this.player.width, this.player.height);
+            
+            // Debug text
+            ctx.fillStyle = 'white';
+            ctx.font = '16px Arial';
+            ctx.fillText(`Player: (${this.player.x}, ${this.player.y})`, 20, 20);
+            ctx.fillText(`Camera: (${this.camera.x}, ${this.camera.y})`, 20, 40);
         }
-        
-        console.log("GameplayScene.render: Complete");
+
+        ctx.fillStyle = this.gameMode === 'test' ? '#FFFF00' : '#FFFFFF';
+        ctx.font = '18px Arial';
+        ctx.fillText(`Mode: ${this.gameMode.toUpperCase()} (Press T to toggle)`, 
+                    ctx.canvas.width - 250, 30);
     }
 
     resetLevel() {
-        console.log("Resetting level...");
+        console.log(`resetLevel: START (Mode: ${this.gameMode})`);
         
-        // Generate a new level
-        const levelData = this.levelGenerator.generateLevel();
-        
-        // Create player with initial state
-        this.player = deepCopy(C.INITIAL_PLAYER_STATE);
-        
-        // Initialize player position based on start platform
-        if (levelData.startPlatform) {
-            this.player.x = levelData.startPlatform.x + 100;
-            this.player.y = levelData.startPlatform.y - this.player.height;
+        try {
+            if (this.gameMode === 'normal') {
+                console.log("Calling levelGenerator.generateLevel()...");
+                const levelData = this.levelGenerator.generateLevel();
+                console.log("Level generation complete", levelData);
+                
+                console.log("Creating player...");
+                this.player = deepCopy(C.INITIAL_PLAYER_STATE);
+                this.player.x = levelData.startPlatform ? 
+                                levelData.startPlatform.x + 100 : 100;
+                this.player.y = levelData.startPlatform ? 
+                                levelData.startPlatform.y - this.player.height : 300;
+                console.log("Player created:", this.player);
+                
+                this.platforms = levelData.platforms || [];
+                this.camera = { x: 0, y: 0 };
+                this.gameWon = false;
+                this.levelComplete = false;
+                this.startTime = Date.now();
+                this.levelTime = 0;
+            } else {
+                this.createTestEnvironment();
+            }
+            
+            console.log("resetLevel: COMPLETE");
+        } catch (error) {
+            console.error("ERROR in resetLevel:", error);
+            this.platforms = [{x: 50, y: 500, width: 400, height: 30, color: 'gray'}];
+            this.player = {x: 100, y: 450, width: 32, height: 48, velocityX: 0, velocityY: 0, lives: 3};
+            this.camera = { x: 0, y: 0 };
         }
-        
-        // Store level data
-        this.platforms = levelData.platforms;
-        this.collectibles = levelData.collectibles;
-        this.bats = levelData.bats;
-        this.groundPatrollers = levelData.groundPatrollers;
-        this.snakes = levelData.snakes;
-        this.goal = levelData.goal;
-        this.levelEndX = levelData.levelEndX;
-        this.giantBatBoss = levelData.giantBatBoss;
-        
-        // Initialize power-up system with player reference
-        this.powerUpSystem = new PowerUpSystem(this.player);
-        
-        // Reset camera
-        this.camera = { x: 0, y: 0 };
-        
-        // Reset game state
-        this.gameWon = false;
-        this.levelComplete = false;
-        this.startTime = Date.now();
-        this.levelTime = 0;
+    }
+
+    createTestEnvironment() {
+        console.log("Creating Test Environment...");
+        this.player = deepCopy(C.INITIAL_PLAYER_STATE);
+        this.player.x = 150; // Start closer to center of first platform
+        this.player.y = 400; // Start slightly higher above the first platform (y=500)
+        this.player.onGround = false; // Ensure starting in air state
+        this.player.lives = 999; // Infinite lives for testing
+        this.player.orbShieldCount = 3; // Start with shields for testing
+        console.log("Test Player State:", this.player);
+
+        // Simple hardcoded platforms for testing
+        this.platforms = [
+            {x: 50, y: 500, width: 300, height: 30, color: '#8B4513'},
+            {x: 400, y: 450, width: 150, height: 30, color: '#A0522D'},
+            {x: 600, y: 400, width: 150, height: 30, color: '#CD853F'},
+            {x: 800, y: 350, width: 150, height: 30, color: '#D2B48C'},
+            {x: 1000, y: 350, width: 200, height: 30, color: '#F5DEB3'},
+            {x: 1250, y: 450, width: 200, height: 30, color: '#DEB887'},
+            {x: 1500, y: 550, width: 800, height: 30, color: '#8B4513'},
+        ];
+
+        this.goal = {
+            x: 2100, 
+            y: 450, 
+            width: C.GOAL_DOOR_WIDTH, 
+            height: C.GOAL_DOOR_HEIGHT, 
+            color: C.GOAL_FRAME_COLOR
+        };
+
+        this.bats = [];
+        this.groundPatrollers = [];
+        this.snakes = [];
+        this.collectibles = [];
+        this.levelEndX = 2500;
     }
 
     updateCamera() {
@@ -195,6 +284,7 @@ export class GameplayScene extends Scene {
 
     onExit() {
         console.log("Exiting GameplayScene");
+        document.removeEventListener('keydown', this.handleKeyDown);
         // Clean up any resources if needed
     }
 }
