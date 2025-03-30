@@ -1,0 +1,1 @@
+/* Base Scene class */
