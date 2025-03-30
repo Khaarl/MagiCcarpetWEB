@@ -1,4 +1,4 @@
-import { Scene } from '../core/scene.js';;
+import { Scene } from '../core/scene.js';
 import * as C from '../config.js';
 import { getRandom, getRandomInt, checkRectOverlap, deepCopy } from '../utils.js';
 import { LevelGenerator } from '../level/levelGenerator.js';
@@ -67,11 +67,6 @@ export class GameplayScene extends Scene {
             console.log("Input listeners added.");
 
             // resetLevel is now called within onEnter, using the gameMode set by init()
-            // console.log("Calling resetLevel..."); // Moved inside onEnter logic
-            // this.resetLevel(); // Moved inside onEnter logic
-            // console.log("resetLevel completed successfully"); // Moved inside onEnter logic
-            
-            // Initialize based on the mode set by init()
             console.log(`Calling resetLevel for mode: ${this.gameMode}...`);
             this.resetLevel(); // resetLevel uses this.gameMode internally
             console.log("resetLevel completed successfully");
@@ -292,12 +287,8 @@ export class GameplayScene extends Scene {
             if (C.PLATFORM_EDGE_COLOR) {
                  ctx.strokeStyle = C.PLATFORM_EDGE_COLOR;
                  ctx.lineWidth = 2;
-                 // ctx.shadowColor = C.PLATFORM_EDGE_COLOR; // Glow effect can be performance heavy
-                 // ctx.shadowBlur = C.PLATFORM_EDGE_GLOW_BLUR || 0;
                  ctx.strokeRect(platform.x, platform.y, platform.width, platform.height);
-                 // ctx.shadowColor = 'transparent'; // Reset shadow
             }
-            // TODO: Add cactus drawing on platforms if needed
         });
 
         // Render collectibles (assuming sprite exists)
@@ -309,131 +300,12 @@ export class GameplayScene extends Scene {
                     ctx.fillStyle = C.COLLECTIBLE_COLOR || 'pink';
                     ctx.beginPath();
                     ctx.arc(collectible.x + C.REWARD_BASE_RADIUS, collectible.y + C.REWARD_BASE_RADIUS, C.REWARD_BASE_RADIUS, 0, Math.PI * 2);
-             ctx.fill();
+                    ctx.fill();
+                }
+            });
         }
-    }
-
-    // NEW DESERT BACKGROUND FUNCTION
-    drawDesertDunesBackground(time, camX, ctx) {
-        const canvas = ctx.canvas; // Get canvas reference inside the function
-        ctx.save(); // Save the current canvas state
-
-        // 1. Sky Gradient
-        // Create a vertical gradient for the sky
-        const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.75); // Gradient covers top 3/4 of the canvas height
-        // Define color stops for the gradient (top to bottom)
-        skyGradient.addColorStop(0, '#87CEEB'); // Light Sky Blue at the very top
-        skyGradient.addColorStop(0.7, '#FFDAB9'); // Peach Puff / Light Orange near the horizon (70% down)
-        skyGradient.addColorStop(1, '#FFA07A'); // Light Salmon / Orange deeper horizon (at 75% down)
-        // Fill the entire canvas with this sky gradient first
-        ctx.fillStyle = skyGradient;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // 2. Optional Sun
-        // Calculate sun position with parallax (moves slower than foreground)
-        const sunX = canvas.width * 0.8 - camX * 0.02; // Sun position scrolls very slowly based on camera X
-        const sunY = canvas.height * 0.15; // Fixed vertical position near the top
-        const sunRadius = 40;
-        // Draw the main sun circle (light yellow, slightly transparent)
-        ctx.fillStyle = 'rgba(255, 255, 224, 0.9)';
-        ctx.beginPath();
-        ctx.arc(sunX, sunY, sunRadius, 0, Math.PI * 2); // Draw a full circle
-        ctx.fill();
-        // Add a glow effect to the sun using shadow properties
-        ctx.shadowColor = 'rgba(255, 255, 0, 0.5)'; // Yellow glow color
-        ctx.shadowBlur = 25; // How much blur for the glow
-        // Draw a slightly smaller, brighter circle inside to enhance the glow center
-        ctx.fillStyle = 'rgba(255, 255, 200, 0.8)';
-        ctx.beginPath();
-        ctx.arc(sunX, sunY, sunRadius * 0.8, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.shadowColor = 'transparent'; // Reset shadow so it doesn't affect dunes
-
-        // 3. Dunes (Draw from back to front)
-        // Define properties for multiple dune layers for parallax effect
-        const duneLayers = [
-            // Far layer (moves slowest)
-            {
-                parallax: 0.08, // Scroll speed factor (lower = slower/further)
-                baseY: canvas.height * 0.65, // Average vertical position
-                amp1: 40, freq1: 0.003, // Amplitude (height) & frequency (waviness) of main sine wave
-                amp2: 15, freq2: 0.007, // Amplitude & frequency of secondary sine wave (for ripples)
-                hue: 40, sat: 45, lightBase: 55, lightRange: 10, // HSL color params for shading (Browner)
-            }, // Comma between objects
-            // Mid layer
-            {
-                parallax: 0.15,
-                baseY: canvas.height * 0.75,
-                amp1: 60, freq1: 0.004,
-                amp2: 25, freq2: 0.009,
-                hue: 45, sat: 55, lightBase: 65, lightRange: 12, // HSL color params (Standard sand)
-            }, // Comma between objects
-            // Near layer (moves fastest)
-            {
-                parallax: 0.30,
-                baseY: canvas.height * 0.85,
-                amp1: 80, freq1: 0.005,
-                amp2: 30, freq2: 0.012,
-                hue: 50, sat: 65, lightBase: 70, lightRange: 15, // HSL color params (Lighter sand)
-            } // No comma needed for the last object
-        ];
-
-        const segmentWidth = 5; // Draw dunes using small vertical line segments
-
-        // Iterate through each defined dune layer and draw it
-        duneLayers.forEach((layer, index) => {
-            // Calculate how much this layer should scroll based on camera and parallax factor
-            const scrollOffset = camX * layer.parallax;
-            // Calculate a subtle time-based offset for a "wind" animation effect
-            // Use a much smaller multiplier for timeFactor to slow down the animation
-            const timeFactor = time * 5 * (index * 0.5 + 1); // Adjusted time multiplier for visible animation
-
-            // Create a vertical gradient FOR THIS DUNE LAYER to simulate shading
-            const gradientYStart = layer.baseY - layer.amp1 - layer.amp2 - 20; // Start gradient above highest possible peak
-            const gradientYEnd = canvas.height; // Gradient extends to the bottom
-            const duneGradient = ctx.createLinearGradient(0, gradientYStart, 0, gradientYEnd);
-
-            // Calculate highlight and shadow colors based on HSL parameters
-            const lightHighlight = Math.min(95, layer.lightBase + layer.lightRange);
-            const lightShadow = Math.max(10, layer.lightBase - layer.lightRange);
-
-            // Define color stops for the dune shading gradient (top to bottom)
-            duneGradient.addColorStop(0, `hsl(${layer.hue}, ${layer.sat}%, ${lightHighlight}%)`);       // Highlight color near top
-            duneGradient.addColorStop(0.4, `hsl(${layer.hue}, ${layer.sat}%, ${layer.lightBase}%)`);      // Mid-tone color around base Y
-            duneGradient.addColorStop(0.8, `hsl(${layer.hue - 10}, ${layer.sat - 10}%, ${lightShadow}%)`); // Shadow color below base Y
-            duneGradient.addColorStop(1, `hsl(${layer.hue - 15}, ${layer.sat - 15}%, ${lightShadow - 5}%)`);// Darkest shadow at the very bottom
-
-            // Set the fill style to the calculated shading gradient
-            ctx.fillStyle = duneGradient;
-            ctx.beginPath(); // Start drawing the shape of this dune layer
-            ctx.moveTo(0, canvas.height); // Start path at bottom-left corner
-
-            // Loop across the screen width, drawing vertical segments
-            for (let x = 0; x <= canvas.width; x += segmentWidth) {
-                // Calculate the X position in the "world" considering the layer's scroll offset
-                const worldX = x + scrollOffset;
-                // Calculate the Y position (height) of the dune top at this worldX
-                // This combines the base height with TWO sine waves for a more natural, bumpy look
-                // It also includes the timeFactor for animation and an index-based phase shift
-                const duneY = layer.baseY +
-                              Math.sin(worldX * layer.freq1 + timeFactor + index * 1.5) * layer.amp1 +
-                              Math.sin(worldX * layer.freq2 + timeFactor * 1.3 + index * 3.0) * layer.amp2;
-                // Draw a line segment from the previous point to the current calculated top edge
-                // Math.max(0, duneY) prevents dunes from being drawn above the top of the canvas
-                ctx.lineTo(x, Math.max(0, duneY));
-            }
-
-            ctx.lineTo(canvas.width, canvas.height); // Draw line to bottom-right corner
-            ctx.closePath(); // Close the shape (connects back to bottom-left)
-            ctx.fill(); // Fill the defined dune shape with the gradient
-        });
-
-        ctx.restore(); // Restore the canvas state to how it was before this function
-    }
-}
 
         // Render enemies (assuming sprite exists)
-        // Need to handle different enemy types if they exist in this.enemies structure
         const enemyTypes = Object.keys(this.enemies || {});
         enemyTypes.forEach(type => {
             if (this.enemies[type] && this.enemies[type].length > 0) {
@@ -486,46 +358,127 @@ export class GameplayScene extends Scene {
         ctx.fillText(`Platforms: ${this.platforms.length}`, 10, 90);
     }
     
+    drawDesertDunesBackground(time, camX, ctx) {
+        const canvas = ctx.canvas; // Get canvas reference inside the function
+        ctx.save(); // Save the current canvas state
+
+        // 1. Sky Gradient
+        const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.75);
+        skyGradient.addColorStop(0, '#87CEEB');
+        skyGradient.addColorStop(0.7, '#FFDAB9');
+        skyGradient.addColorStop(1, '#FFA07A');
+        ctx.fillStyle = skyGradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 2. Optional Sun
+        const sunX = canvas.width * 0.8 - camX * 0.02;
+        const sunY = canvas.height * 0.15;
+        const sunRadius = 40;
+        ctx.fillStyle = 'rgba(255, 255, 224, 0.9)';
+        ctx.beginPath();
+        ctx.arc(sunX, sunY, sunRadius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowColor = 'rgba(255, 255, 0, 0.5)';
+        ctx.shadowBlur = 25;
+        ctx.fillStyle = 'rgba(255, 255, 200, 0.8)';
+        ctx.beginPath();
+        ctx.arc(sunX, sunY, sunRadius * 0.8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowColor = 'transparent';
+
+        // 3. Dunes (Draw from back to front)
+        const duneLayers = [
+            {
+                parallax: 0.08,
+                baseY: canvas.height * 0.65,
+                amp1: 40, freq1: 0.003,
+                amp2: 15, freq2: 0.007,
+                hue: 40, sat: 45, lightBase: 55, lightRange: 10,
+            },
+            {
+                parallax: 0.15,
+                baseY: canvas.height * 0.75,
+                amp1: 60, freq1: 0.004,
+                amp2: 25, freq2: 0.009,
+                hue: 45, sat: 55, lightBase: 65, lightRange: 12,
+            },
+            {
+                parallax: 0.30,
+                baseY: canvas.height * 0.85,
+                amp1: 80, freq1: 0.005,
+                amp2: 30, freq2: 0.012,
+                hue: 50, sat: 65, lightBase: 70, lightRange: 15,
+            }
+        ];
+
+        const segmentWidth = 5;
+
+        duneLayers.forEach((layer, index) => {
+            const scrollOffset = camX * layer.parallax;
+            const timeFactor = time * 5 * (index * 0.5 + 1);
+
+            const gradientYStart = layer.baseY - layer.amp1 - layer.amp2 - 20;
+            const gradientYEnd = canvas.height;
+            const duneGradient = ctx.createLinearGradient(0, gradientYStart, 0, gradientYEnd);
+
+            const lightHighlight = Math.min(95, layer.lightBase + layer.lightRange);
+            const lightShadow = Math.max(10, layer.lightBase - layer.lightRange);
+
+            duneGradient.addColorStop(0, `hsl(${layer.hue}, ${layer.sat}%, ${lightHighlight}%)`);
+            duneGradient.addColorStop(0.4, `hsl(${layer.hue}, ${layer.sat}%, ${layer.lightBase}%)`);
+            duneGradient.addColorStop(0.8, `hsl(${layer.hue - 10}, ${layer.sat - 10}%, ${lightShadow}%)`);
+            duneGradient.addColorStop(1, `hsl(${layer.hue - 15}, ${layer.sat - 15}%, ${lightShadow - 5}%)`);
+
+            ctx.fillStyle = duneGradient;
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height);
+
+            for (let x = 0; x <= canvas.width; x += segmentWidth) {
+                const worldX = x + scrollOffset;
+                const duneY = layer.baseY +
+                              Math.sin(worldX * layer.freq1 + timeFactor + index * 1.5) * layer.amp1 +
+                              Math.sin(worldX * layer.freq2 + timeFactor * 1.3 + index * 3.0) * layer.amp2;
+                ctx.lineTo(x, Math.max(0, duneY));
+            }
+
+            ctx.lineTo(canvas.width, canvas.height);
+            ctx.closePath();
+            ctx.fill();
+        });
+
+        ctx.restore();
+    }
+
     resetLevel() {
         console.log(`resetLevel: START (Mode: ${this.gameMode})`);
         try {
-            // Ensure levelGenerator exists
             if (!this.levelGenerator) {
                  console.error("LevelGenerator not initialized before resetLevel!");
                  this.levelGenerator = new LevelGenerator(C.CANVAS_WIDTH, C.CANVAS_HEIGHT);
             }
 
-            // Generate level data regardless of mode
             console.log("Calling levelGenerator.generateLevel()...");
-            // Pass gameMode to generator if it needs to adjust generation based on mode
             const levelData = this.levelGenerator.generateLevel({ gameMode: this.gameMode });
-            console.log("Level generation complete."); // Keep levelData for setup
+            console.log("Level generation complete.");
 
-            // Initialize player based on level data
             console.log("Creating player...");
-            this.player = deepCopy(C.INITIAL_PLAYER_STATE); // Use deepCopy from utils
-            // Position player centered on the start platform, just above it
+            this.player = deepCopy(C.INITIAL_PLAYER_STATE);
             this.player.x = levelData.startPlatform ?
                             levelData.startPlatform.x + (levelData.startPlatform.width / 2) - (this.player.width / 2)
-                            : 100; // Fallback X
+                            : 100;
             this.player.y = levelData.startPlatform ?
-                            levelData.startPlatform.y - this.player.height - 1 // -1 to ensure not overlapping
-                            : C.CANVAS_HEIGHT - 100; // Fallback Y
+                            levelData.startPlatform.y - this.player.height - 1
+                            : C.CANVAS_HEIGHT - 100;
             console.log("Player created at:", this.player.x, this.player.y);
 
-            // Apply test mode modifications AFTER initial player setup
             if (this.gameMode === 'test') {
                 console.log("Applying test mode modifications to player...");
                 this.player.lives = 999;
-                this.player.orbShieldCount = 3; // Give shields in test mode
+                this.player.orbShieldCount = 3;
                 console.log("Test Player State:", this.player);
             }
 
-            // Set up level elements from generated data
-            // Ensure levelData provides these structures or provide defaults
             this.platforms = levelData.platforms || [];
-            // Assuming levelData.enemies is an object like { bats: [], groundPatrollers: [], snakes: [] }
-            // Ensure enemies are cleared as per request
             this.enemies = { bats: [], groundPatrollers: [], snakes: [] };
             console.log("Enemies cleared for this level.");
             this.collectibles = levelData.collectibles || [];
@@ -533,20 +486,16 @@ export class GameplayScene extends Scene {
             this.levelEndX = levelData.levelEndX || C.CHUNK_WIDTH * C.NUM_CHUNKS;
             console.log(`Level End X set to: ${this.levelEndX}`);
 
-            // Reset camera based on the NEW player position
-            this.camera = { x: 0, y: 0 }; // Reset camera first
-            // Position camera slightly ahead of player, respecting level start boundary
+            this.camera = { x: 0, y: 0 };
             this.camera.x = Math.max(0, this.player.x - C.CANVAS_WIDTH / 3);
-            this.camera.y = 0; // Assuming no vertical camera movement initially
+            this.camera.y = 0;
             console.log("Camera reset to:", this.camera.x, this.camera.y);
 
-            // Reset game state flags
             this.gameWon = false;
             this.levelComplete = false;
             this.startTime = Date.now();
             this.levelTime = 0;
 
-            // Reset effects system if needed
             if (this.effectsSystem && typeof this.effectsSystem.reset === 'function') {
                 this.effectsSystem.reset();
             }
@@ -554,9 +503,8 @@ export class GameplayScene extends Scene {
             console.log("resetLevel: COMPLETE");
         } catch (error) {
             console.error("ERROR in resetLevel:", error);
-            // Fallback setup in case of critical error during generation/setup
-            this.platforms = [{x: 50, y: C.CANVAS_HEIGHT - 50, width: 400, height: 30, color: 'darkred'}]; // Visible error platform
-            this.player = deepCopy(C.INITIAL_PLAYER_STATE); // Reset player state
+            this.platforms = [{x: 50, y: C.CANVAS_HEIGHT - 50, width: 400, height: 30, color: 'darkred'}];
+            this.player = deepCopy(C.INITIAL_PLAYER_STATE);
             this.player.x = 100;
             this.player.y = C.CANVAS_HEIGHT - 100;
             this.camera = { x: 0, y: 0 };
@@ -564,23 +512,16 @@ export class GameplayScene extends Scene {
             this.collectibles = [];
             this.goal = { x: 1000, y: C.CANVAS_HEIGHT - 150, width: C.GOAL_DOOR_WIDTH, height: C.GOAL_DOOR_HEIGHT, color: C.GOAL_FRAME_COLOR };
             this.levelEndX = 1200;
-            // Optionally display an error message on screen in render
         }
     }
 
-    // createTestEnvironment() { ... removed as resetLevel now handles both modes ... }
-
     updateCamera() {
-        // Simple player-following camera with level bounds
         const targetX = this.player.x - C.CANVAS_WIDTH / 2;
         const maxX = this.levelEndX - C.CANVAS_WIDTH;
-        
-        // Smooth camera movement
         this.camera.x += (Math.max(0, Math.min(maxX, targetX)) - this.camera.x) * 0.1;
     }
 
     renderUI(ctx) {
-        // Example UI rendering
         if (this.gameWon) {
             ctx.fillStyle = C.WIN_TEXT_COLOR;
             ctx.font = C.WIN_TEXT_FONT;
@@ -605,50 +546,38 @@ export class GameplayScene extends Scene {
 
     handleReset() {
         if (this.gameWon) {
-            // Move to next level
             this.currentLevel++;
             this.resetLevel();
         } else {
-            // Restart current level
             this.resetLevel();
         }
     }
 
     isGameplayActive() {
-        // Return true only if not in a winning or game over state
         return this.gameStarted && !this.gameWon && (this.player?.lives > 0);
     }
 
     onExit() {
         console.log("Exiting GameplayScene");
-        // Remove input listeners
         document.removeEventListener('keydown', this.handleKeyDown);
         document.removeEventListener('keyup', this.handleKeyUp);
         console.log("Input listeners removed.");
-        // Clean up any other resources if needed
     }
 
-    // --- Input Handlers ---
     handleKeyDown(e) {
-        // Prevent default browser behavior for arrow keys and space
         if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
             e.preventDefault();
         }
-        // Store key state
         this.keysPressed[e.key.toLowerCase()] = true;
 
-        // Handle game mode toggle separately
         if (e.key.toLowerCase() === 't' && !e.repeat) {
             this.toggleGameMode();
         }
     }
 
     handleKeyUp(e) {
-        // Clear key state
         this.keysPressed[e.key.toLowerCase()] = false;
     }
-
-    // --- Drawing Functions ---
 
     drawPlayer(ctx) {
         if (!this.player || !C.STICK_FIGURE) {
@@ -661,19 +590,16 @@ export class GameplayScene extends Scene {
 
         if (!poseDataArr || poseDataArr.length === 0) {
             console.warn(`drawPlayer: No pose data found for animation state: ${player.animationState}`);
-            // Fallback: Draw a simple rectangle
             ctx.fillStyle = C.PLAYER_COLOR || 'blue';
             ctx.fillRect(player.x, player.y, player.width, player.height);
             return;
         }
 
-        // Ensure frame index is valid, wrap around if needed
         const frameIndex = Math.floor(player.animationFrameIndex) % poseDataArr.length;
         const poseData = poseDataArr[frameIndex];
 
         if (!poseData) {
              console.error(`drawPlayer: Invalid frame index ${frameIndex} for state ${player.animationState}`);
-             // Fallback: Draw a simple rectangle
              ctx.fillStyle = C.PLAYER_COLOR || 'blue';
              ctx.fillRect(player.x, player.y, player.width, player.height);
              return;
@@ -690,30 +616,26 @@ export class GameplayScene extends Scene {
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
-        // Helper to get absolute position applying flip
         const getPos = (relativePos) => {
-            if (!relativePos || !Array.isArray(relativePos)) return [anchorX, anchorY]; // Safety check
+            if (!relativePos || !Array.isArray(relativePos)) return [anchorX, anchorY];
             return [anchorX + relativePos[0] * flip, anchorY + relativePos[1]];
         };
 
-        // --- Draw Body Parts ---
         const hipPos = getPos(poseData.hip);
         const shoulderPos = getPos(poseData.shoulder);
         const neckPos = getPos(poseData.neck);
         const headPos = getPos(poseData.head);
 
-        // Torso
         ctx.beginPath();
         ctx.moveTo(hipPos[0], hipPos[1]);
         ctx.lineTo(shoulderPos[0], shoulderPos[1]);
         ctx.lineTo(neckPos[0], neckPos[1]);
         ctx.stroke();
 
-        // Arms
         const drawLimb = (limbPoints) => {
             if (!limbPoints || !Array.isArray(limbPoints) || limbPoints.length < 2) return;
             ctx.beginPath();
-            ctx.moveTo(shoulderPos[0], shoulderPos[1]); // Start from shoulder
+            ctx.moveTo(shoulderPos[0], shoulderPos[1]);
             for (let i = 0; i < limbPoints.length; i++) {
                 const point = getPos(limbPoints[i]);
                 ctx.lineTo(point[0], point[1]);
@@ -723,11 +645,10 @@ export class GameplayScene extends Scene {
         drawLimb(poseData.armL);
         drawLimb(poseData.armR);
 
-        // Legs
         const drawLeg = (legPoints) => {
              if (!legPoints || !Array.isArray(legPoints) || legPoints.length < 2) return;
              ctx.beginPath();
-             ctx.moveTo(hipPos[0], hipPos[1]); // Start from hip
+             ctx.moveTo(hipPos[0], hipPos[1]);
              for (let i = 0; i < legPoints.length; i++) {
                  const point = getPos(legPoints[i]);
                  ctx.lineTo(point[0], point[1]);
@@ -737,57 +658,49 @@ export class GameplayScene extends Scene {
         drawLeg(poseData.legL);
         drawLeg(poseData.legR);
 
-
-        // --- Draw Head ---
         ctx.beginPath();
         ctx.arc(headPos[0], headPos[1], stickFigure.headRadius || 5, 0, Math.PI * 2);
         ctx.fill();
 
-        // --- Draw Accessories ---
-        // Hat (Example - adapt from description)
         if (stickFigure.hat) {
             const hat = stickFigure.hat;
             const tip = getPos([poseData.head[0] + hat.tipOffset[0], poseData.head[1] + hat.tipOffset[1]]);
-            const brimY = headPos[1] + hat.brimHeight / 2; // Center brim vertically on head center
+            const brimY = headPos[1] + hat.brimHeight / 2;
             const brimLeft = getPos([poseData.head[0] - hat.brimWidth / 2, poseData.head[1]]);
             const brimRight = getPos([poseData.head[0] + hat.brimWidth / 2, poseData.head[1]]);
 
             ctx.fillStyle = hat.color || '#6a0dad';
             ctx.beginPath();
             ctx.moveTo(tip[0], tip[1]);
-            // Approximate cone sides + elliptical brim
             ctx.quadraticCurveTo(brimLeft[0], brimY - hat.brimHeight * 1.5, brimLeft[0], brimY);
             ctx.ellipse(headPos[0], brimY, hat.brimWidth / 2, hat.brimHeight / 2, 0, 0, Math.PI * 2);
-            ctx.moveTo(tip[0], tip[1]); // Reconnect tip for fill
+            ctx.moveTo(tip[0], tip[1]);
             ctx.quadraticCurveTo(brimRight[0], brimY - hat.brimHeight * 1.5, brimRight[0], brimY);
             ctx.fill();
         }
 
-        // Staff (Example - adapt from description)
-        const handLPos = getPos(poseData.armL[poseData.armL.length - 1]); // Position of last point in armL
-        const handRPos = getPos(poseData.armR[poseData.armR.length - 1]); // Position of last point in armR
-        const drawStaff = stickFigure.staff && stickFigure.staff.hand !== 'right' && !player.isAttacking; // Condition to draw staff
+        const handLPos = getPos(poseData.armL[poseData.armL.length - 1]);
+        const handRPos = getPos(poseData.armR[poseData.armR.length - 1]);
+        const drawStaff = stickFigure.staff && stickFigure.staff.hand !== 'right' && !player.isAttacking;
 
         if (drawStaff) {
             const staff = stickFigure.staff;
             const staffTop = [handLPos[0] + staff.topOffset[0] * flip, handLPos[1] + staff.topOffset[1]];
-            const staffBottom = [staffTop[0], staffTop[1] + staff.length]; // Simple vertical staff
+            const staffBottom = [staffTop[0], staffTop[1] + staff.length];
 
             ctx.strokeStyle = staff.color || '#8B4513';
-            ctx.lineWidth = (stickFigure.lineWidth || 2) + 1; // Slightly thicker
+            ctx.lineWidth = (stickFigure.lineWidth || 2) + 1;
             ctx.beginPath();
             ctx.moveTo(staffTop[0], staffTop[1]);
             ctx.lineTo(staffBottom[0], staffBottom[1]);
             ctx.stroke();
 
-            // Gem
             ctx.fillStyle = staff.gemColor || '#FF4500';
             ctx.beginPath();
             ctx.arc(staffTop[0], staffTop[1], staff.gemRadius || 4, 0, Math.PI * 2);
             ctx.fill();
         }
 
-        // Sword (Example - adapt from description)
         const drawSword = stickFigure.sword && (stickFigure.staff?.hand !== 'right' || player.isAttacking);
 
         if (drawSword) {
@@ -795,7 +708,6 @@ export class GameplayScene extends Scene {
             const hiltBase = [handRPos[0] + sword.hiltOffset[0] * flip, handRPos[1] + sword.hiltOffset[1]];
             let angle = sword.angle * flip;
             if (player.isAttacking) {
-                 // Adjust angle during attack - simple example
                  angle += Math.PI / 4 * flip * Math.sin(player.attackTimer / C.ATTACK_DURATION * Math.PI);
             }
             const hiltEndX = hiltBase[0] + Math.cos(angle + Math.PI / 2) * sword.hiltLength;
@@ -803,13 +715,11 @@ export class GameplayScene extends Scene {
             const bladeTipX = hiltEndX + Math.cos(angle) * sword.bladeLength;
             const bladeTipY = hiltEndY + Math.sin(angle) * sword.bladeLength;
 
-            // Glow
             if (C.SWORD_GLOW_COLOR) {
                 ctx.shadowColor = C.SWORD_GLOW_COLOR;
                 ctx.shadowBlur = C.SWORD_GLOW_BLUR || 10;
             }
 
-            // Blade
             ctx.strokeStyle = C.SWORD_COLOR || '#e0e0ff';
             ctx.lineWidth = C.SWORD_LINE_WIDTH || 2;
             ctx.beginPath();
@@ -817,15 +727,14 @@ export class GameplayScene extends Scene {
             ctx.lineTo(bladeTipX, bladeTipY);
             ctx.stroke();
 
-            // Hilt (simple line)
-            ctx.strokeStyle = stickFigure.jointColor; // Match body color
+            ctx.strokeStyle = stickFigure.jointColor;
             ctx.lineWidth = stickFigure.lineWidth + 1;
             ctx.beginPath();
             ctx.moveTo(hiltBase[0], hiltBase[1]);
             ctx.lineTo(hiltEndX, hiltEndY);
             ctx.stroke();
 
-            ctx.shadowColor = 'transparent'; // Reset glow
+            ctx.shadowColor = 'transparent';
         }
 
         ctx.restore();
@@ -835,77 +744,64 @@ export class GameplayScene extends Scene {
         const anchorX = player.x + player.width / 2;
         const anchorY = player.y + player.height + (C.CARPET_OFFSET_Y || 5);
 
-        // Calculate animated dimensions based on time and config constants
         const waveSpeed = C.CARPET_WAVE_SPEED || 8;
         const waveAmpX = C.CARPET_WAVE_AMP_X || 0.08;
         const waveAmpY = C.CARPET_WAVE_AMP_Y || 0.15;
         const baseWidth = C.CARPET_WIDTH || 110;
         const baseHeight = C.CARPET_HEIGHT || 10;
 
-        // Combine multiple sine waves for more complex movement
         const waveX1 = Math.sin(time * waveSpeed) * waveAmpX;
-        const waveX2 = Math.sin(time * waveSpeed * 0.6 + 1) * waveAmpX * 0.5; // Slower wave
-        const waveY1 = Math.cos(time * waveSpeed * 0.7) * waveAmpY; // Slightly different speed for Y
+        const waveX2 = Math.sin(time * waveSpeed * 0.6 + 1) * waveAmpX * 0.5;
+        const waveY1 = Math.cos(time * waveSpeed * 0.7) * waveAmpY;
         const waveY2 = Math.cos(time * waveSpeed * 0.4 + 2) * waveAmpY * 0.6;
 
         const currentWidth = baseWidth * (1 + waveX1 + waveX2);
-        const currentHeight = baseHeight * (1 - (waveY1 + waveY2) * 0.5); // Average Y waves, invert effect
+        const currentHeight = baseHeight * (1 - (waveY1 + waveY2) * 0.5);
         const carpetX = anchorX - currentWidth / 2;
-        const carpetY = anchorY - currentHeight / 2; // Center vertically too
+        const carpetY = anchorY - currentHeight / 2;
 
-        // Call the trail function *before* drawing the carpet itself
         this.drawCarpetTrail(carpetX + currentWidth / 2, carpetY + currentHeight / 2, player.velocityX, player.velocityY, time, ctx);
 
         ctx.save();
 
-        // Subtle Glow
         ctx.shadowColor = C.CARPET_COLOR_1 || 'rgba(160, 96, 255, 0.5)';
         ctx.shadowBlur = 8;
 
-        // Create gradient fill
         const carpetGradient = ctx.createLinearGradient(carpetX, carpetY, carpetX, carpetY + currentHeight);
         carpetGradient.addColorStop(0, C.CARPET_COLOR_1 || '#a060ff');
         carpetGradient.addColorStop(1, C.CARPET_COLOR_2 || '#d0a0ff');
         ctx.fillStyle = carpetGradient;
 
-        // Draw wavy/curved shape
-        const segments = 10; // Number of segments for curves
+        const segments = 10;
         ctx.beginPath();
-        ctx.moveTo(carpetX, carpetY); // Top-left corner
+        ctx.moveTo(carpetX, carpetY);
 
-        // Top edge (wavy)
         for (let i = 1; i <= segments; i++) {
             const t = i / segments;
             const px = carpetX + currentWidth * t;
-            const pyOffset = Math.sin(time * waveSpeed * 1.5 + t * Math.PI * 2) * currentHeight * 0.2; // Add waviness
+            const pyOffset = Math.sin(time * waveSpeed * 1.5 + t * Math.PI * 2) * currentHeight * 0.2;
             ctx.lineTo(px, carpetY + pyOffset);
         }
 
-        // Right edge (rounded)
         ctx.quadraticCurveTo(carpetX + currentWidth + currentHeight * 0.3, carpetY + currentHeight / 2, carpetX + currentWidth, carpetY + currentHeight);
 
-        // Bottom edge (wavy)
         for (let i = segments; i >= 1; i--) {
             const t = i / segments;
             const px = carpetX + currentWidth * t;
-            const pyOffset = Math.sin(time * waveSpeed * 1.5 + t * Math.PI * 2 + Math.PI) * currentHeight * 0.2; // Add waviness (phase shifted)
+            const pyOffset = Math.sin(time * waveSpeed * 1.5 + t * Math.PI * 2 + Math.PI) * currentHeight * 0.2;
             ctx.lineTo(px, carpetY + currentHeight + pyOffset);
         }
 
-         // Left edge (rounded)
         ctx.quadraticCurveTo(carpetX - currentHeight * 0.3, carpetY + currentHeight / 2, carpetX, carpetY);
 
         ctx.closePath();
         ctx.fill();
 
-        // Reset shadow for patterns/tassels
         ctx.shadowColor = 'transparent';
 
-        // Draw patterns on top (Example: Diamond and circles)
-        ctx.fillStyle = C.CARPET_COLOR_2 || '#d0a0ff'; // Use lighter color for contrast
+        ctx.fillStyle = C.CARPET_COLOR_2 || '#d0a0ff';
         const centerX = carpetX + currentWidth / 2;
         const centerY = carpetY + currentHeight / 2;
-        // Diamond
         ctx.beginPath();
         ctx.moveTo(centerX, centerY - currentHeight * 0.3);
         ctx.lineTo(centerX + currentWidth * 0.1, centerY);
@@ -913,39 +809,34 @@ export class GameplayScene extends Scene {
         ctx.lineTo(centerX - currentWidth * 0.1, centerY);
         ctx.closePath();
         ctx.fill();
-        // Circles
         ctx.beginPath();
         ctx.arc(centerX - currentWidth * 0.3, centerY, currentHeight * 0.2, 0, Math.PI * 2);
         ctx.arc(centerX + currentWidth * 0.3, centerY, currentHeight * 0.2, 0, Math.PI * 2);
         ctx.fill();
 
-
-        // Draw wavy tassels
         const numTassels = 5;
         const tasselLength = currentHeight * 1.5;
         const beadRadius = 3;
         ctx.strokeStyle = C.CARPET_COLOR_2 || '#d0a0ff';
-        ctx.fillStyle = C.CARPET_COLOR_1 || '#a060ff'; // Bead color
+        ctx.fillStyle = C.CARPET_COLOR_1 || '#a060ff';
         ctx.lineWidth = 2;
 
         for (let i = 0; i < numTassels; i++) {
             const startX = carpetX + (currentWidth / (numTassels + 1)) * (i + 1);
-            const startY = carpetY + currentHeight; // Start from bottom edge
+            const startY = carpetY + currentHeight;
             const endY = startY + tasselLength;
-            const controlXOffset = Math.sin(time * waveSpeed * 2 + i * 0.5) * 15; // Horizontal sway
-            const controlYOffset = Math.cos(time * waveSpeed * 1.2 + i * 0.8) * 10; // Vertical curve
+            const controlXOffset = Math.sin(time * waveSpeed * 2 + i * 0.5) * 15;
+            const controlYOffset = Math.cos(time * waveSpeed * 1.2 + i * 0.8) * 10;
 
             ctx.beginPath();
             ctx.moveTo(startX, startY);
-            // Bezier curve for wavy tassel
             ctx.bezierCurveTo(
                 startX + controlXOffset / 2, startY + tasselLength / 3 + controlYOffset,
                 startX - controlXOffset / 2, startY + tasselLength * 2 / 3 - controlYOffset,
-                startX + Math.sin(time * waveSpeed * 2.5 + i) * 5, endY // End point with slight sway
+                startX + Math.sin(time * waveSpeed * 2.5 + i) * 5, endY
             );
             ctx.stroke();
 
-            // Draw bead at the end
             const beadX = startX + Math.sin(time * waveSpeed * 2.5 + i) * 5;
             ctx.beginPath();
             ctx.arc(beadX, endY, beadRadius, 0, Math.PI * 2);
@@ -957,66 +848,57 @@ export class GameplayScene extends Scene {
 
     drawCarpetTrail(carpetCenterX, carpetCenterY, velocityX, velocityY, time, ctx) {
         const speed = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
-        const minSpeedThreshold = 5; // Only draw if moving reasonably fast
+        const minSpeedThreshold = 5;
         if (speed < minSpeedThreshold) return;
 
         ctx.save();
-        // More particles at higher speeds, up to a limit
         const particleCount = Math.min(15, Math.floor(3 + speed * 0.2));
-        const trailLength = 50 + speed * 0.5; // How far back particles spread
+        const trailLength = 50 + speed * 0.5;
 
-        // Normalize direction vector
         const dirX = -velocityX / speed;
         const dirY = -velocityY / speed;
 
-        // Starting point slightly behind the carpet center
         const trailStartX = carpetCenterX + dirX * (C.CARPET_WIDTH || 110) * 0.3;
         const trailStartY = carpetCenterY + dirY * (C.CARPET_HEIGHT || 10) * 0.3;
 
-        ctx.globalCompositeOperation = 'lighter'; // Additive blending for glow
+        ctx.globalCompositeOperation = 'lighter';
 
         for (let i = 0; i < particleCount; i++) {
-            const trailProgress = i / (particleCount - 1); // 0 (farthest) to 1 (closest)
+            const trailProgress = i / (particleCount - 1);
 
-            // Base position along the trail direction
             const baseX = trailStartX + dirX * trailLength * trailProgress;
             const baseY = trailStartY + dirY * trailLength * trailProgress;
 
-            // Add perpendicular wavy offset for spread
             const perpendicularAngle = Math.atan2(dirY, dirX) + Math.PI / 2;
-            const waveOffsetMagnitude = Math.sin(time * 10 + trailProgress * Math.PI * 3) * 15 * (1 - trailProgress); // Wider spread farther back
+            const waveOffsetMagnitude = Math.sin(time * 10 + trailProgress * Math.PI * 3) * 15 * (1 - trailProgress);
             const offsetX = Math.cos(perpendicularAngle) * waveOffsetMagnitude;
             const offsetY = Math.sin(perpendicularAngle) * waveOffsetMagnitude;
 
             const x = baseX + offsetX;
             const y = baseY + offsetY;
 
-            // Size fades out along the trail, pulses slightly
             const baseSize = 1 + 5 * (1 - trailProgress);
-            const sizePulse = Math.sin(time * 15 + i * 0.5) * 0.5 + 0.5; // 0 to 1 pulse
-            const size = baseSize * (0.5 + sizePulse * 0.5); // Apply pulse, min size 50%
+            const sizePulse = Math.sin(time * 15 + i * 0.5) * 0.5 + 0.5;
+            const size = baseSize * (0.5 + sizePulse * 0.5);
 
-            // Alpha fades out along the trail
-            const alpha = 0.6 * (1 - trailProgress) * (0.5 + sizePulse * 0.5); // Fade alpha too
+            const alpha = 0.6 * (1 - trailProgress) * (0.5 + sizePulse * 0.5);
 
-            // Color shifts hue over time and along trail (HSL is good for this)
-            const hue = (180 + time * 30 + trailProgress * 60) % 360; // Shift through blues/purples/pinks
-            const saturation = 80 + 20 * sizePulse; // More saturated when brighter/larger
-            const lightness = 60 + 15 * sizePulse; // Brighter when larger
+            const hue = (180 + time * 30 + trailProgress * 60) % 360;
+            const saturation = 80 + 20 * sizePulse;
+            const lightness = 60 + 15 * sizePulse;
             ctx.fillStyle = `hsla(${hue}, ${saturation}%, ${lightness}%, ${alpha})`;
 
             ctx.beginPath();
-            ctx.arc(x, y, Math.max(0.5, size), 0, Math.PI * 2); // Ensure size is not negative
+            ctx.arc(x, y, Math.max(0.5, size), 0, Math.PI * 2);
             ctx.fill();
 
-            // Optional: Draw random star sparkles (small percentage)
-            if (Math.random() < 0.15 && trailProgress > 0.3) { // Less frequent near carpet
+            if (Math.random() < 0.15 && trailProgress > 0.3) {
                 const starSize = size * 0.8;
                 const angle = time * 5 + i * 1.5;
-                ctx.strokeStyle = `hsla(${hue}, 100%, 80%, ${alpha * 0.8})`; // Slightly brighter outline
+                ctx.strokeStyle = `hsla(${hue}, 100%, 80%, ${alpha * 0.8})`;
                 ctx.lineWidth = 1;
                 ctx.beginPath();
-                for (let j = 0; j < 5; j++) { // 5 points for a star
+                for (let j = 0; j < 5; j++) {
                     const outerX = x + Math.cos(angle + (j * Math.PI * 2 / 5)) * starSize;
                     const outerY = y + Math.sin(angle + (j * Math.PI * 2 / 5)) * starSize;
                     if (j === 0) ctx.moveTo(outerX, outerY); else ctx.lineTo(outerX, outerY);
@@ -1028,6 +910,6 @@ export class GameplayScene extends Scene {
                 ctx.stroke();
             }
         }
-        ctx.restore(); // Restore composite operation and other states
+        ctx.restore();
     }
 }
