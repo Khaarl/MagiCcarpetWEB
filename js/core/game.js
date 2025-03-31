@@ -1,6 +1,8 @@
 // magic-carpet-game/js/core/game.js
 
 import * as C from '../config.js'; // Game constants
+// Import specific constants needed
+import { ALLOW_DEVELOPER_MODE } from '../config.js';
 import { SaveSystem } from './save.js'; // Handles saving/loading progress
 import { TouchControls } from './touch.js'; // Handles touch input
 import { AudioManager } from './audioManager.js'; // AudioManager for handling music and sound effects
@@ -38,6 +40,7 @@ export class Game {
         // --- Game State ---
         this.isPaused = false; // Is the game loop paused?
         this.isRunning = false; // Is the game loop active?
+        this.developerModeEnabled = false; // Is the developer mode active?
 
         // --- Input State ---
         this.inputState = {
@@ -75,11 +78,55 @@ export class Game {
         window.addEventListener('keydown', (e) => {
             // Ignore keydown events if a modifier key (like Alt, Ctrl, Meta) is pressed,
             // except for specific combinations if needed later.
-            if (e.altKey || e.ctrlKey || e.metaKey) return;
+            // Allow Ctrl/Shift for dev commands
+            // if (e.altKey || e.ctrlKey || e.metaKey) return; // Keep this commented or refine later if needed
 
             const key = e.key.toLowerCase();
-            let relevantKey = true; // Flag to check if we should prevent default
+            let relevantKey = true; // Flag to check if we should prevent default for gameplay keys
 
+            // --- Developer Mode Toggle ---
+            if (key === '`') { // Backtick key for developer mode toggle
+                if (ALLOW_DEVELOPER_MODE) {
+                    this.developerModeEnabled = !this.developerModeEnabled;
+                    console.log(`Developer Mode: ${this.developerModeEnabled ? 'ON' : 'OFF'}`);
+                    // Potentially update UI or trigger scene-specific dev setup
+                    if (this.currentScene && typeof this.currentScene.onDeveloperModeToggle === 'function') {
+                        this.currentScene.onDeveloperModeToggle(this.developerModeEnabled);
+                    }
+                }
+                return; // Don't process further if it was the toggle key
+            }
+
+            // --- Developer Mode Active Keybinds ---
+            if (this.developerModeEnabled && this.currentScene) {
+                let devActionTaken = false;
+                // Check for scene-specific dev methods before executing
+                if (key === 'g' && !e.repeat && typeof this.currentScene.devToggleGodMode === 'function') {
+                    this.currentScene.devToggleGodMode();
+                    devActionTaken = true;
+                } else if (key === 'n' && !e.repeat && typeof this.currentScene.devToggleNoclip === 'function') {
+                    this.currentScene.devToggleNoclip();
+                    devActionTaken = true;
+                } else if (key === 'k' && !e.repeat && typeof this.currentScene.devKillAllEnemies === 'function') {
+                    this.currentScene.devKillAllEnemies();
+                    devActionTaken = true;
+                } else if (e.shiftKey && key === '1' && !e.repeat && typeof this.currentScene.devSpawnEnemy === 'function') {
+                    this.currentScene.devSpawnEnemy('bat'); // Type is passed to scene method
+                    devActionTaken = true;
+                } else if (e.shiftKey && key === '2' && !e.repeat && typeof this.currentScene.devSpawnEnemy === 'function') {
+                    this.currentScene.devSpawnEnemy('patroller'); // Type is passed to scene method
+                    devActionTaken = true;
+                }
+                // Add more dev keys here (e.g., teleport, give item) later
+
+                if (devActionTaken) {
+                    e.preventDefault(); // Prevent default for dev keys if action was taken
+                    return; // Stop processing if a dev key was handled
+                }
+            }
+
+            // --- Regular Gameplay Keybinds ---
+            // Only process if not handled by developer mode keys above
             switch (key) {
                 case 'arrowleft': case 'a': this.inputState.keys.left = true; break;
                 case 'arrowright': case 'd': this.inputState.keys.right = true; break;
@@ -99,9 +146,10 @@ export class Game {
                 default:
                     relevantKey = false; // Not a key we care about for default prevention
                     break;
+                // Backtick ('`') is handled above, removed from here
             }
-            // Prevent default browser action (like scrolling with arrow keys/space) only for relevant keys
-            if (relevantKey && (key === ' ' || key.startsWith('arrow'))) {
+            // Prevent default browser action (like scrolling with arrow keys/space) only for relevant gameplay keys
+            if (relevantKey && (key === ' ' || key.startsWith('arrow') || ['w', 'a', 's', 'd'].includes(key))) {
                 e.preventDefault();
             }
         });

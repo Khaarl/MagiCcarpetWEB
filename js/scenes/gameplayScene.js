@@ -1,5 +1,7 @@
 import { Scene } from '../core/scene.js';
 import * as C from '../config.js';
+// Import specific prototypes needed for spawning
+import { BAT_PROTOTYPE, GROUND_PATROLLER_PROTOTYPE } from '../config.js';
 import { getRandom, getRandomInt, checkRectOverlap, deepCopy } from '../utils.js';
 import { LevelGenerator } from '../level/levelGenerator.js';
 import { createEffectsSystem } from '../core/effects.js';
@@ -26,7 +28,6 @@ export class GameplayScene extends Scene {
         this.levelTime = 0;
         this.currentLevel = 1;
         this.gameMode = 'normal'; // Default, will be set by init
-        this.debugMode = false; // Default to false
     }
 
     /**
@@ -66,15 +67,7 @@ export class GameplayScene extends Scene {
                 }
                 this.keysPressed[e.key.toLowerCase()] = true;
 
-                if (e.key.toLowerCase() === 't' && !e.repeat) {
-                    this.toggleGameMode();
-                }
-
-                // Add debug mode toggle on 'F9' key
-                if (e.key === 'F9' && !e.repeat) {
-                    this.debugMode = !this.debugMode;
-                    console.log(`Debug mode: ${this.debugMode ? 'ON' : 'OFF'}`);
-                }
+                // Removed 't' and 'F9' toggles from here, handled in Game.js or the standalone handleKeyDown
             };
 
             this.handleKeyUp = (e) => {
@@ -135,9 +128,36 @@ export class GameplayScene extends Scene {
         // --- Player Physics and Movement ---
         if (this.player) {
             let player = this.player;
-            let onGround = player.onGround; // Use current ground status for logic
 
-            // --- Horizontal Movement ---
+            // --- Noclip Movement (Developer Mode) ---
+            if (this.game && this.game.developerModeEnabled && player.noclipActive) {
+                const noclipSpeed = 15; // Adjust speed as needed
+                player.velocityY = 0; // Ignore gravity
+                player.velocityX = 0; // Base horizontal speed is 0 unless keys pressed
+
+                if (this.keysPressed['arrowup'] || this.keysPressed['w']) {
+                    player.y -= noclipSpeed * deltaTime * 60;
+                }
+                // Add missing noclip horizontal movement keys here
+                if (this.keysPressed['arrowdown'] || this.keysPressed['s']) {
+                     player.y += noclipSpeed * deltaTime * 60;
+                }
+                 if (this.keysPressed['arrowleft'] || this.keysPressed['a']) {
+                     player.x -= noclipSpeed * deltaTime * 60;
+                     player.facingDirection = 'left';
+                 }
+                if (this.keysPressed['arrowright'] || this.keysPressed['d']) {
+                    player.x += noclipSpeed * deltaTime * 60;
+                    player.facingDirection = 'right';
+                }
+                // Skip normal physics and collision update in noclip
+                this.updateAnimationState(); // Still update animation state if needed
+
+            } else { // End of noclip block, start of normal physics
+                // --- Normal Physics and Movement ---
+                let onGround = player.onGround; // Use current ground status for logic
+
+                // --- Horizontal Movement ---
             const targetAcceleration = onGround ? C.GROUND_ACCELERATION : C.AIR_ACCELERATION;
             const targetMaxSpeed = onGround ? C.GROUND_MAX_SPEED : C.AIR_MAX_SPEED;
             const targetFriction = onGround ? C.GROUND_FRICTION : C.AIR_FRICTION;
@@ -308,10 +328,10 @@ export class GameplayScene extends Scene {
             player.x = nextX;
             player.y = nextY;
 
-            // Update animation state
+            // Update animation state (Moved inside normal physics block)
             this.updateAnimationState();
 
-            // Prevent falling through floor (simple boundary)
+            // Prevent falling through floor (simple boundary) - Only apply if not in noclip
              if (player.y + player.height > C.CANVAS_HEIGHT) {
                  player.y = C.CANVAS_HEIGHT - player.height;
                  player.velocityY = 0;
@@ -321,7 +341,7 @@ export class GameplayScene extends Scene {
                  }
              }
 
-            // --- Animation Update ---
+            // --- Animation Update --- (Moved inside normal physics block)
             const poseDataArr = C.STICK_FIGURE?.poses[player.animationState];
             if (poseDataArr && poseDataArr.length > 1) { // Only animate if multiple frames exist
                 player.animationTimer += deltaTime;
@@ -334,16 +354,65 @@ export class GameplayScene extends Scene {
                 player.animationFrameIndex = 0; // Reset to first frame if state changes or only one frame
             }
 
+            } // End of normal physics block (else for noclip)
 
         } // End if(this.player)
 
-        // Update effects and particles
+        // Update effects and particles (Moved outside the player block)
         if (this.effectsSystem) { // Check if effects system exists
             this.effectsSystem.update(deltaTime);
         }
 
+        // --- Enemy Update and Collision ---
+        // TODO: Implement actual enemy update logic and collision checks here.
+        // Collision checks should iterate through active enemies (e.g., bats, patrollers)
+        // and check for overlap with the player using checkRectOverlap(this.player, enemy).
+        // If a collision occurs, call this.handlePlayerDamage().
+        /*
+        Example structure:
+        Object.values(this.enemies).flat().forEach(enemy => {
+            // enemy.update(deltaTime, this.platforms, this.player); // Update enemy AI/movement
+            if (checkRectOverlap(this.player, enemy)) {
+                this.handlePlayerDamage(); // Call damage handler on collision
+            }
+        });
+        */
+
         // Update camera position
         this.updateCamera();
+    } // End of update method
+
+    /**
+     * Handles the consequences of the player taking damage (e.g., from enemy collision).
+     * Checks for God Mode before applying effects.
+     * This method should be called when a player-enemy collision is detected.
+     */
+    handlePlayerDamage() {
+        if (!this.player) return;
+
+        // --- God Mode Check ---
+        // If player is invincible (God Mode enabled), ignore the damage.
+        if (this.player.isInvincible) {
+            console.log("Player hit detected, but God Mode is ON. Damage ignored.");
+            // Optionally add a visual/audio cue for blocked damage
+            // e.g., this.effectsSystem.emitShieldHit(this.player.x, this.player.y);
+            return; // Exit without applying damage effects
+        }
+        // --- End God Mode Check ---
+
+        // --- Original Damage Logic ---
+        // If not in God Mode, proceed with normal damage consequences.
+        // This might involve:
+        // 1. Reducing lives: this.player.lives--; this.updateLivesDisplay();
+        // 2. Checking for game over: if (this.player.lives <= 0) { /* trigger game over */ }
+        // 3. Playing a hurt sound/animation.
+        // 4. Applying temporary invulnerability after hit.
+        // 5. Resetting the level or player position.
+
+        // Placeholder: Log the hit and reset the level for now.
+        // Replace this with the actual game's damage handling logic.
+        console.log("Player hit! Applying damage consequences (currently resetting level).");
+        this.resetLevel(); // Simple reset as placeholder
     }
 
     render(ctx) {
@@ -432,17 +501,90 @@ export class GameplayScene extends Scene {
                     C.CANVAS_WIDTH - 20, 30); // Position near top-right
         ctx.textAlign = 'left'; // Reset alignment
 
-        // Debug rendering (Optional, can be commented out)
-        ctx.fillStyle = 'white';
-        ctx.font = '16px Arial';
-        ctx.fillText(`Camera: (${this.camera.x.toFixed(0)}, ${this.camera.y.toFixed(0)})`, 10, 50);
-        ctx.fillText(`Player: (${this.player.x.toFixed(0)}, ${this.player.y.toFixed(0)})`, 10, 70);
-        ctx.fillText(`Platforms: ${this.platforms.length}`, 10, 90);
+        // --- Developer Mode Rendering ---
+        // Check the game instance for the developer mode flag
+        if (this.game && this.game.developerModeEnabled) {
+            this.renderDevInfo(ctx); // Call the dedicated dev info renderer
+        }
+        // --- End Developer Mode Rendering ---
+    }; // End of render method (Added semicolon)
 
-        // Render debug information
-        this.renderDebugInfo(ctx);
-    }
-    
+    /**
+     * Renders developer mode information overlay.
+     * Called only when developer mode is enabled via the Game instance.
+     * @param {CanvasRenderingContext2D} ctx - The rendering context
+     */
+    renderDevInfo(ctx) {
+        // This method is now called conditionally from render()
+        // based on this.game.developerModeEnabled
+
+        const boxX = 10;
+        const boxY = 130; // Position below other UI elements
+        const boxWidth = 280;
+        const boxHeight = 220; // Increased height to fit new info
+        const lineHeight = 18;
+        const padding = 10;
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+        ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+
+        ctx.fillStyle = '#00FF00'; // Green text for dev mode title
+        ctx.font = 'bold 14px monospace'; // Bold title
+        ctx.textAlign = 'left';
+
+        let y = boxY + padding + lineHeight; // Start drawing inside the box
+
+        // General Status
+        ctx.fillText(`--- Developer Mode ON (~) ---`, boxX + padding, y);
+        y += lineHeight * 1.5; // Extra space
+
+        // Player Info
+        if (this.player) {
+            const p = this.player;
+            ctx.font = '14px monospace'; // Reset font for details
+
+            ctx.fillStyle = '#FFFFFF'; // White for player info
+            ctx.fillText(`Player Pos: (${p.x.toFixed(0)}, ${p.y.toFixed(0)})`, boxX + padding, y);
+            y += lineHeight;
+            ctx.fillText(`Player Vel: (${p.velocityX.toFixed(1)}, ${p.velocityY.toFixed(1)})`, boxX + padding, y);
+            y += lineHeight;
+            ctx.fillText(`State: ${p.animationState}, Ground: ${p.onGround}`, boxX + padding, y);
+            y += lineHeight;
+
+            // Cheat Status
+            ctx.fillStyle = p.isInvincible ? '#FFFF00' : '#AAAAAA'; // Yellow if ON, Gray if OFF
+            ctx.fillText(`God Mode (G): ${p.isInvincible ? 'ON' : 'OFF'}`, boxX + padding, y);
+            y += lineHeight;
+
+            ctx.fillStyle = p.noclipActive ? '#FFFF00' : '#AAAAAA'; // Yellow if ON, Gray if OFF
+            ctx.fillText(`Noclip (N):   ${p.noclipActive ? 'ON' : 'OFF'}`, boxX + padding, y);
+            y += lineHeight;
+            ctx.fillStyle = '#CCCCCC'; // Light gray for other info
+            ctx.fillText(`Spawn Bat (Shift+1)`, boxX + padding, y);
+            y += lineHeight;
+            ctx.fillText(`Spawn Patroller (Shift+2)`, boxX + padding, y);
+            y += lineHeight;
+            ctx.fillText(`Kill Enemies (K)`, boxX + padding, y);
+            y += lineHeight;
+
+
+        } else {
+            ctx.fillStyle = '#FF5555'; // Red if player missing
+            ctx.font = '14px monospace';
+            ctx.fillText('Player object not found!', boxX + padding, y);
+            y += lineHeight;
+        }
+
+        // Other Info
+        ctx.fillStyle = '#CCCCCC'; // Light gray for other info
+        ctx.font = '14px monospace';
+        ctx.fillText(`Camera: (${this.camera.x.toFixed(0)}, ${this.camera.y.toFixed(0)})`, boxX + padding, y);
+        y += lineHeight;
+        ctx.fillText(`Particles: ${this.effectsSystem?.getActiveCount() || 0}`, boxX + padding, y);
+        y += lineHeight;
+
+    }; // End of renderDevInfo method (Added semicolon)
+
     drawDesertDunesBackground(time, camX, ctx) {
         const canvas = ctx.canvas; // Get canvas reference inside the function
         ctx.save(); // Save the current canvas state
@@ -532,7 +674,7 @@ export class GameplayScene extends Scene {
         });
 
         ctx.restore();
-    }
+    }; // End of drawDesertDunesBackground method (Added semicolon)
 
     resetLevel() {
         console.log(`resetLevel: START (Mode: ${this.gameMode})`);
@@ -598,13 +740,13 @@ export class GameplayScene extends Scene {
             this.goal = { x: 1000, y: C.CANVAS_HEIGHT - 150, width: C.GOAL_DOOR_WIDTH, height: C.GOAL_DOOR_HEIGHT, color: C.GOAL_FRAME_COLOR };
             this.levelEndX = 1200;
         }
-    }
+    }; // End of resetLevel method (Added semicolon)
 
     updateCamera() {
         const targetX = this.player.x - C.CANVAS_WIDTH / 2;
         const maxX = this.levelEndX - C.CANVAS_WIDTH;
         this.camera.x += (Math.max(0, Math.min(maxX, targetX)) - this.camera.x) * 0.1;
-    }
+    }; // End of updateCamera method (Added semicolon)
 
     renderUI(ctx) {
         if (this.gameWon) {
@@ -621,21 +763,21 @@ export class GameplayScene extends Scene {
             ctx.textAlign = 'center';
             ctx.fillText(flyingText, C.CANVAS_WIDTH / 2, 50);
         }
-    }
+    }; // End of renderUI method (Added semicolon)
 
     updateLivesDisplay() {
         const livesDisplay = document.getElementById('livesDisplay');
         if (livesDisplay && this.player) {
             livesDisplay.textContent = `Lives: ${this.player.lives}`;
         }
-    }
+    }; // End of updateLivesDisplay method (Added semicolon)
 
     updateOrbShieldDisplay() {
         const orbShieldDisplay = document.getElementById('orbShieldDisplay');
         if (orbShieldDisplay && this.player) {
             orbShieldDisplay.textContent = `Shield: ${this.player.orbShieldCount}`;
         }
-    }
+    }; // End of updateOrbShieldDisplay method (Added semicolon)
 
     handleReset() {
         if (this.gameWon) {
@@ -644,18 +786,18 @@ export class GameplayScene extends Scene {
         } else {
             this.resetLevel();
         }
-    }
+    }; // End of handleReset method (Added semicolon)
 
     isGameplayActive() {
         return this.gameStarted && !this.gameWon && (this.player?.lives > 0);
-    }
+    }; // End of isGameplayActive method (Added semicolon)
 
     onExit() {
         console.log("Exiting GameplayScene");
         document.removeEventListener('keydown', this.handleKeyDown);
         document.removeEventListener('keyup', this.handleKeyUp);
         console.log("Input listeners removed.");
-    }
+    }; // End of onExit method (Added semicolon)
 
     handleKeyDown(e) {
         if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
@@ -663,22 +805,56 @@ export class GameplayScene extends Scene {
         }
         this.keysPressed[e.key.toLowerCase()] = true;
 
-        if (e.key.toLowerCase() === 't' && !e.repeat) {
-            this.toggleGameMode();
-        }
+        // Removed 't' and 'F9' toggles from here
 
-        // Add debug mode toggle on 'F9' key
-        if (e.key === 'F9' && !e.repeat) {
-            this.debugMode = !this.debugMode;
-            console.log(`Debug mode: ${this.debugMode ? 'ON' : 'OFF'}`);
+        // --- Developer Mode Keybinds ---
+        // Check the flag on the game instance
+        if (this.game && this.game.developerModeEnabled) {
+            if (e.key === 'g' && !e.repeat) {
+                if (this.player) {
+                    this.player.isInvincible = !this.player.isInvincible;
+                    console.log(`God Mode: ${this.player.isInvincible ? 'ON' : 'OFF'}`);
+                }
+            }
+            if (e.key === 'n' && !e.repeat) {
+                if (this.player) {
+                    this.player.noclipActive = !this.player.noclipActive;
+                    console.log(`Noclip Mode: ${this.player.noclipActive ? 'ON' : 'OFF'}`);
+                    // Reset velocity when toggling noclip to prevent sudden jumps/falls
+                    if (this.player.noclipActive) {
+                        this.player.velocityY = 0;
+                        this.player.velocityX = 0; // Also reset horizontal velocity
+                    }
+                }
+            }
+            // Enemy Spawning
+            if (e.shiftKey && e.key === '1' && !e.repeat) { // Shift + 1 for Bat
+                if (this.player) {
+                    this.devSpawnEnemy('bat', this.player.x + (this.player.facingDirection === 'right' ? 50 : -50), this.player.y);
+                }
+            }
+            if (e.shiftKey && e.key === '2' && !e.repeat) { // Shift + 2 for Ground Patroller
+                if (this.player) {
+                    this.devSpawnEnemy('patroller', this.player.x + (this.player.facingDirection === 'right' ? 60 : -60), this.player.y);
+                }
+            }
+            if (e.key === 'k' && !e.repeat) { // K key to kill enemies
+                this.devKillAllEnemies();
+            }
+            if (e.key === '`' && !e.repeat) { // Backtick key to toggle developer mode
+                if (this.game) {
+                    this.game.developerModeEnabled = !this.game.developerModeEnabled;
+                    console.log(`Developer Mode: ${this.game.developerModeEnabled ? 'ON' : 'OFF'}`);
+                }
+            }
+            // Add more dev keys here (k, w, etc.) in later phases
         }
-
-        console.log("Key pressed:", e.key, "Current input state:", this.keysPressed);
-    }
+        // --- End Developer Mode Keybinds ---
+    }; // End of handleKeyDown method (Added semicolon)
 
     handleKeyUp(e) {
         this.keysPressed[e.key.toLowerCase()] = false;
-    }
+    }; // End of handleKeyUp method (Added semicolon)
 
     drawPlayer(ctx) {
         if (!this.player || !C.STICK_FIGURE) {
@@ -820,7 +996,7 @@ export class GameplayScene extends Scene {
         }
 
         ctx.restore();
-    }
+    }; // End of drawPlayer method (Added semicolon)
 
     drawMagicCarpet(player, time, ctx) {
         const anchorX = player.x + player.width / 2;
@@ -942,7 +1118,7 @@ export class GameplayScene extends Scene {
         }
 
         ctx.restore();
-    }
+    }; // End of drawMagicCarpet method (Added semicolon)
 
     drawCarpetTrail(carpetCenterX, carpetCenterY, velocityX, velocityY, time, ctx) {
         const speed = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
@@ -1009,7 +1185,7 @@ export class GameplayScene extends Scene {
             }
         }
         ctx.restore();
-    }
+    }; // End of drawCarpetTrail method (Added semicolon)
 
     /**
      * Centralizes animation state transitions for the player
@@ -1039,44 +1215,226 @@ export class GameplayScene extends Scene {
         if (!player.onGround && player.velocityY > 0 && !this.keysPressed[' ']) {
             player.animationState = 'falling';
         }
+    }; // End of updateAnimationState method (Added semicolon)
+
+    /**
+     * Optional hook called by Game.js when developer mode is toggled.
+     * @param {boolean} isEnabled - The new state of developer mode.
+     */
+    onDeveloperModeToggle(isEnabled) {
+        console.log(`GameplayScene notified: Developer Mode ${isEnabled ? 'Enabled' : 'Disabled'}`);
+        // Add any scene-specific UI updates or logic needed here
+        // For example, show/hide a debug menu element
     }
 
     /**
-     * Renders debug information for development and testing
+     * Renders developer mode information overlay.
+     * Called only when developer mode is enabled via the Game instance.
      * @param {CanvasRenderingContext2D} ctx - The rendering context
      */
-    renderDebugInfo(ctx) {
-        if (!this.debugMode) return;
-        
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.fillRect(10, 130, 250, 160);
-        
-        ctx.fillStyle = 'white';
-        ctx.font = '14px monospace';
+    renderDevInfo(ctx) {
+        // This method is now called conditionally from render()
+        // based on this.game.developerModeEnabled
+
+        const boxX = 10;
+        const boxY = 130; // Position below other UI elements
+        const boxWidth = 280;
+        const boxHeight = 180;
+        const lineHeight = 18;
+        const padding = 10;
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+        ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+
+        ctx.fillStyle = '#00FF00'; // Green text for dev mode title
+        ctx.font = 'bold 14px monospace'; // Bold title
         ctx.textAlign = 'left';
-        
-        let y = 150;
-        const lineHeight = 20;
-        
-        // Camera info
-        ctx.fillText(`Camera: (${this.camera.x.toFixed(0)}, ${this.camera.y.toFixed(0)})`, 20, y);
-        y += lineHeight;
-        
-        // Player info
+
+        let y = boxY + padding + lineHeight; // Start drawing inside the box
+
+        // General Status
+        ctx.fillText(`--- Developer Mode ON (~) ---`, boxX + padding, y);
+        y += lineHeight * 1.5; // Extra space
+
+        // Player Info
         if (this.player) {
             const p = this.player;
-            ctx.fillText(`Player: (${p.x.toFixed(0)}, ${p.y.toFixed(0)})`, 20, y);
+            ctx.font = '14px monospace'; // Reset font for details
+
+            ctx.fillStyle = '#FFFFFF'; // White for player info
+            ctx.fillText(`Player Pos: (${p.x.toFixed(0)}, ${p.y.toFixed(0)})`, boxX + padding, y);
             y += lineHeight;
-            ctx.fillText(`Velocity: (${p.velocityX.toFixed(2)}, ${p.velocityY.toFixed(2)})`, 20, y);
+            ctx.fillText(`Player Vel: (${p.velocityX.toFixed(1)}, ${p.velocityY.toFixed(1)})`, boxX + padding, y);
             y += lineHeight;
-            ctx.fillText(`State: ${p.animationState}, OnGround: ${p.onGround}`, 20, y);
+            ctx.fillText(`State: ${p.animationState}, Ground: ${p.onGround}`, boxX + padding, y);
+            y += lineHeight;
+
+            // Cheat Status
+            ctx.fillStyle = p.isInvincible ? '#FFFF00' : '#AAAAAA'; // Yellow if ON, Gray if OFF
+            ctx.fillText(`God Mode (G): ${p.isInvincible ? 'ON' : 'OFF'}`, boxX + padding, y);
+            y += lineHeight;
+
+            ctx.fillStyle = p.noclipActive ? '#FFFF00' : '#AAAAAA'; // Yellow if ON, Gray if OFF
+            ctx.fillText(`Noclip (N):   ${p.noclipActive ? 'ON' : 'OFF'}`, boxX + padding, y);
+            y += lineHeight;
+
+        } else {
+            ctx.fillStyle = '#FF5555'; // Red if player missing
+            ctx.font = '14px monospace';
+            ctx.fillText('Player object not found!', boxX + padding, y);
             y += lineHeight;
         }
-        
-        // Performance info
-        ctx.fillText(`Active Particles: ${this.effectsSystem?.getActiveCount() || 0}`, 20, y);
+
+        // Other Info
+        ctx.fillStyle = '#CCCCCC'; // Light gray for other info
+        ctx.font = '14px monospace';
+        ctx.fillText(`Camera: (${this.camera.x.toFixed(0)}, ${this.camera.y.toFixed(0)})`, boxX + padding, y);
         y += lineHeight;
-        ctx.fillText(`Platforms: ${this.platforms.length}`, 20, y);
+        ctx.fillText(`Particles: ${this.effectsSystem?.getActiveCount() || 0}`, boxX + padding, y);
         y += lineHeight;
+
+        // Add keybind list to the dev info
+        ctx.fillStyle = '#CCCCCC';
+        ctx.fillText(`--- Keybinds ---`, boxX + padding, y);
+        y += lineHeight * 1.5;
+        ctx.fillText(`G: God Mode (${this.player?.isInvincible ? 'ON' : 'OFF'})`, boxX + padding, y);
+        y += lineHeight;
+        ctx.fillText(`N: Noclip (${this.player?.noclipActive ? 'ON' : 'OFF'})`, boxX + padding, y);
+        y += lineHeight;
+        ctx.fillText(`K: Kill Enemies`, boxX + padding, y);
+        y += lineHeight;
+        ctx.fillText(`Shift+1: Spawn Bat`, boxX + padding, y);
+        y += lineHeight;
+        ctx.fillText(`Shift+2: Spawn Patroller`, boxX + padding, y);
+        y += lineHeight;
+
+
+    }; // End of renderDevInfo method (Added semicolon)
+
+    /**
+     * Toggles God Mode (invincibility) for the player.
+     * Called by Game.js input handler when 'G' is pressed in dev mode.
+     */
+    devToggleGodMode() {
+        if (this.player) {
+            this.player.isInvincible = !this.player.isInvincible;
+            console.log(`DEV: God Mode ${this.player.isInvincible ? 'Enabled' : 'Disabled'}`);
+        } else {
+            console.warn("DEV: Cannot toggle God Mode, player not found.");
+        }
     }
-}
+
+    /**
+     * Toggles Noclip mode for the player.
+     * Called by Game.js input handler when 'N' is pressed in dev mode.
+     */
+    devToggleNoclip() {
+        if (this.player) {
+            this.player.noclipActive = !this.player.noclipActive;
+            console.log(`DEV: Noclip Mode ${this.player.noclipActive ? 'Enabled' : 'Disabled'}`);
+            // Reset velocity when toggling noclip to prevent sudden jumps/falls
+            if (this.player.noclipActive) {
+                this.player.velocityY = 0;
+                this.player.velocityX = 0;
+            }
+            // Ensure player is not stuck in ground state if noclip is activated
+            // Might need to adjust player.onGround = false here if issues arise
+        } else {
+            console.warn("DEV: Cannot toggle Noclip, player not found.");
+        }
+    }
+
+
+    /**
+     * Spawns a specified enemy type near the player.
+     * Called by Game.js input handler when Shift+1/2 etc. are pressed in dev mode.
+     * @param {string} enemyType - The type of enemy ('bat', 'patroller', etc.) passed from Game.js.
+     */
+    devSpawnEnemy(enemyType) { // Removed x, y parameters
+        if (!this.enemies) {
+            console.error("DEV: Enemy lists not initialized!");
+            return;
+        }
+        if (!this.player) {
+            console.warn("DEV: Cannot spawn enemy, player not found.");
+            return; // Or spawn at a default location
+        }
+
+        // Determine spawn location relative to player
+        const spawnX = this.player.x + (this.player.facingDirection === 'right' ? 60 : -60);
+        const spawnY = this.player.y; // Spawn at player's Y level
+
+        let newEnemy;
+        let targetArray;
+        let x = spawnX; // Use calculated spawnX for logic below
+        let y = spawnY; // Use calculated spawnY for logic below
+
+        switch (enemyType.toLowerCase()) {
+            case 'bat':
+                newEnemy = deepCopy(BAT_PROTOTYPE);
+                targetArray = this.enemies.bats;
+                if (!targetArray) {
+                    this.enemies.bats = [];
+                    targetArray = this.enemies.bats;
+                }
+                // Set origin for bat AI
+                newEnemy.originX = x;
+                newEnemy.originY = y;
+                break;
+            case 'patroller':
+            case 'groundpatroller':
+                newEnemy = deepCopy(GROUND_PATROLLER_PROTOTYPE);
+                targetArray = this.enemies.groundPatrollers;
+                 if (!targetArray) {
+                     this.enemies.groundPatrollers = [];
+                     targetArray = this.enemies.groundPatrollers;
+                 }
+                 // Try to find a platform below the spawn point for the patroller
+                 let foundPlatform = null;
+                 let checkY = y + newEnemy.height; // Start check below the intended spawn
+                 for (const plat of this.platforms) {
+                     if (x + newEnemy.width > plat.x && x < plat.x + plat.width && checkY >= plat.y && checkY < plat.y + 50) { // Check within 50px below
+                         foundPlatform = plat;
+                         break;
+                     }
+                 }
+                 if (foundPlatform) {
+                     y = foundPlatform.y - newEnemy.height; // Place on top of platform
+                     newEnemy.onPlatform = foundPlatform; // Assign platform reference
+                 } else {
+                     console.warn("Could not find suitable platform for Ground Patroller spawn.");
+                     // Spawn anyway, might fall
+                 }
+                break;
+            // Add cases for 'snake', 'giantbatboss' later
+            default:
+                console.warn(`devSpawnEnemy: Unknown enemy type "${enemyType}"`);
+                return;
+        }
+
+        if (newEnemy && targetArray) {
+            newEnemy.x = x;
+            newEnemy.y = y;
+            targetArray.push(newEnemy);
+            console.log(`Spawned ${enemyType} at (${x.toFixed(0)}, ${y.toFixed(0)})`);
+        }
+    }; // End of devSpawnEnemy method (Added semicolon)
+
+    /**
+     * Removes all enemies currently in the scene.
+     * Used by developer mode keybinds.
+     */
+    devKillAllEnemies() {
+        if (!this.enemies) {
+            console.warn("devKillAllEnemies: Enemy lists not initialized!");
+            return;
+        }
+        // Clear all enemy type arrays
+        Object.keys(this.enemies).forEach(key => {
+            if (Array.isArray(this.enemies[key])) {
+                this.enemies[key] = [];
+            }
+        });
+        console.log("All enemies removed via dev command.");
+    }; // End of devKillAllEnemies method (Added semicolon)
+} // End of GameplayScene class

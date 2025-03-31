@@ -4,6 +4,9 @@
 export const CANVAS_WIDTH = 1280;
 export const CANVAS_HEIGHT = 720;
 
+// --- Debug / Development ---
+export const ALLOW_DEVELOPER_MODE = true; // Enables the developer mode toggle key (~)
+
 // --- Base Physics ---
 export const GRAVITY = 0.6;
 export const JUMP_STRENGTH = 14.5;
@@ -256,7 +259,10 @@ export const INITIAL_PLAYER_STATE = {
     attackCooldownTimer: 0, landingTimer: 0, coyoteTimer: 0,
     lives: STARTING_LIVES, orbShieldCount: 0, fireballCooldownTimer: 0,
     lightningBoltCooldownTimer: 0, invulnerabilityTimer: 0, // Added invulnerability timer
-    hitSoundPlayedThisSwing: false // Added flag for sword hit sound
+    hitSoundPlayedThisSwing: false, // Added flag for sword hit sound
+    // Developer Mode Flags
+    isInvincible: false,
+    noclipActive: false
 };
 
 export const INITIAL_GOAL_STATE = {
