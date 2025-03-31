@@ -66,6 +66,7 @@ export const FIREBALL_EXPLOSION_RADIUS = 50; // Area of effect for explosion dam
 export const FIREBALL_EXPLOSION_PARTICLES = 25; // Number of particles on explosion
 export const FIREBALL_COLOR = '#ff8800'; // Base color (used in drawing function)
 export const FIREBALL_EXPLOSION_COLOR = '#ffcc66'; // Base color for explosion particles
+export const FIREBALL_DAMAGE = 10; // Damage dealt by fireball explosion
 
 // --- Lightning Bolt Attack ---
 export const LIGHTNING_BOLT_COOLDOWN = 1.0; // Seconds between casts
@@ -81,7 +82,8 @@ export const LIGHTNING_BOLT_SEGMENTS = 8; // Number of jagged segments per bolt
 // --- Other Gameplay ---
 export const ANIMATION_SPEED = 8.0; // Base speed multiplier for animations
 export const NUM_REWARDS = 3; // Number of collectibles to spawn per level
-export const STARTING_LIVES = 3;
+export const STARTING_LIVES = 3; // Kept for potential future use or reference
+export const ENEMY_CONTACT_DAMAGE = 10; // Damage player takes on contact
 export const INVULNERABILITY_DURATION = 1.0; // Seconds of flashing/invincibility after taking damage
 export const SHIELD_INVULNERABILITY_DURATION = 0.5; // Shorter duration after shield breaks
 export const SCREEN_FLASH_DURATION = 0.3; // Default duration for screen flashes
@@ -257,7 +259,8 @@ export const INITIAL_PLAYER_STATE = {
     facingDirection: 'right', animationState: 'idle', animationTimer: 0,
     animationFrameIndex: 0, isAttacking: false, attackTimer: 0,
     attackCooldownTimer: 0, landingTimer: 0, coyoteTimer: 0,
-    lives: STARTING_LIVES, orbShieldCount: 0, fireballCooldownTimer: 0,
+    hp: 100, maxHp: 100, // Replaced lives with HP system
+    orbShieldCount: 0, fireballCooldownTimer: 0,
     lightningBoltCooldownTimer: 0, invulnerabilityTimer: 0, // Added invulnerability timer
     hitSoundPlayedThisSwing: false, // Added flag for sword hit sound
     // Developer Mode Flags
@@ -274,14 +277,15 @@ export const BAT_PROTOTYPE = {
     state: 'idle', stateTimer: 0, originX: 0, originY: 0, patrolTargetX: 0, patrolTargetY: 0,
     patrolRange: BAT_PATROL_RANGE, detectionRadius: BAT_DETECTION_RADIUS,
     leashRadius: BAT_LEASH_RADIUS, chaseSpeed: BAT_CHASE_SPEED, patrolSpeed: BAT_PATROL_SPEED,
-    flapTimer: 0, health: 1, randomMoveTimer: 0
+    flapTimer: 0, hp: 20, maxHp: 20, // Replaced health with HP system
+    randomMoveTimer: 0
 };
 
 export const GROUND_PATROLLER_PROTOTYPE = {
     x: 0, y: 0, width: PATROLLER_WIDTH, height: PATROLLER_HEIGHT,
     velocityX: 0, // Initial horizontal velocity
     // velocityY: 0, // If they need vertical physics
-    type: 'patroller', health: PATROLLER_HEALTH,
+    type: 'patroller', hp: 20, maxHp: 20, // Replaced health with HP system
     onPlatform: null, // Reference to the platform they are on
     direction: 1, // 1 for right, -1 for left
     // friction: 0.9 // If needed for smoother stops
@@ -297,7 +301,8 @@ export const SNAKE_PROTOTYPE = {
     patrolTargetX: 0, patrolTargetY: 0, patrolRange: SNAKE_PATROL_RANGE,
     detectionRadius: SNAKE_DETECTION_RADIUS, leashRadius: SNAKE_LEASH_RADIUS,
     chaseSpeed: SNAKE_CHASE_SPEED, patrolSpeed: SNAKE_PATROL_SPEED,
-    undulationTimer: 0, health: SNAKE_HEALTH, randomMoveTimer: 0, facingDirection: 1
+    undulationTimer: 0, hp: 20, maxHp: 20, // Replaced health with HP system
+    randomMoveTimer: 0, facingDirection: 1
 };
 
 export const GIANT_BAT_BOSS_PROTOTYPE = {
@@ -307,7 +312,8 @@ export const GIANT_BAT_BOSS_PROTOTYPE = {
     patrolTargetX: 0, patrolTargetY: 0, patrolRange: BAT_PATROL_RANGE * 1.5, // Boss has larger patrol range
     detectionRadius: GIANT_BAT_BOSS_DETECTION_RADIUS, leashRadius: GIANT_BAT_BOSS_LEASH_RADIUS,
     chaseSpeed: GIANT_BAT_BOSS_CHASE_SPEED, patrolSpeed: GIANT_BAT_BOSS_PATROL_SPEED,
-    flapTimer: 0, health: GIANT_BAT_BOSS_HEALTH, randomMoveTimer: 0,
+    flapTimer: 0, hp: 20, maxHp: 20, // Replaced health with HP system
+    randomMoveTimer: 0,
     batSpawnTimer: GIANT_BAT_BOSS_SPAWN_INTERVAL, isDefeated: false
 };
 

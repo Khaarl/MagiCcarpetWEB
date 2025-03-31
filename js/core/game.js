@@ -276,16 +276,20 @@ export class Game {
      * Switches the currently active scene.
      * Calls `onExit()` on the old scene and `onEnter()` on the new scene.
      * Updates the music based on the scene.
-     * @param {string} name - The name of the scene to switch to.
+     * @param {string} sceneName - The name of the scene to switch to.
      */
-    setScene(name) {
-        if (this.currentScene) this.currentScene.onExit();
-        this.currentScene = this.scenes[name];
-        if (this.currentScene) this.currentScene.onEnter();
+    setScene(sceneName) {
+        console.log(`Setting scene to '${sceneName}'...`);
+        this.currentScene = this.scenes[sceneName];
+        if (!this.currentScene || typeof this.currentScene.onEnter !== 'function') {
+            console.error(`Scene '${sceneName}' does not have a valid onEnter method.`);
+            return;
+        }
+        this.currentScene.onEnter();
 
         if (this.isAudioInitialized && this.audioManager) {
             this.audioManager.stopCurrentTrack();
-            if (name === 'menu') {
+            if (sceneName === 'menu') {
                 this.startMenuMusic();
             }
         }

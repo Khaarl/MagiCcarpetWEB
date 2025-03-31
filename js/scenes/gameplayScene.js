@@ -28,16 +28,19 @@ export class GameplayScene extends Scene {
         this.levelTime = 0;
         this.currentLevel = 1;
         this.gameMode = 'normal'; // Default, will be set by init
+        this.fireballs = []; // Initialize fireballs array
     }
 
     /**
      * Initializes the scene with options, called after the scene is set in main.js.
      * @param {object} options - Initialization options.
      * @param {boolean} [options.isTestMode=false] - Whether to start in test mode.
+     * @param {string} [options.testMode=null] - Specific test mode scenario (e.g., 'physics', 'combat').
      */
     init(options = {}) {
         this.gameMode = options.isTestMode ? 'test' : 'normal';
-        console.log(`GameplayScene initialized with mode: ${this.gameMode}`);
+        this.testMode = options.testMode || null; // Store specific test mode if provided
+        console.log(`GameplayScene initialized with mode: ${this.gameMode}, testMode: ${this.testMode}`);
         // Note: onEnter will be called by the SceneManager *after* this init.
     }
 
@@ -85,7 +88,7 @@ export class GameplayScene extends Scene {
             console.log("resetLevel completed successfully");
 
             console.log("Updating UI elements...");
-            this.updateLivesDisplay();
+            this.updateHpDisplay(); // Changed from updateLivesDisplay
             this.updateOrbShieldDisplay();
             document.getElementById('timer').textContent = "0.00";
             console.log("UI updated successfully");
@@ -128,6 +131,11 @@ export class GameplayScene extends Scene {
         // --- Player Physics and Movement ---
         if (this.player) {
             let player = this.player;
+
+            // Decrement invulnerability timer
+            if (player.invulnerabilityTimer > 0) {
+                player.invulnerabilityTimer -= deltaTime;
+            }
 
             // --- Noclip Movement (Developer Mode) ---
             if (this.game && this.game.developerModeEnabled && player.noclipActive) {
@@ -363,20 +371,98 @@ export class GameplayScene extends Scene {
             this.effectsSystem.update(deltaTime);
         }
 
-        // --- Enemy Update and Collision ---
-        // TODO: Implement actual enemy update logic and collision checks here.
-        // Collision checks should iterate through active enemies (e.g., bats, patrollers)
-        // and check for overlap with the player using checkRectOverlap(this.player, enemy).
-        // If a collision occurs, call this.handlePlayerDamage().
-        /*
-        Example structure:
-        Object.values(this.enemies).flat().forEach(enemy => {
-            // enemy.update(deltaTime, this.platforms, this.player); // Update enemy AI/movement
-            if (checkRectOverlap(this.player, enemy)) {
-                this.handlePlayerDamage(); // Call damage handler on collision
+        // --- Fireball Update & Collision ---
+        this.fireballs.forEach(fb => {
+            if (fb.active) {
+                fb.x += fb.vx * deltaTime;
+                fb.y += fb.vy * deltaTime;
+                fb.life -= deltaTime;
+                if (fb.life <= 0) {
+                    fb.active = false;
+                    // Optional: Fizzle effect
+                    if (this.effectsSystem) {
+                        this.effectsSystem.emitParticles(fb.x, fb.y, 5, '#AAAAAA', { speed: 20, lifespan: 0.3 });
+                    }
+                }
+                // TODO: Add collision with platforms for fireballs?
             }
         });
-        */
+        // Remove inactive fireballs
+        this.fireballs = this.fireballs.filter(fb => fb.active);
+
+
+        // --- Enemy Update and Collision ---
+        if (this.player && this.enemies) { // Ensure player and enemies exist
+            const enemyTypes = Object.keys(this.enemies);
+            enemyTypes.forEach(type => {
+                if (Array.isArray(this.enemies[type])) {
+                    // Iterate backwards for safe removal
+                    for (let i = this.enemies[type].length - 1; i >= 0; i--) {
+                        const enemy = this.enemies[type][i];
+
+                        // --- Enemy AI/Movement Update (Placeholder) ---
+                        // TODO: Implement specific AI for each enemy type (bat flight, patroller movement)
+                        // enemy.update(deltaTime, this.platforms, this.player);
+
+                        // --- Player Collision Check ---
+                        const playerRect = { x: this.player.x, y: this.player.y, width: this.player.width, height: this.player.height };
+                        const enemyRect = { x: enemy.x, y: enemy.y, width: enemy.width, height: enemy.height };
+                        if (checkRectOverlap(playerRect, enemyRect)) {
+                            this.handlePlayerDamage(); // Player takes damage on collision
+                            // Optional: Add knockback to player or enemy here
+                        }
+
+                        // --- Fireball Collision Check ---
+                        for (let j = this.fireballs.length - 1; j >= 0; j--) {
+                            const fb = this.fireballs[j];
+                            if (!fb.active) continue; // Skip inactive fireballs
+
+                            // Simple circle-rect collision for fireball vs enemy
+                            const closestX = Math.max(enemy.x, Math.min(fb.x, enemy.x + enemy.width));
+                            const closestY = Math.max(enemy.y, Math.min(fb.y, enemy.y + enemy.height));
+                            const distanceX = fb.x - closestX;
+                            const distanceY = fb.y - closestY;
+                            const distanceSquared = (distanceX * distanceX) + (distanceY * distanceY);
+
+                            if (distanceSquared < (fb.radius * fb.radius)) {
+                                // Hit detected!
+                                console.log(`${enemy.type} hit by fireball!`);
+                                enemy.hp -= C.FIREBALL_DAMAGE;
+                                fb.active = false; // Deactivate fireball
+
+                                // Trigger explosion effect
+                                if (this.effectsSystem) {
+                                    this.effectsSystem.emitParticles(
+                                        fb.x, fb.y,
+                                        C.FIREBALL_EXPLOSION_PARTICLES,
+                                        C.FIREBALL_EXPLOSION_COLOR,
+                                        { speed: 80, lifespan: 0.6, gravity: true }
+                                    );
+                                }
+                                // TODO: Play explosion sound
+
+                                // Check if enemy is defeated
+                                if (enemy.hp <= 0) {
+                                    console.log(`${enemy.type} defeated!`);
+                                    // Remove enemy from the array
+                                    this.enemies[type].splice(i, 1);
+                                    // TODO: Add score, drop loot, play death sound/effect
+                                    if (this.effectsSystem) {
+                                        this.effectsSystem.emitParticles(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, 15, 'grey', { speed: 50, lifespan: 0.8 });
+                                    }
+                                    break; // Stop checking fireballs for this defeated enemy
+                                } else {
+                                    // Optional: Add hit flash effect to enemy
+                                }
+                                // Since fireball hit, stop checking this fireball against other enemies (it's gone)
+                                // Note: We are already iterating backwards on fireballs, so splicing is safe.
+                                this.fireballs.splice(j, 1);
+                            }
+                        } // End fireball loop
+                    } // End enemy loop (iterating backwards)
+                } // End if isArray
+            }); // End enemyTypes loop
+        } // End if player && enemies
 
         // Update camera position
         this.updateCamera();
@@ -410,9 +496,36 @@ export class GameplayScene extends Scene {
         // 5. Resetting the level or player position.
 
         // Placeholder: Log the hit and reset the level for now.
-        // Replace this with the actual game's damage handling logic.
-        console.log("Player hit! Applying damage consequences (currently resetting level).");
-        this.resetLevel(); // Simple reset as placeholder
+        // If player is currently invulnerable, ignore damage
+        if (this.player.invulnerabilityTimer > 0) {
+            console.log("Player hit, but invulnerable.");
+            return;
+        }
+
+        // Apply damage
+        this.player.hp -= C.ENEMY_CONTACT_DAMAGE;
+        console.log(`Player hit! HP reduced to ${this.player.hp}`);
+
+        // Set invulnerability timer
+        this.player.invulnerabilityTimer = C.INVULNERABILITY_DURATION;
+
+        // Trigger screen flash
+        if (this.effectsSystem) {
+            this.effectsSystem.triggerScreenFlash(C.SCREEN_FLASH_COLOR_DAMAGE, C.SCREEN_FLASH_DURATION);
+        }
+
+        // TODO: Play hurt sound
+
+        // Check for game over
+        if (this.player.hp <= 0) {
+            this.player.hp = 0; // Ensure HP doesn't go negative
+            console.log("Player HP depleted! Game Over.");
+            // TODO: Implement proper game over sequence (e.g., switch to a GameOverScene)
+            this.resetLevel(); // Reset level for now
+        }
+
+        // Update HP display
+        this.updateHpDisplay();
     }
 
     render(ctx) {
@@ -481,6 +594,21 @@ export class GameplayScene extends Scene {
             // Draw player on top
             this.drawPlayer(ctx);
         }
+
+        // Render Fireballs
+        this.fireballs.forEach(fb => {
+            if (fb.active) {
+                ctx.fillStyle = C.FIREBALL_COLOR;
+                ctx.beginPath();
+                ctx.arc(fb.x, fb.y, fb.radius, 0, Math.PI * 2);
+                ctx.fill();
+                // Optional: Add glow
+                ctx.shadowColor = C.FIREBALL_COLOR;
+                ctx.shadowBlur = 8;
+                ctx.fill(); // Fill again to apply shadow
+                ctx.shadowColor = 'transparent';
+            }
+        });
 
         // Render effects and particles (after player/carpet)
         if (this.effectsSystem) {
@@ -685,8 +813,16 @@ export class GameplayScene extends Scene {
             }
 
             console.log("Calling levelGenerator.generateLevel()...");
-            const levelData = this.levelGenerator.generateLevel({ gameMode: this.gameMode });
-            console.log("Level generation complete.");
+            const levelOptions = { gameMode: this.gameMode };
+            if (this.testMode === 'physics') {
+                levelOptions.scenario = 'physicsTest';
+                console.log("Physics test scenario selected for level generation.");
+            } else if (this.testMode === 'combat') {
+                levelOptions.scenario = 'combatTest';
+                console.log("Combat test scenario selected for level generation.");
+            }
+            const levelData = this.levelGenerator.generateLevel(levelOptions);
+            console.log("Level generation complete with options:", levelOptions);
 
             console.log("Creating player...");
             this.player = deepCopy(C.INITIAL_PLAYER_STATE);
@@ -706,8 +842,9 @@ export class GameplayScene extends Scene {
             }
 
             this.platforms = levelData.platforms || [];
-            this.enemies = { bats: [], groundPatrollers: [], snakes: [] };
-            console.log("Enemies cleared for this level.");
+            this.enemies = { bats: [], groundPatrollers: [], snakes: [] }; // Ensure enemies are reset
+            this.fireballs = []; // Clear existing fireballs
+            console.log("Enemies and fireballs cleared for this level.");
             this.collectibles = levelData.collectibles || [];
             this.goal = levelData.goal || { x: C.CHUNK_WIDTH * C.NUM_CHUNKS - 200, y: C.CANVAS_HEIGHT - 150, width: C.GOAL_DOOR_WIDTH, height: C.GOAL_DOOR_HEIGHT, color: C.GOAL_FRAME_COLOR };
             this.levelEndX = levelData.levelEndX || C.CHUNK_WIDTH * C.NUM_CHUNKS;
@@ -735,7 +872,8 @@ export class GameplayScene extends Scene {
             this.player.x = 100;
             this.player.y = C.CANVAS_HEIGHT - 100;
             this.camera = { x: 0, y: 0 };
-            this.enemies = { bats: [], groundPatrollers: [], snakes: [] };
+            this.enemies = { bats: [], groundPatrollers: [], snakes: [] }; // Ensure enemies are reset
+            this.fireballs = []; // Clear existing fireballs
             this.collectibles = [];
             this.goal = { x: 1000, y: C.CANVAS_HEIGHT - 150, width: C.GOAL_DOOR_WIDTH, height: C.GOAL_DOOR_HEIGHT, color: C.GOAL_FRAME_COLOR };
             this.levelEndX = 1200;
@@ -763,14 +901,43 @@ export class GameplayScene extends Scene {
             ctx.textAlign = 'center';
             ctx.fillText(flyingText, C.CANVAS_WIDTH / 2, 50);
         }
+
+        // Render Player HP
+        if (this.player) {
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = '20px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText(`HP: ${Math.max(0, this.player.hp)} / ${this.player.maxHp}`, 20, 50); // Ensure HP doesn't display negative
+
+            // Render invulnerability flash on player
+            if (this.player.invulnerabilityTimer > 0) {
+                // Simple blink effect: alternate opacity based on timer
+                const alpha = (Math.floor(this.player.invulnerabilityTimer * 10) % 2 === 0) ? 0.3 : 0.0;
+                if (alpha > 0) {
+                    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                    ctx.fillRect(this.player.x - this.camera.x, this.player.y - this.camera.y, this.player.width, this.player.height);
+                }
+            }
+        }
     }; // End of renderUI method (Added semicolon)
 
-    updateLivesDisplay() {
-        const livesDisplay = document.getElementById('livesDisplay');
-        if (livesDisplay && this.player) {
-            livesDisplay.textContent = `Lives: ${this.player.lives}`;
+    updateHpDisplay() { // Renamed from updateLivesDisplay
+        const hpDisplay = document.getElementById('hpDisplay'); // Assuming an element with id="hpDisplay" exists
+        if (hpDisplay && this.player) {
+            hpDisplay.textContent = `HP: ${this.player.hp} / ${this.player.maxHp}`;
+            // Optional: Add pulsing effect if HP is low
+            if (this.player.hp < this.player.maxHp * 0.3) { // Example: Pulse if below 30%
+                const pulseFactor = Math.abs(Math.sin(this.levelTime * C.LOW_STATUS_PULSE_SPEED));
+                hpDisplay.style.color = `rgb(255, ${100 + 155 * (1 - pulseFactor)}, ${100 + 155 * (1 - pulseFactor)})`;
+            } else {
+                hpDisplay.style.color = ''; // Reset color
+            }
+        } else if (!hpDisplay) {
+            // Fallback if the element doesn't exist yet (maybe log a warning)
+            // console.warn("HP display element ('hpDisplay') not found in HTML.");
+            // You might need to update index.html to include <div id="hpDisplay"></div>
         }
-    }; // End of updateLivesDisplay method (Added semicolon)
+    }; // End of updateHpDisplay method (Added semicolon)
 
     updateOrbShieldDisplay() {
         const orbShieldDisplay = document.getElementById('orbShieldDisplay');
@@ -789,7 +956,7 @@ export class GameplayScene extends Scene {
     }; // End of handleReset method (Added semicolon)
 
     isGameplayActive() {
-        return this.gameStarted && !this.gameWon && (this.player?.lives > 0);
+        return this.gameStarted && !this.gameWon && (this.player?.hp > 0); // Check HP instead of lives
     }; // End of isGameplayActive method (Added semicolon)
 
     onExit() {
@@ -1437,4 +1604,52 @@ export class GameplayScene extends Scene {
         });
         console.log("All enemies removed via dev command.");
     }; // End of devKillAllEnemies method (Added semicolon)
+
+    /**
+     * Creates and launches a fireball projectile.
+     * @param {number} startX - Initial X position (usually player's position).
+     * @param {number} startY - Initial Y position (usually player's position).
+     * @param {number} playerWidth - Width of the player (for offset).
+     * @param {number} playerHeight - Height of the player (for offset).
+     * @param {string} direction - 'left' or 'right'.
+     */
+    launchFireball(startX, startY, playerWidth, playerHeight, direction) {
+        if (!this.player) return; // Need player reference
+
+        const fireball = deepCopy(C.FIREBALL_PROTOTYPE);
+        fireball.active = true;
+
+        // Calculate starting position slightly in front of the player
+        const offsetX = direction === 'right' ? playerWidth + 5 : -fireball.radius * 2 - 5;
+        fireball.x = startX + offsetX;
+        fireball.y = startY + playerHeight / 2 - fireball.radius; // Center vertically
+
+        // Set velocity based on direction
+        fireball.vx = direction === 'right' ? C.FIREBALL_SPEED : -C.FIREBALL_SPEED;
+        fireball.vy = 0; // Fire straight horizontally for now
+
+        this.fireballs.push(fireball);
+
+        // Play fireball sound effect (if AudioManager exists)
+        if (this.game && this.game.audioManager) {
+            // TODO: Add a specific fireball sound effect to AudioManager and trigger it here
+            // this.game.audioManager.playSound('fireball_launch');
+        }
+
+        // Trigger casting animation (if not already casting)
+        if (this.player.animationState !== 'casting' && C.STICK_FIGURE.poses.casting) {
+            this.player.animationState = 'casting';
+            this.player.animationFrameIndex = 0;
+            this.player.animationTimer = 0;
+            // Add a timer to return to idle/falling after casting?
+            // setTimeout(() => {
+            //     if (this.player.animationState === 'casting') {
+            //         this.updateAnimationState(); // Re-evaluate state after cast
+            //     }
+            // }, 300); // Adjust duration as needed
+        }
+
+        console.log(`Launched fireball at (${fireball.x.toFixed(0)}, ${fireball.y.toFixed(0)})`);
+    }
+
 } // End of GameplayScene class

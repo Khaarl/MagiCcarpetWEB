@@ -8,10 +8,12 @@ export class MenuScene extends Scene {
         this.menuItems = [
             { text: "Start Game", action: "startGame" },
             { text: "How to Play", action: "showHowToPlay" },
+            { text: "Physics Test", action: "startPhysicsTest" },
+            { text: "Combat Test", action: "startCombatTest" },
             { text: "Credits", action: "showCredits" }
         ];
         this.selectedIndex = 0;
-        this.keysPressed = {};
+         this.keysPressed = {};
         this.animationTime = 0;
         this.particles = [];
         this.carpets = [];
@@ -101,6 +103,12 @@ export class MenuScene extends Scene {
                 break;
             case 'showCredits':
                 this.game.setScene('credits');
+                break;
+            case 'startPhysicsTest':
+                this.game.setScene('gameplay', { isTestMode: true, testMode: 'physics' });
+                break;
+            case 'startCombatTest':
+                this.game.setScene('gameplay', { isTestMode: true, testMode: 'combat' });
                 break;
         }
     }

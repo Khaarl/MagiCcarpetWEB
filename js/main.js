@@ -3,6 +3,7 @@
 import { Game } from './core/game.js';
 import { GameplayScene } from './scenes/gameplayScene.js';
 import { TitleScene } from './scenes/titleScene.js';
+import { TestModeMenuScene } from './scenes/testModeMenuScene.js'; // Import the new scene
 import * as C from './config.js'; // Import constants for canvas dimensions
 
 // --- DOM Elements ---
@@ -40,7 +41,7 @@ function runStartupTests() {
     test("Start Test Mode Button exists (#startTestModeBtn)", startTestModeBtn);
     test("Message div exists (#message)", document.getElementById('message'));
     test("Timer div exists (#timer)", document.getElementById('timer'));
-    test("Lives display div exists (#livesDisplay)", document.getElementById('livesDisplay'));
+    test("HP display div exists (#hpDisplay)", document.getElementById('hpDisplay')); // Changed from livesDisplay
     test("Orb Shield display div exists (#orbShieldDisplay)", document.getElementById('orbShieldDisplay'));
 
     // Test Core JS Classes
@@ -97,7 +98,9 @@ function initializeGame() {
     // Add different game states/screens
     game.addScene('title', new TitleScene());
     game.addScene('gameplay', new GameplayScene());
-    console.log("Scenes added: title, gameplay");
+    console.log("Initializing TestModeMenuScene...");
+    game.addScene('testModeMenu', new TestModeMenuScene()); // Register the test mode menu scene
+    console.log("Scenes added: title, gameplay, testModeMenu");
     game.setScene('title');
     console.log("Initial scene set to 'title'.");
     // Add other scenes here if needed (e.g., 'gameOver')
@@ -172,27 +175,29 @@ function handleStartGameClick(isTestMode = false) {
             }
         }
 
-        // 3. Set Initial Scene and Pass Mode Flag
-        // Only set if no scene is currently active
-        if (!game.currentScene) {
-            console.log(`Setting initial scene to 'gameplay' (Test Mode: ${isTestMode})...`);
-            // We need to ensure the scene instance can receive this flag.
-            // Assuming the scene instance is already created in initializeGame,
-            // we might need to call an init method on it here, or pass the flag differently.
-            // For now, let's assume we can pass it when setting the scene or via a method.
-            game.setScene('gameplay'); // Set the scene first
+        // 3. Set Initial Scene based on Mode
+        if (isTestMode) {
+            console.log("Setting scene to 'testModeMenu'...");
+            game.setScene('testModeMenu');
             if (game.currentScene && typeof game.currentScene.init === 'function') {
-                 game.currentScene.init({ isTestMode: isTestMode }); // Pass the flag to the scene's init method
-                 console.log("Called scene init with test mode flag.");
+                game.currentScene.init({ isTestMode: true });
+                console.log("Called testModeMenu scene init with isTestMode: true.");
             } else {
-                 console.warn("GameplayScene does not have an init method or scene not set correctly. Test mode flag might not be passed.");
-                 // As a fallback, maybe set a global flag or property on the game object?
-                 // game.isTestMode = isTestMode; // Less ideal, makes game state management harder
+                console.warn("TestModeMenuScene does not have an init method or scene not set correctly.");
             }
+        } else {
+            console.log("Setting scene to 'gameplay' (Normal Mode)...");
+            game.setScene('gameplay');
+            if (game.currentScene && typeof game.currentScene.init === 'function') {
+                game.currentScene.init({ isTestMode: false });
+                console.log("Called gameplay scene init with isTestMode: false.");
+            } else {
+                console.warn("GameplayScene does not have an init method or scene not set correctly.");
+            }
+        }
 
-            if (!game.currentScene) {
-                throw new Error("Failed to set the initial scene 'gameplay'.");
-            }
+        if (!game.currentScene) {
+            throw new Error(`Failed to set the initial scene ('${isTestMode ? 'testModeMenu' : 'gameplay'}').`);
         }
 
         // 4. Start Game Loop
@@ -207,6 +212,10 @@ function handleStartGameClick(isTestMode = false) {
                   game.startMusic();
               }
          }
+
+        // Re-register event listeners for future use
+        startGameBtn.addEventListener('click', () => handleStartGameClick(false), { once: true });
+        startTestModeBtn.addEventListener('click', () => handleStartGameClick(true), { once: true });
 
         console.log(`--- ${mode} start handler finished ---`);
 
