@@ -23,10 +23,41 @@ export class LevelGenerator {
 
     /**
      * Generates the layout for a new level, including platforms, collectibles, and enemies.
+     * @param {object} options Options for level generation, including gameMode and scenario.
      * @returns {object} An object containing the generated level data.
-     * Example: { platforms, collectibles, bats, groundPatrollers, snakes, goal, startPlatform, levelEndX, giantBatBoss }
+     * Example: { platforms, collectibles, enemies, startPlatform, goal, levelEndX }
      */
-    generateLevel() {
+    generateLevel(options = {}) {
+        const { gameMode = 'normal', scenario = null } = options;
+        let levelData = {
+            platforms: [],
+            collectibles: [],
+            enemies: [],
+            startPlatform: null,
+            goal: { x: C.CHUNK_WIDTH * C.NUM_CHUNKS - 200, y: C.CANVAS_HEIGHT - 150, width: C.GOAL_DOOR_WIDTH, height: C.GOAL_DOOR_HEIGHT, color: C.GOAL_FRAME_COLOR },
+            levelEndX: C.CHUNK_WIDTH * C.NUM_CHUNKS
+        };
+
+        if (scenario === 'emptyLevel') {
+            console.log("Creating empty test level with minimal elements");
+            
+            const startPlatform = {
+                x: 100,
+                y: C.CANVAS_HEIGHT - 100,
+                width: 200,
+                height: 20,
+                color: '#8B4513'
+            };
+            
+            levelData.platforms = [startPlatform];
+            levelData.startPlatform = startPlatform;
+            levelData.enemies = [];
+            levelData.collectibles = [];
+            levelData.levelEndX = C.CANVAS_WIDTH * 2;
+
+            return levelData;
+        }
+
         console.log("LevelGenerator.generateLevel: Creating new level");
         console.log("Generating Level Layout...");
         const platforms = [];

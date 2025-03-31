@@ -820,6 +820,9 @@ export class GameplayScene extends Scene {
             } else if (this.testMode === 'combat') {
                 levelOptions.scenario = 'combatTest';
                 console.log("Combat test scenario selected for level generation.");
+            } else if (this.testMode === 'levelgen') {
+                levelOptions.scenario = 'emptyLevel';
+                console.log("Level Generator test scenario selected - creating empty level.");
             }
             const levelData = this.levelGenerator.generateLevel(levelOptions);
             console.log("Level generation complete with options:", levelOptions);
