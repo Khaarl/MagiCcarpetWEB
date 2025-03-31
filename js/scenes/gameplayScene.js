@@ -29,6 +29,9 @@ export class GameplayScene extends Scene {
         this.currentLevel = 1;
         this.gameMode = 'normal'; // Default, will be set by init
         this.fireballs = []; // Initialize fireballs array
+        this.testParticles = null; // Initialize testParticles array
+        this.lastSpaceState = false; // Track space key state for particles
+        this.lastEState = false; // Track E key state for particles
     }
 
     /**
@@ -466,6 +469,19 @@ export class GameplayScene extends Scene {
 
         // Update camera position
         this.updateCamera();
+
+        // Update test particles if in particles test mode
+        if (this.testMode === 'particles' && this.testParticles) {
+            this.updateTestParticles(deltaTime);
+            if (this.keysPressed[' '] && !this.lastSpaceState) {
+                this.createExplosionParticles(this.player.x + this.player.width / 2, this.player.y + this.player.height / 2);
+            }
+            this.lastSpaceState = this.keysPressed[' '];
+            if (this.keysPressed['e'] && !this.lastEState) {
+                this.createCollectionParticles(this.player.x + this.player.width / 2, this.player.y + this.player.height / 2);
+            }
+            this.lastEState = this.keysPressed['e'];
+        }
     } // End of update method
 
     /**
@@ -534,8 +550,11 @@ export class GameplayScene extends Scene {
         const camX = this.camera.x;      // Get current camera X for parallax
         const canvas = ctx.canvas;       // Get canvas reference
 
-        // Call the new detailed background function
-        this.drawDesertDunesBackground(time, camX, ctx);
+        if (this.levelData && this.levelData.hasCustomBackground && this.levelData.drawBackground) {
+            this.levelData.drawBackground(ctx);
+        } else {
+            this.drawDesertDunesBackground(this.levelTime, this.camera.x, ctx);
+        }
 
         // Apply camera transform for game elements (already saved in drawDesertDunesBackground)
         ctx.save(); // Save state *after* background is drawn
@@ -613,6 +632,11 @@ export class GameplayScene extends Scene {
         // Render effects and particles (after player/carpet)
         if (this.effectsSystem) {
             this.effectsSystem.render(ctx);
+        }
+
+        // Render test particles if in particles test mode
+        if (this.testMode === 'particles' && this.testParticles && this.testParticles.length > 0) {
+            this.drawTestParticles(ctx);
         }
 
         // Restore original transform (end camera view)
@@ -711,7 +735,58 @@ export class GameplayScene extends Scene {
         ctx.fillText(`Particles: ${this.effectsSystem?.getActiveCount() || 0}`, boxX + padding, y);
         y += lineHeight;
 
+        // Add particle test mode info
+        if (this.testMode === 'particles') {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(10, 10, 400, 100);
+            ctx.fillStyle = 'white';
+            ctx.font = '16px Arial';
+            ctx.fillText('Particle Effects Test Mode', 20, 30);
+            ctx.fillText('Space: Create explosion particles', 20, 55);
+            ctx.fillText('E: Create collection particles', 20, 80);
+            ctx.fillText(`Active Particles: ${this.testParticles ? this.testParticles.length : 0}`, 250, 30);
+        }
     }; // End of renderDevInfo method (Added semicolon)
+
+    drawStaticStarryBackground(ctx) {
+        const bgGradient = ctx.createLinearGradient(0, 0, 0, C.CANVAS_HEIGHT);
+        bgGradient.addColorStop(0, '#000428');
+        bgGradient.addColorStop(1, '#004e92');
+        ctx.fillStyle = bgGradient;
+        ctx.fillRect(0, 0, C.CANVAS_WIDTH, C.CANVAS_HEIGHT);
+
+        ctx.fillStyle = "white";
+        const starSeed = 12345;
+        let rand = (max) => {
+            starSeed = (starSeed * 9301 + 49297) % 233280;
+            return (starSeed / 233280) * max;
+        };
+
+        for (let i = 0; i < 200; i++) {
+            const x = rand(C.CANVAS_WIDTH);
+            const y = rand(C.CANVAS_HEIGHT * 0.7);
+            const size = rand(3) + 0.5;
+            const alpha = 0.5 + rand(0.5);
+            ctx.globalAlpha = alpha;
+            ctx.beginPath();
+            ctx.arc(x, y, size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+
+        for (let i = 0; i < 5; i++) {
+            const x = rand(C.CANVAS_WIDTH);
+            const y = rand(C.CANVAS_HEIGHT * 0.5);
+            const radius = 50 + rand(100);
+            const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+            gradient.addColorStop(0, `rgba(${50 + rand(100)}, ${50 + rand(50)}, ${150 + rand(100)}, 0.2)`);
+            gradient.addColorStop(1, 'rgba(0, 0, 50, 0)');
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }; // End of drawStaticStarryBackground method (Added semicolon)
 
     drawDesertDunesBackground(time, camX, ctx) {
         const canvas = ctx.canvas; // Get canvas reference inside the function
@@ -822,7 +897,108 @@ export class GameplayScene extends Scene {
                 console.log("Combat test scenario selected for level generation.");
             } else if (this.testMode === 'levelgen') {
                 levelOptions.scenario = 'emptyLevel';
-                console.log("Level Generator test scenario selected - creating empty level.");
+                console.log("Level Generator test scenario selected - creating test cube environment.");
+                // After level generation, we'll manually set up a test cube environment
+                const levelData = this.levelGenerator.generateLevel(levelOptions);
+                console.log("Empty level generated, now adding test cube platforms...");
+                
+                // Create a test cube environment with platforms on all sides
+                const margin = 100; // Space from canvas edges
+                const width = C.CANVAS_WIDTH - (margin * 2);
+                const height = C.CANVAS_HEIGHT - (margin * 2);
+                
+                // Clear any existing platforms from the empty level
+                levelData.platforms = [];
+                
+                // Add platform floors and walls to create a cube environment
+                levelData.platforms = [
+                    // Bottom floor
+                    { x: margin, y: C.CANVAS_HEIGHT - margin, width: width, height: 20, color: '#8B4513' },
+                    // Left wall
+                    { x: margin, y: margin, width: 20, height: height, color: '#8B4513' },
+                    // Right wall
+                    { x: C.CANVAS_WIDTH - margin - 20, y: margin, width: 20, height: height, color: '#8B4513' },
+                    // Top ceiling
+                    { x: margin, y: margin, width: width, height: 20, color: '#8B4513' },
+                    // Optional middle platform for testing
+                    { x: margin + width/4, y: C.CANVAS_HEIGHT - margin - height/2, width: width/2, height: 20, color: '#8B4513' }
+                ];
+                
+                // Update the start platform for player positioning
+                levelData.startPlatform = levelData.platforms[0]; // Bottom floor
+                
+                // Return the modified level data instead of generating a new one
+                return levelData;
+            } else if (this.testMode === 'proceduralterrain') {
+                levelOptions.scenario = 'proceduralTerrain';
+                console.log("Procedural Terrain test scenario selected - generating terrain based landscape.");
+                const levelWidth = 3000;
+                const margin = 50;
+                const height = C.CANVAS_HEIGHT - (margin * 2);
+                const width = C.CANVAS_WIDTH - (margin * 2);
+
+                const levelData = {
+                    platforms: [],
+                    collectibles: [],
+                    bats: [],
+                    groundPatrollers: [],
+                    snakes: [],
+                    powerUps: [],
+                    startPlatform: null,
+                    levelWidth: levelWidth,
+                    hasCustomBackground: true,
+                    drawBackground: (ctx) => this.drawStaticStarryBackground(ctx)
+                };
+
+                const platformSegments = 20;
+                const segmentWidth = levelWidth / platformSegments;
+                let lastHeight = C.CANVAS_HEIGHT - margin - 100;
+
+                for (let i = 0; i < platformSegments; i++) {
+                    const heightVariation = Math.sin(i * 0.5) * 100 + Math.cos(i * 0.3) * 50;
+                    const platformHeight = lastHeight + heightVariation;
+                    lastHeight = Math.max(C.CANVAS_HEIGHT - 200, Math.min(C.CANVAS_HEIGHT - 50, platformHeight));
+                    levelData.platforms.push({
+                        x: i * segmentWidth,
+                        y: lastHeight,
+                        width: segmentWidth + 5,
+                        height: C.CANVAS_HEIGHT - lastHeight,
+                        color: '#554433'
+                    });
+                }
+
+                for (let i = 0; i < 8; i++) {
+                    const x = margin + (levelWidth - margin * 2) * (i / 8);
+                    const y = margin + 150 + Math.sin(i * 0.7) * 100;
+                    const width = 150 + Math.random() * 100;
+                    levelData.platforms.push({
+                        x: x,
+                        y: y,
+                        width: width,
+                        height: 20,
+                        color: '#663311'
+                    });
+                }
+
+                levelData.platforms.forEach((platform, index) => {
+                    if (index % 3 === 0) {
+                        levelData.collectibles.push({
+                            x: platform.x + platform.width / 2,
+                            y: platform.y - 30,
+                            width: 20,
+                            height: 20,
+                            collected: false
+                        });
+                    }
+                });
+
+                levelData.startPlatform = levelData.platforms[0];
+                return levelData;
+            } else if (this.testMode === 'particles') {
+                levelOptions.scenario = 'particlesTest';
+                console.log("Particle effects test scenario selected.");
+                if (!this.testParticles) this.testParticles = [];
+                this.createTestParticles();
             }
             const levelData = this.levelGenerator.generateLevel(levelOptions);
             console.log("Level generation complete with options:", levelOptions);
@@ -882,6 +1058,77 @@ export class GameplayScene extends Scene {
             this.levelEndX = 1200;
         }
     }; // End of resetLevel method (Added semicolon)
+
+    createTestParticles() {
+        this.testParticles = [];
+        for (let i = 0; i < 30; i++) {
+            this.testParticles.push({
+                x: C.CANVAS_WIDTH / 2 + (Math.random() - 0.5) * 200,
+                y: C.CANVAS_HEIGHT / 2 + (Math.random() - 0.5) * 200,
+                vx: (Math.random() - 0.5) * 2,
+                vy: (Math.random() - 0.5) * 2,
+                size: Math.random() * 8 + 2,
+                life: 1.0,
+                color: `hsl(${Math.random() * 360}, 100%, 70%)`,
+                type: 'ambient'
+            });
+        }
+        console.log(`Created ${this.testParticles.length} test particles`);
+    }
+
+    updateTestParticles(deltaTime) {
+        for (let i = this.testParticles.length - 1; i >= 0; i--) {
+            const p = this.testParticles[i];
+            p.x += p.vx;
+            p.y += p.vy;
+            p.life -= deltaTime * 0.2;
+            if (p.life <= 0) this.testParticles.splice(i, 1);
+        }
+        if (Math.random() < 0.1) {
+            this.testParticles.push({
+                x: Math.random() * C.CANVAS_WIDTH,
+                y: Math.random() * C.CANVAS_HEIGHT,
+                vx: (Math.random() - 0.5) * 2,
+                vy: (Math.random() - 0.5) * 2,
+                size: Math.random() * 5 + 1,
+                life: 1.0,
+                color: `hsl(${Math.random() * 360}, 100%, 70%)`,
+                type: 'ambient'
+            });
+        }
+    }
+
+    createExplosionParticles(x, y) {
+        for (let i = 0; i < 50; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = Math.random() * 10 + 5;
+            this.testParticles.push({
+                x: x,
+                y: y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                size: Math.random() * 8 + 4,
+                life: 1.0,
+                color: `hsl(${30 + Math.random() * 30}, 100%, ${50 + Math.random() * 50}%)`,
+                type: 'explosion'
+            });
+        }
+    }
+
+    createCollectionParticles(x, y) {
+        for (let i = 0; i < 20; i++) {
+            this.testParticles.push({
+                x: x,
+                y: y,
+                vx: (Math.random() - 0.5) * 4,
+                vy: (Math.random() - 0.5) * 4 - 2,
+                size: Math.random() * 6 + 2,
+                life: 1.0,
+                color: `hsl(${Math.random() * 60 + 30}, 100%, 70%)`,
+                type: 'collection'
+            });
+        }
+    }
 
     updateCamera() {
         const targetX = this.player.x - C.CANVAS_WIDTH / 2;
@@ -1398,90 +1645,6 @@ export class GameplayScene extends Scene {
     }
 
     /**
-     * Renders developer mode information overlay.
-     * Called only when developer mode is enabled via the Game instance.
-     * @param {CanvasRenderingContext2D} ctx - The rendering context
-     */
-    renderDevInfo(ctx) {
-        // This method is now called conditionally from render()
-        // based on this.game.developerModeEnabled
-
-        const boxX = 10;
-        const boxY = 130; // Position below other UI elements
-        const boxWidth = 280;
-        const boxHeight = 180;
-        const lineHeight = 18;
-        const padding = 10;
-
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-        ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
-
-        ctx.fillStyle = '#00FF00'; // Green text for dev mode title
-        ctx.font = 'bold 14px monospace'; // Bold title
-        ctx.textAlign = 'left';
-
-        let y = boxY + padding + lineHeight; // Start drawing inside the box
-
-        // General Status
-        ctx.fillText(`--- Developer Mode ON (~) ---`, boxX + padding, y);
-        y += lineHeight * 1.5; // Extra space
-
-        // Player Info
-        if (this.player) {
-            const p = this.player;
-            ctx.font = '14px monospace'; // Reset font for details
-
-            ctx.fillStyle = '#FFFFFF'; // White for player info
-            ctx.fillText(`Player Pos: (${p.x.toFixed(0)}, ${p.y.toFixed(0)})`, boxX + padding, y);
-            y += lineHeight;
-            ctx.fillText(`Player Vel: (${p.velocityX.toFixed(1)}, ${p.velocityY.toFixed(1)})`, boxX + padding, y);
-            y += lineHeight;
-            ctx.fillText(`State: ${p.animationState}, Ground: ${p.onGround}`, boxX + padding, y);
-            y += lineHeight;
-
-            // Cheat Status
-            ctx.fillStyle = p.isInvincible ? '#FFFF00' : '#AAAAAA'; // Yellow if ON, Gray if OFF
-            ctx.fillText(`God Mode (G): ${p.isInvincible ? 'ON' : 'OFF'}`, boxX + padding, y);
-            y += lineHeight;
-
-            ctx.fillStyle = p.noclipActive ? '#FFFF00' : '#AAAAAA'; // Yellow if ON, Gray if OFF
-            ctx.fillText(`Noclip (N):   ${p.noclipActive ? 'ON' : 'OFF'}`, boxX + padding, y);
-            y += lineHeight;
-
-        } else {
-            ctx.fillStyle = '#FF5555'; // Red if player missing
-            ctx.font = '14px monospace';
-            ctx.fillText('Player object not found!', boxX + padding, y);
-            y += lineHeight;
-        }
-
-        // Other Info
-        ctx.fillStyle = '#CCCCCC'; // Light gray for other info
-        ctx.font = '14px monospace';
-        ctx.fillText(`Camera: (${this.camera.x.toFixed(0)}, ${this.camera.y.toFixed(0)})`, boxX + padding, y);
-        y += lineHeight;
-        ctx.fillText(`Particles: ${this.effectsSystem?.getActiveCount() || 0}`, boxX + padding, y);
-        y += lineHeight;
-
-        // Add keybind list to the dev info
-        ctx.fillStyle = '#CCCCCC';
-        ctx.fillText(`--- Keybinds ---`, boxX + padding, y);
-        y += lineHeight * 1.5;
-        ctx.fillText(`G: God Mode (${this.player?.isInvincible ? 'ON' : 'OFF'})`, boxX + padding, y);
-        y += lineHeight;
-        ctx.fillText(`N: Noclip (${this.player?.noclipActive ? 'ON' : 'OFF'})`, boxX + padding, y);
-        y += lineHeight;
-        ctx.fillText(`K: Kill Enemies`, boxX + padding, y);
-        y += lineHeight;
-        ctx.fillText(`Shift+1: Spawn Bat`, boxX + padding, y);
-        y += lineHeight;
-        ctx.fillText(`Shift+2: Spawn Patroller`, boxX + padding, y);
-        y += lineHeight;
-
-
-    }; // End of renderDevInfo method (Added semicolon)
-
-    /**
      * Toggles God Mode (invincibility) for the player.
      * Called by Game.js input handler when 'G' is pressed in dev mode.
      */
@@ -1655,4 +1818,17 @@ export class GameplayScene extends Scene {
         console.log(`Launched fireball at (${fireball.x.toFixed(0)}, ${fireball.y.toFixed(0)})`);
     }
 
+    drawTestParticles(ctx) {
+        ctx.save();
+        for (let i = 0; i < this.testParticles.length; i++) {
+            const p = this.testParticles[i];
+            if (p.life <= 0) continue;
+            ctx.globalAlpha = p.life;
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+    }
 } // End of GameplayScene class
