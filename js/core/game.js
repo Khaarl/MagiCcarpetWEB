@@ -234,16 +234,27 @@ export class Game {
 
             Promise.all([
                 this.audioManager.loadTrack('title', './assets/audio/middle-eastern-title.mp3'),
-                this.audioManager.loadTrack('gameplay', './assets/audio/adventure-gameplay.mp3')
+                this.audioManager.loadTrack('gameplay', './assets/audio/adventure-gameplay.mp3'),
+                this.audioManager.loadTrack('menuMusic', './assets/audio/amiga-middle-eastern.mp3')
             ]).then(() => {
                 this.isAudioInitialized = true;
-                if (this.currentScene?.name === 'title') {
-                    this.audioManager.playTrack('title');
+                if (this.currentScene?.name === 'menu') {
+                    this.startMenuMusic();
                 }
             }).catch(err => console.error("Failed to load audio tracks:", err));
         } catch (e) {
             console.error("Audio initialization failed:", e);
             this.isAudioInitialized = false;
+        }
+    }
+
+    /**
+     * Starts the menu music.
+     */
+    startMenuMusic() {
+        if (this.isAudioInitialized && this.audioManager) {
+            this.audioManager.playTrack('menuMusic');
+            this.audioManager.musicPlayingScene = 'menu';
         }
     }
 
@@ -273,10 +284,9 @@ export class Game {
         if (this.currentScene) this.currentScene.onEnter();
 
         if (this.isAudioInitialized && this.audioManager) {
-            if (name === 'title') {
-                this.audioManager.crossfadeToTrack('title');
-            } else if (name === 'gameplay') {
-                this.audioManager.crossfadeToTrack('gameplay');
+            this.audioManager.stopCurrentTrack();
+            if (name === 'menu') {
+                this.startMenuMusic();
             }
         }
     }

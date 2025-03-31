@@ -69,6 +69,10 @@ export class MenuScene extends Scene {
         
         document.addEventListener('keydown', this.handleKeyDown);
         document.addEventListener('keyup', this.handleKeyUp);
+
+        if (this.game && this.game.isAudioInitialized && this.game.audioManager?.musicPlayingScene !== 'menu') {
+            this.game.startMenuMusic();
+        }
     }
     
     emitSelectionParticles() {
@@ -146,81 +150,109 @@ export class MenuScene extends Scene {
     }
     
     drawDesertNightBackground(ctx) {
-        // Sky gradient from deep blue to purple
-        const skyGradient = ctx.createLinearGradient(0, 0, 0, C.CANVAS_HEIGHT);
-        skyGradient.addColorStop(0, '#0B1026'); // Deep blue
-        skyGradient.addColorStop(0.5, '#1A1340'); // Deep purple
-        skyGradient.addColorStop(1, '#3D1E47'); // Lighter purple
-        
-        ctx.fillStyle = skyGradient;
+        const nightGradient = ctx.createLinearGradient(0, 0, 0, C.CANVAS_HEIGHT);
+        nightGradient.addColorStop(0, '#0a1332');
+        nightGradient.addColorStop(0.3, '#1a2a5e');
+        nightGradient.addColorStop(0.7, '#4b2d73');
+        nightGradient.addColorStop(1, '#724b83');
+        ctx.fillStyle = nightGradient;
         ctx.fillRect(0, 0, C.CANVAS_WIDTH, C.CANVAS_HEIGHT);
-        
-        // Draw distant mountains
-        ctx.fillStyle = '#2D1133';
-        ctx.beginPath();
-        ctx.moveTo(0, C.CANVAS_HEIGHT);
-        
-        // First mountain range (darker, further back)
-        let x = 0;
-        while (x < C.CANVAS_WIDTH) {
-            const peakHeight = 150 + Math.sin(x * 0.01 + this.animationTime * 0.1) * 30;
-            ctx.lineTo(x, C.CANVAS_HEIGHT - peakHeight);
-            x += 50 + Math.random() * 30;
-        }
-        
-        ctx.lineTo(C.CANVAS_WIDTH, C.CANVAS_HEIGHT);
-        ctx.closePath();
-        ctx.fill();
-        
-        // Second mountain range (lighter, closer)
-        ctx.fillStyle = '#3F1940';
-        ctx.beginPath();
-        ctx.moveTo(0, C.CANVAS_HEIGHT);
-        
-        x = 0;
-        while (x < C.CANVAS_WIDTH) {
-            const peakHeight = 100 + Math.sin(x * 0.02 + this.animationTime * 0.2) * 40;
-            ctx.lineTo(x, C.CANVAS_HEIGHT - peakHeight);
-            x += 80 + Math.random() * 40;
-        }
-        
-        ctx.lineTo(C.CANVAS_WIDTH, C.CANVAS_HEIGHT);
-        ctx.closePath();
-        ctx.fill();
-        
-        // Draw a moon with glow
+
+        this.drawMountains(ctx);
+        this.drawMoon(ctx);
+        this.drawDunes(ctx);
+        this.drawAtmosphere(ctx);
+    }
+
+    drawMoon(ctx) {
         const moonX = C.CANVAS_WIDTH * 0.8;
         const moonY = C.CANVAS_HEIGHT * 0.2;
-        const moonRadius = 40;
-        
-        // Moon glow
-        const glow = ctx.createRadialGradient(
-            moonX, moonY, moonRadius * 0.8,
-            moonX, moonY, moonRadius * 3
-        );
-        glow.addColorStop(0, 'rgba(255, 255, 180, 0.4)');
-        glow.addColorStop(1, 'rgba(255, 255, 180, 0)');
-        
-        ctx.fillStyle = glow;
-        ctx.beginPath();
-        ctx.arc(moonX, moonY, moonRadius * 3, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Moon body
-        ctx.fillStyle = '#FFF9C4';
+        const moonRadius = C.CANVAS_WIDTH * 0.06;
+
+        ctx.save();
+        ctx.shadowColor = 'rgba(255, 255, 200, 0.6)';
+        ctx.shadowBlur = moonRadius * 1.5;
         ctx.beginPath();
         ctx.arc(moonX, moonY, moonRadius, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 230, 0.9)';
         ctx.fill();
-        
-        // Moon craters
-        ctx.fillStyle = 'rgba(200, 200, 150, 0.4)';
+        ctx.restore();
+
+        ctx.fillStyle = 'rgba(200, 200, 180, 0.2)';
+        for (let i = 0; i < 5; i++) {
+            const craterX = moonX - moonRadius / 2 + Math.random() * moonRadius;
+            const craterY = moonY - moonRadius / 2 + Math.random() * moonRadius;
+            const craterSize = Math.random() * (moonRadius / 5) + (moonRadius / 10);
+            ctx.beginPath();
+            ctx.arc(craterX, craterY, craterSize, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    drawMountains(ctx) {
+        const horizon = C.CANVAS_HEIGHT * 0.7;
+        ctx.fillStyle = '#141829';
         ctx.beginPath();
-        ctx.arc(moonX - 15, moonY - 10, 8, 0, Math.PI * 2);
-        ctx.arc(moonX + 10, moonY + 15, 6, 0, Math.PI * 2);
-        ctx.arc(moonX + 5, moonY - 15, 5, 0, Math.PI * 2);
+        ctx.moveTo(0, horizon);
+        for (let x = 0; x < C.CANVAS_WIDTH; x += 50) {
+            const heightVariation = Math.sin(x / 200) * 50 + Math.random() * 20;
+            ctx.lineTo(x, horizon - C.CANVAS_HEIGHT * 0.2 - heightVariation);
+        }
+        ctx.lineTo(C.CANVAS_WIDTH, horizon);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = '#1d1e2c';
+        ctx.beginPath();
+        ctx.moveTo(0, horizon + 20);
+        for (let x = 0; x < C.CANVAS_WIDTH; x += 30) {
+            const heightVariation = Math.cos(x / 100) * 40 + Math.random() * 15;
+            ctx.lineTo(x, horizon - C.CANVAS_HEIGHT * 0.15 - heightVariation + 70);
+        }
+        ctx.lineTo(C.CANVAS_WIDTH, horizon + 20);
+        ctx.closePath();
         ctx.fill();
     }
-    
+
+    drawDunes(ctx) {
+        const duneBaseY = C.CANVAS_HEIGHT * 0.8;
+        const duneGradient = ctx.createLinearGradient(0, duneBaseY, 0, C.CANVAS_HEIGHT);
+        duneGradient.addColorStop(0, '#3d2b4b');
+        duneGradient.addColorStop(1, '#5e3a5a');
+        ctx.fillStyle = duneGradient;
+        ctx.beginPath();
+        ctx.moveTo(0, duneBaseY);
+        const time = this.animationTime * 0.1;
+        for (let x = 0; x < C.CANVAS_WIDTH; x += 20) {
+            const y = duneBaseY + Math.sin(x / 200 + time) * 15;
+            ctx.lineTo(x, y);
+        }
+        ctx.lineTo(C.CANVAS_WIDTH, duneBaseY);
+        ctx.lineTo(C.CANVAS_WIDTH, C.CANVAS_HEIGHT);
+        ctx.lineTo(0, C.CANVAS_HEIGHT);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    drawAtmosphere(ctx) {
+        ctx.save();
+        ctx.globalAlpha = 0.03;
+        const heatWaveY = C.CANVAS_HEIGHT * 0.75;
+        for (let i = 0; i < 3; i++) {
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.moveTo(0, heatWaveY + i * 20);
+            for (let x = 0; x < C.CANVAS_WIDTH; x += 10) {
+                const y = heatWaveY + i * 20 + Math.sin(x / 50 + this.animationTime * 2) * 5;
+                ctx.lineTo(x, y);
+            }
+            ctx.lineTo(C.CANVAS_WIDTH, heatWaveY + i * 20);
+            ctx.closePath();
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+
     drawStars(ctx) {
         this.stars.forEach(star => {
             const pulseSize = star.size * (0.8 + Math.sin(this.animationTime * 3 + star.x) * 0.2);
@@ -484,5 +516,9 @@ export class MenuScene extends Scene {
     onExit() {
         document.removeEventListener('keydown', this.handleKeyDown);
         document.removeEventListener('keyup', this.handleKeyUp);
+
+        if (this.game?.audioManager) {
+            this.game.audioManager.stopCurrentTrack();
+        }
     }
 }

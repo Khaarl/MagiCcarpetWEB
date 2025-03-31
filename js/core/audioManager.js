@@ -4,6 +4,7 @@ export class AudioManager {
         this.tracks = {
             title: null,    // Middle Eastern theme for menu/title
             gameplay: null, // Adventure music for actual gameplay
+            menuMusic: null // New menu music track
         };
         this.currentTrack = null;
         this.gainNode = this.audioContext.createGain();
