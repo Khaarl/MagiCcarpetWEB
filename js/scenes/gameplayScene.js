@@ -6,13 +6,14 @@ import { getRandom, getRandomInt, checkRectOverlap, deepCopy } from '../utils.js
 import { LevelGenerator } from '../level/levelGenerator.js';
 import { createEffectsSystem } from '../core/effects.js';
 import { PowerUpSystem } from '../core/powerup.js';
+import Logger from '../utils/logger.js'; // Add Logger import
 
 /* GameplayScene class (most game logic & drawing) */
 
 export class GameplayScene extends Scene {
     constructor() {
         super();
-        console.log("GameplayScene constructor called");
+        Logger.log('scene', "GameplayScene constructor called");
         // Properties will be initialized in onEnter
         this.levelGenerator = null;
         this.effectsSystem = null;
@@ -43,28 +44,28 @@ export class GameplayScene extends Scene {
     init(options = {}) {
         this.gameMode = options.isTestMode ? 'test' : 'normal';
         this.testMode = options.testMode || null; // Store specific test mode if provided
-        console.log(`GameplayScene initialized with mode: ${this.gameMode}, testMode: ${this.testMode}`);
+        Logger.log('scene', `GameplayScene initialized with mode: ${this.gameMode}, testMode: ${this.testMode}`);
         // Note: onEnter will be called by the SceneManager *after* this init.
     }
 
     toggleGameMode() {
         this.gameMode = this.gameMode === 'normal' ? 'test' : 'normal';
-        console.log(`Game mode switched to: ${this.gameMode}`);
+        Logger.log('scene', `Game mode switched to: ${this.gameMode}`);
         this.resetLevel();
     }
 
     onEnter() {
-        console.log("==== GameplayScene.onEnter: START ====");
-        console.log(`Current game mode: ${this.gameMode}`); // Add this log to verify mode
+        Logger.log('scene', "==== GameplayScene.onEnter: START ====");
+        Logger.log('scene', `Current game mode: ${this.gameMode}`); // Add this log to verify mode
         
         try {
-            console.log("Initializing level generator...");
+            Logger.log('scene', "Initializing level generator...");
             this.levelGenerator = new LevelGenerator(C.CANVAS_WIDTH, C.CANVAS_HEIGHT);
-            console.log("Level generator created successfully");
+            Logger.log('scene', "Level generator created successfully");
 
-            console.log("Initializing effects system...");
+            Logger.log('scene', "Initializing effects system...");
             this.effectsSystem = createEffectsSystem();
-            console.log("Effects system created successfully");
+            Logger.log('scene', "Effects system created successfully");
 
             // Improved event handler binding
             this.handleKeyDown = (e) => {
@@ -83,18 +84,18 @@ export class GameplayScene extends Scene {
             // Add input listeners
             document.addEventListener('keydown', this.handleKeyDown);
             document.addEventListener('keyup', this.handleKeyUp);
-            console.log("Input listeners added.");
+            Logger.log('scene', "Input listeners added.");
 
             // resetLevel is now called within onEnter, using the gameMode set by init()
-            console.log(`Calling resetLevel for mode: ${this.gameMode}...`);
+            Logger.log('scene', `Calling resetLevel for mode: ${this.gameMode}...`);
             this.resetLevel(); // resetLevel uses this.gameMode internally
-            console.log("resetLevel completed successfully");
+            Logger.log('scene', "resetLevel completed successfully");
 
-            console.log("Updating UI elements...");
+            Logger.log('scene', "Updating UI elements...");
             this.updateHpDisplay(); // Changed from updateLivesDisplay
             this.updateOrbShieldDisplay();
             document.getElementById('timer').textContent = "0.00";
-            console.log("UI updated successfully");
+            Logger.log('scene', "UI updated successfully");
             
             if (this.game) {
                 document.addEventListener('keydown', (e) => {
@@ -105,9 +106,9 @@ export class GameplayScene extends Scene {
             }
 
             this.gameStarted = true;
-            console.log("==== GameplayScene.onEnter: COMPLETE ====");
+            Logger.log('scene', "==== GameplayScene.onEnter: COMPLETE ====");
         } catch (error) {
-            console.error("ERROR in GameplayScene.onEnter:", error);
+            Logger.error('scene', "ERROR in GameplayScene.onEnter:", error);
             // Simple visual error on canvas
             if (this.game && this.game.ctx) {
                 const ctx = this.game.ctx;
@@ -121,9 +122,9 @@ export class GameplayScene extends Scene {
     }
 
     update(deltaTime) {
-        console.log("GameplayScene.update called with deltaTime:", deltaTime);
+        Logger.log('gameLoop', "GameplayScene.update called with deltaTime:", deltaTime);
         if (!this.gameStarted || this.gameWon) {
-            console.log("GameplayScene.update: Skipping update due to game state");
+            Logger.log('gameLoop', "GameplayScene.update: Skipping update due to game state");
             return;
         }
         
@@ -429,7 +430,7 @@ export class GameplayScene extends Scene {
 
                             if (distanceSquared < (fb.radius * fb.radius)) {
                                 // Hit detected!
-                                console.log(`${enemy.type} hit by fireball!`);
+                                Logger.log('combat', `${enemy.type} hit by fireball!`);
                                 enemy.hp -= C.FIREBALL_DAMAGE;
                                 fb.active = false; // Deactivate fireball
 
@@ -446,7 +447,7 @@ export class GameplayScene extends Scene {
 
                                 // Check if enemy is defeated
                                 if (enemy.hp <= 0) {
-                                    console.log(`${enemy.type} defeated!`);
+                                    Logger.log('combat', `${enemy.type} defeated!`);
                                     // Remove enemy from the array
                                     this.enemies[type].splice(i, 1);
                                     // TODO: Add score, drop loot, play death sound/effect
@@ -495,7 +496,7 @@ export class GameplayScene extends Scene {
         // --- God Mode Check ---
         // If player is invincible (God Mode enabled), ignore the damage.
         if (this.player.isInvincible) {
-            console.log("Player hit detected, but God Mode is ON. Damage ignored.");
+            Logger.log('combat', "Player hit detected, but God Mode is ON. Damage ignored.");
             // Optionally add a visual/audio cue for blocked damage
             // e.g., this.effectsSystem.emitShieldHit(this.player.x, this.player.y);
             return; // Exit without applying damage effects
@@ -514,13 +515,13 @@ export class GameplayScene extends Scene {
         // Placeholder: Log the hit and reset the level for now.
         // If player is currently invulnerable, ignore damage
         if (this.player.invulnerabilityTimer > 0) {
-            console.log("Player hit, but invulnerable.");
+            Logger.log('combat', "Player hit, but invulnerable.");
             return;
         }
 
         // Apply damage
         this.player.hp -= C.ENEMY_CONTACT_DAMAGE;
-        console.log(`Player hit! HP reduced to ${this.player.hp}`);
+        Logger.log('combat', `Player hit! HP reduced to ${this.player.hp}`);
 
         // Set invulnerability timer
         this.player.invulnerabilityTimer = C.INVULNERABILITY_DURATION;
@@ -535,7 +536,7 @@ export class GameplayScene extends Scene {
         // Check for game over
         if (this.player.hp <= 0) {
             this.player.hp = 0; // Ensure HP doesn't go negative
-            console.log("Player HP depleted! Game Over.");
+            Logger.log('combat', "Player HP depleted! Game Over.");
             // TODO: Implement proper game over sequence (e.g., switch to a GameOverScene)
             this.resetLevel(); // Reset level for now
         }
@@ -880,27 +881,27 @@ export class GameplayScene extends Scene {
     }; // End of drawDesertDunesBackground method (Added semicolon)
 
     resetLevel() {
-        console.log(`resetLevel: START (Mode: ${this.gameMode})`);
+        Logger.log('scene', `resetLevel: START (Mode: ${this.gameMode})`);
         try {
             if (!this.levelGenerator) {
-                 console.error("LevelGenerator not initialized before resetLevel!");
+                 Logger.error('scene', "LevelGenerator not initialized before resetLevel!");
                  this.levelGenerator = new LevelGenerator(C.CANVAS_WIDTH, C.CANVAS_HEIGHT);
             }
 
-            console.log("Calling levelGenerator.generateLevel()...");
+            Logger.log('scene', "Calling levelGenerator.generateLevel()...");
             const levelOptions = { gameMode: this.gameMode };
             if (this.testMode === 'physics') {
                 levelOptions.scenario = 'physicsTest';
-                console.log("Physics test scenario selected for level generation.");
+                Logger.log('scene', "Physics test scenario selected for level generation.");
             } else if (this.testMode === 'combat') {
                 levelOptions.scenario = 'combatTest';
-                console.log("Combat test scenario selected for level generation.");
+                Logger.log('scene', "Combat test scenario selected for level generation.");
             } else if (this.testMode === 'levelgen') {
                 levelOptions.scenario = 'emptyLevel';
-                console.log("Level Generator test scenario selected - creating test cube environment.");
+                Logger.log('scene', "Level Generator test scenario selected - creating test cube environment.");
                 // After level generation, we'll manually set up a test cube environment
                 const levelData = this.levelGenerator.generateLevel(levelOptions);
-                console.log("Empty level generated, now adding test cube platforms...");
+                Logger.log('scene', "Empty level generated, now adding test cube platforms...");
                 
                 // Create a test cube environment with platforms on all sides
                 const margin = 100; // Space from canvas edges
@@ -931,7 +932,7 @@ export class GameplayScene extends Scene {
                 return levelData;
             } else if (this.testMode === 'proceduralterrain') {
                 levelOptions.scenario = 'proceduralTerrain';
-                console.log("Procedural Terrain test scenario selected - generating terrain based landscape.");
+                Logger.log('scene', "Procedural Terrain test scenario selected - generating terrain based landscape.");
                 const levelWidth = 3000;
                 const margin = 50;
                 const height = C.CANVAS_HEIGHT - (margin * 2);
@@ -996,14 +997,14 @@ export class GameplayScene extends Scene {
                 return levelData;
             } else if (this.testMode === 'particles') {
                 levelOptions.scenario = 'particlesTest';
-                console.log("Particle effects test scenario selected.");
+                Logger.log('scene', "Particle effects test scenario selected.");
                 if (!this.testParticles) this.testParticles = [];
                 this.createTestParticles();
             }
             const levelData = this.levelGenerator.generateLevel(levelOptions);
-            console.log("Level generation complete with options:", levelOptions);
+            Logger.log('scene', "Level generation complete with options:", levelOptions);
 
-            console.log("Creating player...");
+            Logger.log('scene', "Creating player...");
             this.player = deepCopy(C.INITIAL_PLAYER_STATE);
             this.player.x = levelData.startPlatform ?
                             levelData.startPlatform.x + (levelData.startPlatform.width / 2) - (this.player.width / 2)
@@ -1011,28 +1012,28 @@ export class GameplayScene extends Scene {
             this.player.y = levelData.startPlatform ?
                             levelData.startPlatform.y - this.player.height - 1
                             : C.CANVAS_HEIGHT - 100;
-            console.log("Player created at:", this.player.x, this.player.y);
+            Logger.log('scene', "Player created at:", this.player.x, this.player.y);
 
             if (this.gameMode === 'test') {
-                console.log("Applying test mode modifications to player...");
+                Logger.log('scene', "Applying test mode modifications to player...");
                 this.player.lives = 999;
                 this.player.orbShieldCount = 3;
-                console.log("Test Player State:", this.player);
+                Logger.log('scene', "Test Player State:", this.player);
             }
 
             this.platforms = levelData.platforms || [];
             this.enemies = { bats: [], groundPatrollers: [], snakes: [] }; // Ensure enemies are reset
             this.fireballs = []; // Clear existing fireballs
-            console.log("Enemies and fireballs cleared for this level.");
+            Logger.log('scene', "Enemies and fireballs cleared for this level.");
             this.collectibles = levelData.collectibles || [];
             this.goal = levelData.goal || { x: C.CHUNK_WIDTH * C.NUM_CHUNKS - 200, y: C.CANVAS_HEIGHT - 150, width: C.GOAL_DOOR_WIDTH, height: C.GOAL_DOOR_HEIGHT, color: C.GOAL_FRAME_COLOR };
             this.levelEndX = levelData.levelEndX || C.CHUNK_WIDTH * C.NUM_CHUNKS;
-            console.log(`Level End X set to: ${this.levelEndX}`);
+            Logger.log('scene', `Level End X set to: ${this.levelEndX}`);
 
             this.camera = { x: 0, y: 0 };
             this.camera.x = Math.max(0, this.player.x - C.CANVAS_WIDTH / 3);
             this.camera.y = 0;
-            console.log("Camera reset to:", this.camera.x, this.camera.y);
+            Logger.log('scene', "Camera reset to:", this.camera.x, this.camera.y);
 
             this.gameWon = false;
             this.levelComplete = false;
@@ -1043,9 +1044,9 @@ export class GameplayScene extends Scene {
                 this.effectsSystem.reset();
             }
 
-            console.log("resetLevel: COMPLETE");
+            Logger.log('scene', "resetLevel: COMPLETE");
         } catch (error) {
-            console.error("ERROR in resetLevel:", error);
+            Logger.error('scene', "ERROR in resetLevel:", error);
             this.platforms = [{x: 50, y: C.CANVAS_HEIGHT - 50, width: 400, height: 30, color: 'darkred'}];
             this.player = deepCopy(C.INITIAL_PLAYER_STATE);
             this.player.x = 100;
@@ -1061,774 +1062,4 @@ export class GameplayScene extends Scene {
 
     createTestParticles() {
         this.testParticles = [];
-        for (let i = 0; i < 30; i++) {
-            this.testParticles.push({
-                x: C.CANVAS_WIDTH / 2 + (Math.random() - 0.5) * 200,
-                y: C.CANVAS_HEIGHT / 2 + (Math.random() - 0.5) * 200,
-                vx: (Math.random() - 0.5) * 2,
-                vy: (Math.random() - 0.5) * 2,
-                size: Math.random() * 8 + 2,
-                life: 1.0,
-                color: `hsl(${Math.random() * 360}, 100%, 70%)`,
-                type: 'ambient'
-            });
-        }
-        console.log(`Created ${this.testParticles.length} test particles`);
-    }
-
-    updateTestParticles(deltaTime) {
-        for (let i = this.testParticles.length - 1; i >= 0; i--) {
-            const p = this.testParticles[i];
-            p.x += p.vx;
-            p.y += p.vy;
-            p.life -= deltaTime * 0.2;
-            if (p.life <= 0) this.testParticles.splice(i, 1);
-        }
-        if (Math.random() < 0.1) {
-            this.testParticles.push({
-                x: Math.random() * C.CANVAS_WIDTH,
-                y: Math.random() * C.CANVAS_HEIGHT,
-                vx: (Math.random() - 0.5) * 2,
-                vy: (Math.random() - 0.5) * 2,
-                size: Math.random() * 5 + 1,
-                life: 1.0,
-                color: `hsl(${Math.random() * 360}, 100%, 70%)`,
-                type: 'ambient'
-            });
-        }
-    }
-
-    createExplosionParticles(x, y) {
-        for (let i = 0; i < 50; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const speed = Math.random() * 10 + 5;
-            this.testParticles.push({
-                x: x,
-                y: y,
-                vx: Math.cos(angle) * speed,
-                vy: Math.sin(angle) * speed,
-                size: Math.random() * 8 + 4,
-                life: 1.0,
-                color: `hsl(${30 + Math.random() * 30}, 100%, ${50 + Math.random() * 50}%)`,
-                type: 'explosion'
-            });
-        }
-    }
-
-    createCollectionParticles(x, y) {
-        for (let i = 0; i < 20; i++) {
-            this.testParticles.push({
-                x: x,
-                y: y,
-                vx: (Math.random() - 0.5) * 4,
-                vy: (Math.random() - 0.5) * 4 - 2,
-                size: Math.random() * 6 + 2,
-                life: 1.0,
-                color: `hsl(${Math.random() * 60 + 30}, 100%, 70%)`,
-                type: 'collection'
-            });
-        }
-    }
-
-    updateCamera() {
-        const targetX = this.player.x - C.CANVAS_WIDTH / 2;
-        const maxX = this.levelEndX - C.CANVAS_WIDTH;
-        this.camera.x += (Math.max(0, Math.min(maxX, targetX)) - this.camera.x) * 0.1;
-    }; // End of updateCamera method (Added semicolon)
-
-    renderUI(ctx) {
-        if (this.gameWon) {
-            ctx.fillStyle = C.WIN_TEXT_COLOR;
-            ctx.font = C.WIN_TEXT_FONT;
-            ctx.textAlign = 'center';
-            ctx.fillText('LEVEL COMPLETE!', C.CANVAS_WIDTH / 2, C.CANVAS_HEIGHT / 2);
-        }
-
-        if (!this.player.onGround && this.keysPressed[' ']) {
-            const flyingText = this.gameMode === 'test' ? "ENHANCED FLYING" : "FLYING";
-            ctx.fillStyle = this.gameMode === 'test' ? '#FF9900' : '#FFFFFF';
-            ctx.font = '16px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText(flyingText, C.CANVAS_WIDTH / 2, 50);
-        }
-
-        // Render Player HP
-        if (this.player) {
-            ctx.fillStyle = '#FFFFFF';
-            ctx.font = '20px Arial';
-            ctx.textAlign = 'left';
-            ctx.fillText(`HP: ${Math.max(0, this.player.hp)} / ${this.player.maxHp}`, 20, 50); // Ensure HP doesn't display negative
-
-            // Render invulnerability flash on player
-            if (this.player.invulnerabilityTimer > 0) {
-                // Simple blink effect: alternate opacity based on timer
-                const alpha = (Math.floor(this.player.invulnerabilityTimer * 10) % 2 === 0) ? 0.3 : 0.0;
-                if (alpha > 0) {
-                    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-                    ctx.fillRect(this.player.x - this.camera.x, this.player.y - this.camera.y, this.player.width, this.player.height);
-                }
-            }
-        }
-    }; // End of renderUI method (Added semicolon)
-
-    updateHpDisplay() { // Renamed from updateLivesDisplay
-        const hpDisplay = document.getElementById('hpDisplay'); // Assuming an element with id="hpDisplay" exists
-        if (hpDisplay && this.player) {
-            hpDisplay.textContent = `HP: ${this.player.hp} / ${this.player.maxHp}`;
-            // Optional: Add pulsing effect if HP is low
-            if (this.player.hp < this.player.maxHp * 0.3) { // Example: Pulse if below 30%
-                const pulseFactor = Math.abs(Math.sin(this.levelTime * C.LOW_STATUS_PULSE_SPEED));
-                hpDisplay.style.color = `rgb(255, ${100 + 155 * (1 - pulseFactor)}, ${100 + 155 * (1 - pulseFactor)})`;
-            } else {
-                hpDisplay.style.color = ''; // Reset color
-            }
-        } else if (!hpDisplay) {
-            // Fallback if the element doesn't exist yet (maybe log a warning)
-            // console.warn("HP display element ('hpDisplay') not found in HTML.");
-            // You might need to update index.html to include <div id="hpDisplay"></div>
-        }
-    }; // End of updateHpDisplay method (Added semicolon)
-
-    updateOrbShieldDisplay() {
-        const orbShieldDisplay = document.getElementById('orbShieldDisplay');
-        if (orbShieldDisplay && this.player) {
-            orbShieldDisplay.textContent = `Shield: ${this.player.orbShieldCount}`;
-        }
-    }; // End of updateOrbShieldDisplay method (Added semicolon)
-
-    handleReset() {
-        if (this.gameWon) {
-            this.currentLevel++;
-            this.resetLevel();
-        } else {
-            this.resetLevel();
-        }
-    }; // End of handleReset method (Added semicolon)
-
-    isGameplayActive() {
-        return this.gameStarted && !this.gameWon && (this.player?.hp > 0); // Check HP instead of lives
-    }; // End of isGameplayActive method (Added semicolon)
-
-    onExit() {
-        console.log("Exiting GameplayScene");
-        document.removeEventListener('keydown', this.handleKeyDown);
-        document.removeEventListener('keyup', this.handleKeyUp);
-        console.log("Input listeners removed.");
-    }; // End of onExit method (Added semicolon)
-
-    handleKeyDown(e) {
-        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
-            e.preventDefault();
-        }
-        this.keysPressed[e.key.toLowerCase()] = true;
-
-        // Removed 't' and 'F9' toggles from here
-
-        // --- Developer Mode Keybinds ---
-        // Check the flag on the game instance
-        if (this.game && this.game.developerModeEnabled) {
-            if (e.key === 'g' && !e.repeat) {
-                if (this.player) {
-                    this.player.isInvincible = !this.player.isInvincible;
-                    console.log(`God Mode: ${this.player.isInvincible ? 'ON' : 'OFF'}`);
-                }
-            }
-            if (e.key === 'n' && !e.repeat) {
-                if (this.player) {
-                    this.player.noclipActive = !this.player.noclipActive;
-                    console.log(`Noclip Mode: ${this.player.noclipActive ? 'ON' : 'OFF'}`);
-                    // Reset velocity when toggling noclip to prevent sudden jumps/falls
-                    if (this.player.noclipActive) {
-                        this.player.velocityY = 0;
-                        this.player.velocityX = 0; // Also reset horizontal velocity
-                    }
-                }
-            }
-            // Enemy Spawning
-            if (e.shiftKey && e.key === '1' && !e.repeat) { // Shift + 1 for Bat
-                if (this.player) {
-                    this.devSpawnEnemy('bat', this.player.x + (this.player.facingDirection === 'right' ? 50 : -50), this.player.y);
-                }
-            }
-            if (e.shiftKey && e.key === '2' && !e.repeat) { // Shift + 2 for Ground Patroller
-                if (this.player) {
-                    this.devSpawnEnemy('patroller', this.player.x + (this.player.facingDirection === 'right' ? 60 : -60), this.player.y);
-                }
-            }
-            if (e.key === 'k' && !e.repeat) { // K key to kill enemies
-                this.devKillAllEnemies();
-            }
-            if (e.key === '`' && !e.repeat) { // Backtick key to toggle developer mode
-                if (this.game) {
-                    this.game.developerModeEnabled = !this.game.developerModeEnabled;
-                    console.log(`Developer Mode: ${this.game.developerModeEnabled ? 'ON' : 'OFF'}`);
-                }
-            }
-            // Add more dev keys here (k, w, etc.) in later phases
-        }
-        // --- End Developer Mode Keybinds ---
-    }; // End of handleKeyDown method (Added semicolon)
-
-    handleKeyUp(e) {
-        this.keysPressed[e.key.toLowerCase()] = false;
-    }; // End of handleKeyUp method (Added semicolon)
-
-    drawPlayer(ctx) {
-        if (!this.player || !C.STICK_FIGURE) {
-            console.error("drawPlayer: Player or STICK_FIGURE config missing.");
-            return;
-        }
-        const player = this.player;
-        const stickFigure = C.STICK_FIGURE;
-        const poseDataArr = stickFigure.poses[player.animationState];
-
-        if (!poseDataArr || poseDataArr.length === 0) {
-            console.warn(`drawPlayer: No pose data found for animation state: ${player.animationState}`);
-            ctx.fillStyle = C.PLAYER_COLOR || 'blue';
-            ctx.fillRect(player.x, player.y, player.width, player.height);
-            return;
-        }
-
-        const frameIndex = Math.floor(player.animationFrameIndex) % poseDataArr.length;
-        const poseData = poseDataArr[frameIndex];
-
-        if (!poseData) {
-             console.error(`drawPlayer: Invalid frame index ${frameIndex} for state ${player.animationState}`);
-             ctx.fillStyle = C.PLAYER_COLOR || 'blue';
-             ctx.fillRect(player.x, player.y, player.width, player.height);
-             return;
-        }
-
-        const anchorX = player.x + player.width / 2;
-        const anchorY = player.y + player.height;
-        const flip = player.facingDirection === 'left' ? -1 : 1;
-
-        ctx.save();
-        ctx.strokeStyle = stickFigure.jointColor || '#FFFFFF';
-        ctx.lineWidth = stickFigure.lineWidth || 2;
-        ctx.fillStyle = stickFigure.jointColor || '#FFFFFF';
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-
-        const getPos = (relativePos) => {
-            if (!relativePos || !Array.isArray(relativePos)) return [anchorX, anchorY];
-            return [anchorX + relativePos[0] * flip, anchorY + relativePos[1]];
-        };
-
-        const hipPos = getPos(poseData.hip);
-        const shoulderPos = getPos(poseData.shoulder);
-        const neckPos = getPos(poseData.neck);
-        const headPos = getPos(poseData.head);
-
-        ctx.beginPath();
-        ctx.moveTo(hipPos[0], hipPos[1]);
-        ctx.lineTo(shoulderPos[0], shoulderPos[1]);
-        ctx.lineTo(neckPos[0], neckPos[1]);
-        ctx.stroke();
-
-        const drawLimb = (limbPoints) => {
-            if (!limbPoints || !Array.isArray(limbPoints) || limbPoints.length < 2) return;
-            ctx.beginPath();
-            ctx.moveTo(shoulderPos[0], shoulderPos[1]);
-            for (let i = 0; i < limbPoints.length; i++) {
-                const point = getPos(limbPoints[i]);
-                ctx.lineTo(point[0], point[1]);
-            }
-            ctx.stroke();
-        };
-        drawLimb(poseData.armL);
-        drawLimb(poseData.armR);
-
-        const drawLeg = (legPoints) => {
-             if (!legPoints || !Array.isArray(legPoints) || legPoints.length < 2) return;
-             ctx.beginPath();
-             ctx.moveTo(hipPos[0], hipPos[1]);
-             for (let i = 0; i < legPoints.length; i++) {
-                 const point = getPos(legPoints[i]);
-                 ctx.lineTo(point[0], point[1]);
-             }
-             ctx.stroke();
-         };
-        drawLeg(poseData.legL);
-        drawLeg(poseData.legR);
-
-        ctx.beginPath();
-        ctx.arc(headPos[0], headPos[1], stickFigure.headRadius || 5, 0, Math.PI * 2);
-        ctx.fill();
-
-        if (stickFigure.hat) {
-            const hat = stickFigure.hat;
-            
-            // Add transparency to hat when facing left
-            if (player.facingDirection === 'left') {
-                ctx.globalAlpha = 0.6; // 60% opacity when facing left
-            }
-            
-            const tip = getPos([poseData.head[0] + hat.tipOffset[0], poseData.head[1] + hat.tipOffset[1]]);
-            const brimY = headPos[1] + hat.brimHeight / 2;
-            const brimLeft = getPos([poseData.head[0] - hat.brimWidth / 2, poseData.head[1]]);
-            const brimRight = getPos([poseData.head[0] + hat.brimWidth / 2, poseData.head[1]]);
-
-            ctx.fillStyle = hat.color || '#6a0dad';
-            ctx.beginPath();
-            ctx.moveTo(tip[0], tip[1]);
-            ctx.quadraticCurveTo(brimLeft[0], brimY - hat.brimHeight * 1.5, brimLeft[0], brimY);
-            ctx.ellipse(headPos[0], brimY, hat.brimWidth / 2, hat.brimHeight / 2, 0, 0, Math.PI * 2);
-            ctx.moveTo(tip[0], tip[1]);
-            ctx.quadraticCurveTo(brimRight[0], brimY - hat.brimHeight * 1.5, brimRight[0], brimY);
-            ctx.fill();
-            
-            // Restore normal opacity after drawing the hat
-            if (player.facingDirection === 'left') {
-                ctx.globalAlpha = 1.0;
-            }
-        }
-
-        const handLPos = getPos(poseData.armL[poseData.armL.length - 1]);
-        const handRPos = getPos(poseData.armR[poseData.armR.length - 1]);
-        const drawStaff = stickFigure.staff && stickFigure.staff.hand !== 'right' && !player.isAttacking;
-
-        if (drawStaff) {
-            const staff = stickFigure.staff;
-            const staffTop = [handLPos[0] + staff.topOffset[0] * flip, handLPos[1] + staff.topOffset[1]];
-            const staffBottom = [staffTop[0], staffTop[1] + staff.length];
-
-            ctx.strokeStyle = staff.color || '#8B4513';
-            ctx.lineWidth = (stickFigure.lineWidth || 2) + 1;
-            ctx.beginPath();
-            ctx.moveTo(staffTop[0], staffTop[1]);
-            ctx.lineTo(staffBottom[0], staffBottom[1]);
-            ctx.stroke();
-
-            ctx.fillStyle = staff.gemColor || '#FF4500';
-            ctx.beginPath();
-            ctx.arc(staffTop[0], staffTop[1], staff.gemRadius || 4, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-        const drawSword = false; // Changed from (stickFigure.sword && (stickFigure.staff?.hand !== 'right' || player.isAttacking));
-
-        if (drawSword) {
-            // Existing sword drawing code will be skipped
-        }
-
-        ctx.restore();
-    }; // End of drawPlayer method (Added semicolon)
-
-    drawMagicCarpet(player, time, ctx) {
-        const anchorX = player.x + player.width / 2;
-        const anchorY = player.y + player.height + (C.CARPET_OFFSET_Y || 5);
-
-        const waveSpeed = C.CARPET_WAVE_SPEED || 8;
-        const waveAmpX = C.CARPET_WAVE_AMP_X || 0.08;
-        const waveAmpY = C.CARPET_WAVE_AMP_Y || 0.15;
-        let baseWidth = C.CARPET_WIDTH || 110;
-        let baseHeight = C.CARPET_HEIGHT || 10;
-
-        const waveX1 = Math.sin(time * waveSpeed) * waveAmpX;
-        const waveX2 = Math.sin(time * waveSpeed * 0.6 + 1) * waveAmpX * 0.5;
-        const waveY1 = Math.cos(time * waveSpeed * 0.7) * waveAmpY;
-        const waveY2 = Math.cos(time * waveSpeed * 0.4 + 2) * waveAmpY * 0.6;
-
-        const currentWidth = baseWidth * (1 + waveX1 + waveX2);
-        let currentHeight = baseHeight * (1 - (waveY1 + waveY2) * 0.5);
-        let carpetX = anchorX - currentWidth / 2;
-        let carpetY = anchorY - currentHeight / 2;
-
-        // Validate all values to ensure they're finite
-        carpetX = isFinite(carpetX) ? carpetX : 0;
-        carpetY = isFinite(carpetY) ? carpetY : 0;
-        currentHeight = isFinite(currentHeight) ? currentHeight : 10;
-
-        this.drawCarpetTrail(carpetX + currentWidth / 2, carpetY + currentHeight / 2, player.velocityX, player.velocityY, time, ctx);
-
-        ctx.save();
-
-        // Add extra safety checks for gameMode
-        const isTestMode = this.gameMode === 'test';
-        console.log(`Drawing carpet in ${isTestMode ? 'test' : 'normal'} mode`);
-        
-        if (isTestMode) {
-            baseWidth *= 1.2;
-            baseHeight *= 1.2;
-            ctx.shadowColor = C.CARPET_COLOR_1 || 'rgba(160, 96, 255, 0.8)';
-            ctx.shadowBlur = 18; // Increased from 15
-        } else {
-            ctx.shadowColor = C.CARPET_COLOR_1 || 'rgba(160, 96, 255, 0.5)';
-            ctx.shadowBlur = 12; // Increased from 8
-        }
-
-        const carpetGradient = ctx.createLinearGradient(carpetX, carpetY, carpetX, carpetY + currentHeight);
-        carpetGradient.addColorStop(0, C.CARPET_COLOR_1 || '#a060ff');
-        carpetGradient.addColorStop(1, C.CARPET_COLOR_2 || '#d0a0ff');
-        ctx.fillStyle = carpetGradient;
-
-        const segments = 10;
-        ctx.beginPath();
-        ctx.moveTo(carpetX, carpetY);
-
-        for (let i = 1; i <= segments; i++) {
-            const t = i / segments;
-            const px = carpetX + currentWidth * t;
-            const pyOffset = Math.sin(time * waveSpeed * 1.5 + t * Math.PI * 2) * currentHeight * 0.2;
-            ctx.lineTo(px, carpetY + pyOffset);
-        }
-
-        ctx.quadraticCurveTo(carpetX + currentWidth + currentHeight * 0.3, carpetY + currentHeight / 2, carpetX + currentWidth, carpetY + currentHeight);
-
-        for (let i = segments; i >= 1; i--) {
-            const t = i / segments;
-            const px = carpetX + currentWidth * t;
-            const pyOffset = Math.sin(time * waveSpeed * 1.5 + t * Math.PI * 2 + Math.PI) * currentHeight * 0.2;
-            ctx.lineTo(px, carpetY + currentHeight + pyOffset);
-        }
-
-        ctx.quadraticCurveTo(carpetX - currentHeight * 0.3, carpetY + currentHeight / 2, carpetX, carpetY);
-
-        ctx.closePath();
-        ctx.fill();
-
-        ctx.shadowColor = 'transparent';
-
-        ctx.fillStyle = C.CARPET_COLOR_2 || '#d0a0ff';
-        const centerX = carpetX + currentWidth / 2;
-        const centerY = carpetY + currentHeight / 2;
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY - currentHeight * 0.3);
-        ctx.lineTo(centerX + currentWidth * 0.1, centerY);
-        ctx.lineTo(centerX, centerY + currentHeight * 0.3);
-        ctx.lineTo(centerX - currentWidth * 0.1, centerY);
-        ctx.closePath();
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(centerX - currentWidth * 0.3, centerY, currentHeight * 0.2, 0, Math.PI * 2);
-        ctx.arc(centerX + currentWidth * 0.3, centerY, currentHeight * 0.2, 0, Math.PI * 2);
-        ctx.fill();
-
-        const numTassels = 7; // Increased from 5
-        const tasselLength = currentHeight * 1.8; // Increased from 1.5
-        const beadRadius = 3;
-        ctx.strokeStyle = C.CARPET_COLOR_2 || '#d0a0ff';
-        ctx.fillStyle = C.CARPET_COLOR_1 || '#a060ff';
-        ctx.lineWidth = 2;
-
-        for (let i = 0; i < numTassels; i++) {
-            const startX = carpetX + (currentWidth / (numTassels + 1)) * (i + 1);
-            const startY = carpetY + currentHeight;
-            const endY = startY + tasselLength;
-            const controlXOffset = Math.sin(time * waveSpeed * 2 + i * 0.5) * 15;
-            const controlYOffset = Math.cos(time * waveSpeed * 1.2 + i * 0.8) * 10;
-
-            ctx.beginPath();
-            ctx.moveTo(startX, startY);
-            ctx.bezierCurveTo(
-                startX + controlXOffset / 2, startY + tasselLength / 3 + controlYOffset,
-                startX - controlXOffset / 2, startY + tasselLength * 2 / 3 - controlYOffset,
-                startX + Math.sin(time * waveSpeed * 2.5 + i) * 5, endY
-            );
-            ctx.stroke();
-
-            const beadX = startX + Math.sin(time * waveSpeed * 2.5 + i) * 5;
-            ctx.beginPath();
-            ctx.arc(beadX, endY, beadRadius, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-        ctx.restore();
-    }; // End of drawMagicCarpet method (Added semicolon)
-
-    drawCarpetTrail(carpetCenterX, carpetCenterY, velocityX, velocityY, time, ctx) {
-        const speed = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
-        const minSpeedThreshold = 5;
-        if (speed < minSpeedThreshold) return;
-
-        ctx.save();
-        const particleCount = Math.min(15, Math.floor(3 + speed * 0.2));
-        const trailLength = 50 + speed * 0.5;
-
-        const dirX = -velocityX / speed;
-        const dirY = -velocityY / speed;
-
-        const trailStartX = carpetCenterX + dirX * (C.CARPET_WIDTH || 110) * 0.3;
-        const trailStartY = carpetCenterY + dirY * (C.CARPET_HEIGHT || 10) * 0.3;
-
-        ctx.globalCompositeOperation = 'lighter';
-
-        for (let i = 0; i < particleCount; i++) {
-            const trailProgress = i / (particleCount - 1);
-
-            const baseX = trailStartX + dirX * trailLength * trailProgress;
-            const baseY = trailStartY + dirY * trailLength * trailProgress;
-
-            const perpendicularAngle = Math.atan2(dirY, dirX) + Math.PI / 2;
-            const waveOffsetMagnitude = Math.sin(time * 10 + trailProgress * Math.PI * 3) * 15 * (1 - trailProgress);
-            const offsetX = Math.cos(perpendicularAngle) * waveOffsetMagnitude;
-            const offsetY = Math.sin(perpendicularAngle) * waveOffsetMagnitude;
-
-            const x = baseX + offsetX;
-            const y = baseY + offsetY;
-
-            const baseSize = 1 + 5 * (1 - trailProgress);
-            const sizePulse = Math.sin(time * 15 + i * 0.5) * 0.5 + 0.5;
-            const size = baseSize * (0.5 + sizePulse * 0.5);
-
-            const alpha = 0.6 * (1 - trailProgress) * (0.5 + sizePulse * 0.5);
-
-            const hue = (180 + time * 30 + trailProgress * 60) % 360;
-            const saturation = 80 + 20 * sizePulse;
-            const lightness = 60 + 15 * sizePulse;
-            ctx.fillStyle = `hsla(${hue}, ${saturation}%, ${lightness}%, ${alpha})`;
-
-            ctx.beginPath();
-            ctx.arc(x, y, Math.max(0.5, size), 0, Math.PI * 2);
-            ctx.fill();
-
-            if (Math.random() < 0.15 && trailProgress > 0.3) {
-                const starSize = size * 0.8;
-                const angle = time * 5 + i * 1.5;
-                ctx.strokeStyle = `hsla(${hue}, 100%, 80%, ${alpha * 0.8})`;
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                for (let j = 0; j < 5; j++) {
-                    const outerX = x + Math.cos(angle + (j * Math.PI * 2 / 5)) * starSize;
-                    const outerY = y + Math.sin(angle + (j * Math.PI * 2 / 5)) * starSize;
-                    if (j === 0) ctx.moveTo(outerX, outerY); else ctx.lineTo(outerX, outerY);
-                    const innerX = x + Math.cos(angle + (j * Math.PI * 2 / 5) + Math.PI / 5) * starSize * 0.5;
-                    const innerY = y + Math.sin(angle + (j * Math.PI * 2 / 5) + Math.PI / 5) * starSize * 0.5;
-                    ctx.lineTo(innerX, innerY);
-                }
-                ctx.closePath();
-                ctx.stroke();
-            }
-        }
-        ctx.restore();
-    }; // End of drawCarpetTrail method (Added semicolon)
-
-    /**
-     * Centralizes animation state transitions for the player
-     * to avoid scattered animation state changes
-     */
-    updateAnimationState() {
-        if (!this.player) return;
-        
-        const player = this.player;
-        
-        // Landing transition
-        if ((player.animationState === 'jumping' || player.animationState === 'falling') && player.onGround) {
-            player.animationState = 'idle';
-        }
-        
-        // Running transition
-        if (player.onGround && Math.abs(player.velocityX) > 0.5) {
-            player.animationState = 'running';
-        }
-        
-        // Idle transition
-        if (player.onGround && Math.abs(player.velocityX) < 0.1) {
-            player.animationState = 'idle';
-        }
-        
-        // Falling transition
-        if (!player.onGround && player.velocityY > 0 && !this.keysPressed[' ']) {
-            player.animationState = 'falling';
-        }
-    }; // End of updateAnimationState method (Added semicolon)
-
-    /**
-     * Optional hook called by Game.js when developer mode is toggled.
-     * @param {boolean} isEnabled - The new state of developer mode.
-     */
-    onDeveloperModeToggle(isEnabled) {
-        console.log(`GameplayScene notified: Developer Mode ${isEnabled ? 'Enabled' : 'Disabled'}`);
-        // Add any scene-specific UI updates or logic needed here
-        // For example, show/hide a debug menu element
-    }
-
-    /**
-     * Toggles God Mode (invincibility) for the player.
-     * Called by Game.js input handler when 'G' is pressed in dev mode.
-     */
-    devToggleGodMode() {
-        if (this.player) {
-            this.player.isInvincible = !this.player.isInvincible;
-            console.log(`DEV: God Mode ${this.player.isInvincible ? 'Enabled' : 'Disabled'}`);
-        } else {
-            console.warn("DEV: Cannot toggle God Mode, player not found.");
-        }
-    }
-
-    /**
-     * Toggles Noclip mode for the player.
-     * Called by Game.js input handler when 'N' is pressed in dev mode.
-     */
-    devToggleNoclip() {
-        if (this.player) {
-            this.player.noclipActive = !this.player.noclipActive;
-            console.log(`DEV: Noclip Mode ${this.player.noclipActive ? 'Enabled' : 'Disabled'}`);
-            // Reset velocity when toggling noclip to prevent sudden jumps/falls
-            if (this.player.noclipActive) {
-                this.player.velocityY = 0;
-                this.player.velocityX = 0;
-            }
-            // Ensure player is not stuck in ground state if noclip is activated
-            // Might need to adjust player.onGround = false here if issues arise
-        } else {
-            console.warn("DEV: Cannot toggle Noclip, player not found.");
-        }
-    }
-
-
-    /**
-     * Spawns a specified enemy type near the player.
-     * Called by Game.js input handler when Shift+1/2 etc. are pressed in dev mode.
-     * @param {string} enemyType - The type of enemy ('bat', 'patroller', etc.) passed from Game.js.
-     */
-    devSpawnEnemy(enemyType) { // Removed x, y parameters
-        if (!this.enemies) {
-            console.error("DEV: Enemy lists not initialized!");
-            return;
-        }
-        if (!this.player) {
-            console.warn("DEV: Cannot spawn enemy, player not found.");
-            return; // Or spawn at a default location
-        }
-
-        // Determine spawn location relative to player
-        const spawnX = this.player.x + (this.player.facingDirection === 'right' ? 60 : -60);
-        const spawnY = this.player.y; // Spawn at player's Y level
-
-        let newEnemy;
-        let targetArray;
-        let x = spawnX; // Use calculated spawnX for logic below
-        let y = spawnY; // Use calculated spawnY for logic below
-
-        switch (enemyType.toLowerCase()) {
-            case 'bat':
-                newEnemy = deepCopy(BAT_PROTOTYPE);
-                targetArray = this.enemies.bats;
-                if (!targetArray) {
-                    this.enemies.bats = [];
-                    targetArray = this.enemies.bats;
-                }
-                // Set origin for bat AI
-                newEnemy.originX = x;
-                newEnemy.originY = y;
-                break;
-            case 'patroller':
-            case 'groundpatroller':
-                newEnemy = deepCopy(GROUND_PATROLLER_PROTOTYPE);
-                targetArray = this.enemies.groundPatrollers;
-                 if (!targetArray) {
-                     this.enemies.groundPatrollers = [];
-                     targetArray = this.enemies.groundPatrollers;
-                 }
-                 // Try to find a platform below the spawn point for the patroller
-                 let foundPlatform = null;
-                 let checkY = y + newEnemy.height; // Start check below the intended spawn
-                 for (const plat of this.platforms) {
-                     if (x + newEnemy.width > plat.x && x < plat.x + plat.width && checkY >= plat.y && checkY < plat.y + 50) { // Check within 50px below
-                         foundPlatform = plat;
-                         break;
-                     }
-                 }
-                 if (foundPlatform) {
-                     y = foundPlatform.y - newEnemy.height; // Place on top of platform
-                     newEnemy.onPlatform = foundPlatform; // Assign platform reference
-                 } else {
-                     console.warn("Could not find suitable platform for Ground Patroller spawn.");
-                     // Spawn anyway, might fall
-                 }
-                break;
-            // Add cases for 'snake', 'giantbatboss' later
-            default:
-                console.warn(`devSpawnEnemy: Unknown enemy type "${enemyType}"`);
-                return;
-        }
-
-        if (newEnemy && targetArray) {
-            newEnemy.x = x;
-            newEnemy.y = y;
-            targetArray.push(newEnemy);
-            console.log(`Spawned ${enemyType} at (${x.toFixed(0)}, ${y.toFixed(0)})`);
-        }
-    }; // End of devSpawnEnemy method (Added semicolon)
-
-    /**
-     * Removes all enemies currently in the scene.
-     * Used by developer mode keybinds.
-     */
-    devKillAllEnemies() {
-        if (!this.enemies) {
-            console.warn("devKillAllEnemies: Enemy lists not initialized!");
-            return;
-        }
-        // Clear all enemy type arrays
-        Object.keys(this.enemies).forEach(key => {
-            if (Array.isArray(this.enemies[key])) {
-                this.enemies[key] = [];
-            }
-        });
-        console.log("All enemies removed via dev command.");
-    }; // End of devKillAllEnemies method (Added semicolon)
-
-    /**
-     * Creates and launches a fireball projectile.
-     * @param {number} startX - Initial X position (usually player's position).
-     * @param {number} startY - Initial Y position (usually player's position).
-     * @param {number} playerWidth - Width of the player (for offset).
-     * @param {number} playerHeight - Height of the player (for offset).
-     * @param {string} direction - 'left' or 'right'.
-     */
-    launchFireball(startX, startY, playerWidth, playerHeight, direction) {
-        if (!this.player) return; // Need player reference
-
-        const fireball = deepCopy(C.FIREBALL_PROTOTYPE);
-        fireball.active = true;
-
-        // Calculate starting position slightly in front of the player
-        const offsetX = direction === 'right' ? playerWidth + 5 : -fireball.radius * 2 - 5;
-        fireball.x = startX + offsetX;
-        fireball.y = startY + playerHeight / 2 - fireball.radius; // Center vertically
-
-        // Set velocity based on direction
-        fireball.vx = direction === 'right' ? C.FIREBALL_SPEED : -C.FIREBALL_SPEED;
-        fireball.vy = 0; // Fire straight horizontally for now
-
-        this.fireballs.push(fireball);
-
-        // Play fireball sound effect (if AudioManager exists)
-        if (this.game && this.game.audioManager) {
-            // TODO: Add a specific fireball sound effect to AudioManager and trigger it here
-            // this.game.audioManager.playSound('fireball_launch');
-        }
-
-        // Trigger casting animation (if not already casting)
-        if (this.player.animationState !== 'casting' && C.STICK_FIGURE.poses.casting) {
-            this.player.animationState = 'casting';
-            this.player.animationFrameIndex = 0;
-            this.player.animationTimer = 0;
-            // Add a timer to return to idle/falling after casting?
-            // setTimeout(() => {
-            //     if (this.player.animationState === 'casting') {
-            //         this.updateAnimationState(); // Re-evaluate state after cast
-            //     }
-            // }, 300); // Adjust duration as needed
-        }
-
-        console.log(`Launched fireball at (${fireball.x.toFixed(0)}, ${fireball.y.toFixed(0)})`);
-    }
-
-    drawTestParticles(ctx) {
-        ctx.save();
-        for (let i = 0; i < this.testParticles.length; i++) {
-            const p = this.testParticles[i];
-            if (p.life <= 0) continue;
-            ctx.globalAlpha = p.life;
-            ctx.fillStyle = p.color;
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-            ctx.fill();
-        }
-        ctx.restore();
-    }
-} // End of GameplayScene class
+        for (

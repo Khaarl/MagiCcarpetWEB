@@ -29,6 +29,17 @@ class Logger {
     static setCategory(category, enabled) {
         this.enabledCategories[category] = enabled;
     }
+    
+    /**
+     * Enable detailed debug logging (for development/troubleshooting)
+     * @param {boolean} enabled - Whether to enable detailed debug logs
+     */
+    static setDebugMode(enabled) {
+        // Enable/disable verbose categories based on debug mode
+        this.enabledCategories.gameLoop = enabled;
+        
+        console.log(`Debug logging ${enabled ? 'enabled' : 'disabled'}`);
+    }
 }
 
 export default Logger;

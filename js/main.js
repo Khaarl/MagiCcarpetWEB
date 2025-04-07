@@ -1,7 +1,12 @@
 // magic-carpet-game/js/main.js
+alert("DEBUG: main.js is loading");
+console.log("[DEBUG] Starting main.js execution");
 
 import { Game } from './core/game.js';
+console.log("[DEBUG] Game import result:", Game ? "Success" : "Failed");
+
 import { GameplayScene } from './scenes/gameplayScene.js';
+console.log("[DEBUG] GameplayScene import result:", GameplayScene ? "Success" : "Failed");
 import { TitleScene } from './scenes/titleScene.js';
 import { TestModeMenuScene } from './scenes/testModeMenuScene.js'; // Import the new scene
 import * as C from './config.js'; // Import constants for canvas dimensions
@@ -15,6 +20,7 @@ const startTestModeBtn = document.getElementById('startTestModeBtn');
 
 // --- Global Game Instance ---
 let game;
+console.log("[DEBUG] Global game variable declared");
 
 // --- Startup Self-Test ---
 /**
@@ -77,7 +83,10 @@ function runStartupTests() {
  * Throws errors if critical elements are missing.
  */
 function initializeGame() {
-    console.log("Initializing Game...");
+    console.log("[DEBUG] initializeGame() called");
+    console.log("[DEBUG] Canvas element:", canvas);
+    console.log("[DEBUG] Audio overlay:", audioOverlay);
+    console.log("[DEBUG] Start buttons:", startGameBtn, startTestModeBtn);
     if (!canvas) {
         throw new Error("Canvas element #gameCanvas not found!");
     }
@@ -92,8 +101,18 @@ function initializeGame() {
     console.log(`Canvas dimensions set to ${canvas.width}x${canvas.height}`);
 
     // Create the main game controller
-    game = new Game(canvas);
-    console.log("Game instance created.");
+    console.log("[DEBUG] Attempting to create Game instance");
+    try {
+        game = new Game(canvas);
+        console.log("[DEBUG] Game instance created successfully:", game);
+        console.log("[DEBUG] Game instance methods:",
+            "start:", typeof game.start,
+            "setScene:", typeof game.setScene,
+            "addScene:", typeof game.addScene);
+    } catch (e) {
+        console.error("[DEBUG] Game instantiation failed:", e);
+        throw e;
+    }
 
     // Add different game states/screens
     game.addScene('title', new TitleScene());
